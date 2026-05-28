@@ -1,0 +1,22 @@
+{
+  "name": "level-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LEVEL Group — аналитическая платформа для скоринга городов, участков и финансового моделирования жилых проектов",
+  "scripts": {
+    "example": "tsx src/engine/finance/example.ts",
+    "scores": "tsx scripts/compute-scores.ts",
+    "fetch-cbr": "tsx scripts/fetch-cbr.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bundle": "esbuild src/engine/index.ts --bundle --format=esm --outfile=ui/engine.js --target=es2020 --loader:.json=json",
+    "ui": "npm run fetch-cbr && npm run bundle && npx --yes serve ui -l 3000"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.6"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "source": "fallback (cbr.ru недоступен)",
+  "fetchedAt": "2026-05-15T12:46:44.917Z",
+  "keyRate": {
+    "currentPct": 14.5,
+    "effectiveSince": "2026-04-27",
+    "history12mo": [
+      {
+        "date": "2025-06-06",
+        "ratePct": 20
+      },
+      {
+        "date": "2025-07-25",
+        "ratePct": 18
+      },
+      {
+        "date": "2025-09-12",
+        "ratePct": 17
+      },
+      {
+        "date": "2025-10-24",
+        "ratePct": 16.5
+      },
+      {
+        "date": "2025-12-19",
+        "ratePct": 16
+      },
+      {
+        "date": "2026-02-16",
+        "ratePct": 15.5
+      },
+      {
+        "date": "2026-04-27",
+        "ratePct": 14.5
+      }
+    ]
+  },
+  "inflation": {
+    "yoyPct": 5.9,
+    "asOf": "2026-04",
+    "target": 4
+  },
+  "mortgage": {
+    "marketRatePct": 18.5,
+    "preferentialRatePct": 6,
+    "note": "Среднерыночная и семейная ипотека по итогам Q1 2026"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run bundle",
+  "outputDirectory": "ui",
+  "installCommand": "npm install"
+}
