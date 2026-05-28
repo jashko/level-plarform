@@ -3,11 +3,73 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LEVEL Platform — карточка проекта</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>LEVEL Platform</title>
+
+  <!-- Premium fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #07080B;
+      --surface:       #0F1116;
+      --surface-raise: #161A22;
+      --surface-hover: #1C2028;
+      --border:        rgba(255,255,255,0.07);
+      --border-gold:   rgba(201,169,110,0.28);
+      --gold:          #C9A96E;
+      --gold-dim:      rgba(201,169,110,0.10);
+      --gold-bright:   #E2C98A;
+      --text:          #EDECEA;
+      --text-sub:      #7A7C86;
+      --text-muted:    #3E4050;
+      --green:         #5BBF8A;
+      --orange:        #E8924A;
+      --yellow:        #D4B84A;
+      --red:           #D45B5B;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
     .tabular-nums { font-variant-numeric: tabular-nums; }
+
+    /* Spinner */
+    @keyframes l-spin { to { transform: rotate(360deg); } }
+    .l-spin { animation: l-spin 0.9s linear infinite; }
+
+    /* Table row hover */
+    .l-row { transition: background 0.1s ease; }
+    .l-row:hover { background: rgba(255,255,255,0.022) !important; }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #1E2029; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2A2D38; }
+
+    /* Hide number input arrows */
+    input[type=number] { -moz-appearance: textfield; }
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    /* Input focus */
+    .l-input:focus {
+      outline: none;
+      border-color: rgba(201,169,110,0.45) !important;
+      box-shadow: 0 0 0 3px rgba(201,169,110,0.07);
+    }
+
+    /* Recharts label text */
+    .recharts-text { font-family: 'Inter', sans-serif; }
+    .recharts-legend-item-text { color: var(--text-sub) !important; font-size: 11px !important; }
   </style>
 </head>
 <body>
