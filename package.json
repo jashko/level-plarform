@@ -10,7 +10,7 @@
     "fetch-cbr": "tsx scripts/fetch-cbr.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "bundle": "esbuild src/engine/index.ts --bundle --format=esm --outfile=ui/engine.js --target=es2020 --loader:.json=json",
+    "bundle": "esbuild src/engine/index.ts --bundle --format=esm --outfile=ui/engine.js --target=es2020 --loader:.json=json && esbuild src/app.js --bundle --format=esm --outfile=ui/app.js --target=es2020 --loader:.json=json --define:process.env.NODE_ENV=\\\"production\\\" --minify --platform=browser",
     "ui": "npm run fetch-cbr && npm run bundle && npx --yes serve ui -l 3000"
   },
   "devDependencies": {
@@ -18,5 +18,10 @@
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
     "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "recharts": "^3.8.1"
   }
 }
