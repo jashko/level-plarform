@@ -9,6 +9,7 @@ import {
   LineChart, Line, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, Cell,
+  ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
 import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore } from './engine/index.ts';
@@ -422,6 +423,119 @@ function CityRow({ rank, city, onClick }) {
   );
 }
 
+function CityQuadrant({ cities, onCityClick }) {
+  // Axes: X = CityScore, Y = businessClassPricePerM2
+  // Quadrant split: X=65 (above avg score), Y=median price
+  const prices = cities.map((c) => c.inputs.housing.businessClassPricePerM2);
+  const medianPrice = [...prices].sort((a, b) => a - b)[Math.floor(prices.length / 2)];
+  const SCORE_SPLIT = 65;
+
+  const data = cities.map((c) => ({
+    x: c.cityScore,
+    y: c.inputs.housing.businessClassPricePerM2 / 1000, // тыс ₽
+    z: Math.sqrt(c.inputs.demography.populationThousands) * 1.4, // размер точки ~ население
+    name: c.name,
+    key: c.key,
+    zone: c.zone,
+  }));
+
+  const QUADRANT_LABELS = [
+    { x: 82, y: medianPrice / 1000 + 25, text: 'Дорого & перспективно',  anchor: 'middle', color: T.textMuted },
+    { x: 45, y: medianPrice / 1000 + 25, text: 'Дорого & рискованно',    anchor: 'middle', color: T.textMuted },
+    { x: 82, y: medianPrice / 1000 - 25, text: '★ Лучший вход',          anchor: 'middle', color: T.gold },
+    { x: 45, y: medianPrice / 1000 - 25, text: 'Слабый рынок',           anchor: 'middle', color: T.textMuted },
+  ];
+
+  const CustomDot = (props) => {
+    const { cx, cy, payload } = props;
+    const z = ZONE[payload.zone];
+    const r = Math.max(6, Math.min(22, payload.z));
+    return React.createElement('g', { key: payload.key, onClick: () => onCityClick(payload.key), style: { cursor: 'pointer' } },
+      React.createElement('circle', { cx, cy, r: r + 5, fill: z.fg, opacity: 0.08 }),
+      React.createElement('circle', { cx, cy, r, fill: z.fg, opacity: 0.85, stroke: z.fg, strokeWidth: 1 }),
+      React.createElement('text', {
+        x: cx, y: cy - r - 5,
+        textAnchor: 'middle', fontSize: 10, fill: T.textSub,
+        style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif' },
+      }, payload.name),
+    );
+  };
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
+    const z = ZONE[d.zone];
+    return React.createElement('div', {
+      style: {
+        background: T.surfaceRaise, border: `1px solid ${T.border}`,
+        borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'Inter, sans-serif',
+      },
+    },
+      React.createElement('div', { style: { fontWeight: 600, color: z.fg, marginBottom: 4 } }, d.name),
+      React.createElement('div', { style: { color: T.textSub } }, `CityScore: ${d.x.toFixed(1)}`),
+      React.createElement('div', { style: { color: T.gold } }, `Цена м² БК: ${Math.round(d.y)} тыс ₽`),
+    );
+  };
+
+  return React.createElement(
+    'div',
+    { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
+    // header
+    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 } },
+      React.createElement('div', null,
+        React.createElement(Label, null, 'Квадрант городов'),
+        React.createElement('div', { style: { fontSize: 12, color: T.textMuted, marginTop: 4 } },
+          'CityScore vs цена м² бизнес-класс · размер = население · нажмите на точку'),
+      ),
+      React.createElement('div', { style: { display: 'flex', gap: 14 } },
+        Object.entries(ZONE).map(([k, z]) =>
+          React.createElement('div', { key: k, style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.textMuted } },
+            React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: z.fg } }),
+            z.label,
+          ),
+        ),
+      ),
+    ),
+    React.createElement(
+      ResponsiveContainer,
+      { width: '100%', height: 340 },
+      React.createElement(
+        ScatterChart,
+        { margin: { top: 20, right: 30, bottom: 20, left: 10 } },
+        React.createElement(CartesianGrid, CHART_GRID),
+        React.createElement(XAxis, {
+          type: 'number', dataKey: 'x', name: 'CityScore',
+          domain: [30, 100], tick: CHART_TICK,
+          label: { value: 'CityScore', position: 'insideBottom', offset: -10, fill: T.textMuted, fontSize: 11 },
+        }),
+        React.createElement(YAxis, {
+          type: 'number', dataKey: 'y', name: 'Цена м²',
+          tick: CHART_TICK,
+          label: { value: 'тыс ₽/м²', angle: -90, position: 'insideLeft', offset: 10, fill: T.textMuted, fontSize: 11 },
+        }),
+        React.createElement(ZAxis, { type: 'number', dataKey: 'z', range: [40, 500] }),
+        React.createElement(Tooltip, { content: React.createElement(CustomTooltip) }),
+        // Quadrant dividers
+        React.createElement(ReferenceLine, { x: SCORE_SPLIT, stroke: T.gold, strokeDasharray: '6 4', strokeWidth: 1, strokeOpacity: 0.35 }),
+        React.createElement(ReferenceLine, { y: medianPrice / 1000, stroke: T.gold, strokeDasharray: '6 4', strokeWidth: 1, strokeOpacity: 0.35 }),
+        // Quadrant labels
+        ...QUADRANT_LABELS.map((ql, i) =>
+          React.createElement(ReferenceLine, {
+            key: i, x: ql.x, stroke: 'none',
+            label: { value: ql.text, position: 'insideTop', fill: ql.color, fontSize: 10, fontFamily: 'Inter, sans-serif' },
+          }),
+        ),
+        // Data
+        React.createElement(
+          Scatter,
+          { data, shape: React.createElement(CustomDot) },
+        ),
+      ),
+    ),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter, setZoneFilter] = useState('all');
   const filteredCities = zoneFilter === 'all'
@@ -445,6 +559,7 @@ function MainScreen({ ranking, onCityClick }) {
     { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
+    React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
     React.createElement(
       'div',
       { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' } },
