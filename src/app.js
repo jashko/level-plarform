@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, Legend, ReferenceLine, Cell,
 } from 'recharts';
 
-import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking } from './engine/index.ts';
+import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore } from './engine/index.ts';
 
 // ── Design tokens ─────────────────────────────────────────────────
 const T = {
@@ -85,6 +85,65 @@ const Label = ({ children, style }) =>
       ...style,
     },
   }, children);
+
+
+// ── Checkbox field ────────────────────────────────────────────────
+function CheckboxField({ label, checked, onChange, sub }) {
+  return React.createElement('label', {
+    style: { display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' },
+  },
+    React.createElement('input', {
+      type: 'checkbox',
+      checked,
+      onChange: (e) => onChange(e.target.checked),
+      style: { marginTop: 2, accentColor: T.gold, flexShrink: 0, width: 14, height: 14 },
+    }),
+    React.createElement('div', null,
+      React.createElement('span', { style: { fontSize: 12, color: T.text } }, label),
+      sub && React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 2 } }, sub),
+    ),
+  );
+}
+
+// ── Select field ──────────────────────────────────────────────────
+function SelectField({ label, value, options, onChange }) {
+  return React.createElement('label', { style: { display: 'block' } },
+    React.createElement('span', {
+      style: { fontSize: 11, color: T.textSub, letterSpacing: '0.03em', display: 'block', marginBottom: 5, fontFamily: 'Inter, sans-serif' },
+    }, label),
+    React.createElement('select', {
+      value,
+      onChange: (e) => onChange(e.target.value),
+      style: {
+        width: '100%', padding: '7px 10px', fontSize: 13,
+        background: T.bg, border: `1px solid rgba(255,255,255,0.08)`,
+        borderRadius: 6, color: T.text, fontFamily: 'Inter, sans-serif',
+      },
+    },
+      options.map((o) => React.createElement('option', { key: o.value, value: o.value }, o.label)),
+    ),
+  );
+}
+
+// ── Score progress bar ────────────────────────────────────────────
+function ScoreBar({ label, score }) {
+  const color = score >= 70 ? T.green : score >= 45 ? T.yellow : T.red;
+  return React.createElement('div', { style: { marginBottom: 12 } },
+    React.createElement('div', {
+      style: { display: 'flex', justifyContent: 'space-between', marginBottom: 5 },
+    },
+      React.createElement('span', { style: { fontSize: 11, color: T.textSub } }, label),
+      React.createElement('span', {
+        style: { fontSize: 13, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' },
+      }, score.toFixed(0)),
+    ),
+    React.createElement('div', { style: { height: 3, borderRadius: 2, background: T.surfaceRaise } },
+      React.createElement('div', {
+        style: { height: '100%', borderRadius: 2, background: color, width: `${score}%`, transition: 'width 0.3s ease' },
+      }),
+    ),
+  );
+}
 
 
 // ═════════════════════════════════════════════════════════════════
@@ -502,7 +561,7 @@ function MetricCard({ label, value, sub, accent, gold }) {
   );
 }
 
-function CityDetailScreen({ city, onBack, onGotoFinance }) {
+function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
   const z = ZONE[city.zone];
   const radarData = [
     { name: 'Демография',    score: city.breakdown.demographyScore },
@@ -689,6 +748,60 @@ function CityDetailScreen({ city, onBack, onGotoFinance }) {
       ),
     ),
 
+    // ── District CTA ────────────────────────────────────────────
+    React.createElement(
+      'div',
+      {
+        style: {
+          background: 'rgba(91,191,138,0.04)',
+          border: `1px solid rgba(91,191,138,0.18)`,
+          borderRadius: 12,
+          padding: '24px 32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 20,
+        },
+      },
+      React.createElement(
+        'div',
+        null,
+        React.createElement('div', {
+          style: {
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 22,
+            fontWeight: 600,
+            color: T.text,
+            marginBottom: 6,
+            letterSpacing: '0.02em',
+          },
+        }, 'Оценить район для застройки'),
+        React.createElement('div', {
+          style: { fontSize: 13, color: T.textSub },
+        }, 'Скоринг района: доступность, среда, локальный рынок и совпадение сегмента'),
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => onGotoDistrict(city),
+          style: {
+            padding: '13px 28px',
+            background: 'transparent',
+            color: T.green,
+            border: `1px solid rgba(91,191,138,0.4)`,
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            letterSpacing: '0.04em',
+            fontFamily: 'Inter, sans-serif',
+          },
+        },
+        'Скоринг района →',
+      ),
+    ),
+
     // ── Finance CTA ────────────────────────────────────────────
     React.createElement(
       'div',
@@ -760,7 +873,375 @@ function CityDetailScreen({ city, onBack, onGotoFinance }) {
 
 
 // ═════════════════════════════════════════════════════════════════
-// ЭКРАН 3 — ФИНАНСОВАЯ МОДЕЛЬ
+// ЭКРАН 3 — СКОРИНГ РАЙОНА
+// ═════════════════════════════════════════════════════════════════
+
+function DistrictScreen({ city, onBack, onGotoSite }) {
+  const [inputs, setInputs] = useState({
+    name: 'Район',
+    cityName: city.name,
+    travelTimeToCenterMin: 20,
+    hasMetro: false,
+    socialFacilitiesPer1000: 1.5,
+    hasParksOrWaterfront: false,
+    walkabilityIndex: 50,
+    localPricePerM2: city.inputs.housing.businessClassPricePerM2,
+    localPriceGrowthYoY: city.inputs.housing.priceGrowthYoY,
+    directCompetitorsCount: 3,
+    segmentAlignment: 0.7,
+  });
+
+  const set = (key) => (v) => setInputs((prev) => ({ ...prev, [key]: v }));
+
+  const result = useMemo(
+    () => calculateDistrictScore(inputs, { cityAvgPricePerM2: city.inputs.housing.businessClassPricePerM2 }),
+    [inputs, city],
+  );
+
+  const z = ZONE[result.zone];
+
+  return React.createElement(
+    'div',
+    { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+
+    // ── Header ───────────────────────────────────────────────
+    React.createElement(
+      'div',
+      { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 28px' } },
+      React.createElement('button', {
+        onClick: onBack,
+        style: { fontSize: 12, color: T.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 12, fontFamily: 'Inter, sans-serif' },
+      }, `← К городу ${city.name}`),
+      React.createElement('h1', {
+        style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: T.text, letterSpacing: '0.02em' },
+      }, `Скоринг района — ${city.name}`),
+      React.createElement('div', { style: { fontSize: 13, color: T.textMuted, marginTop: 6 } },
+        'Уровень 3: оцените инвестиционную привлекательность конкретного района',
+      ),
+    ),
+
+    // ── Inputs + Results ─────────────────────────────────────
+    React.createElement(
+      'div',
+      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+
+      // Left: inputs
+      React.createElement(
+        'div',
+        { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
+        React.createElement(Label, { style: { marginBottom: 16 } }, 'Параметры района'),
+        React.createElement(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+          React.createElement(InputField, { label: 'Время до центра, мин', value: inputs.travelTimeToCenterMin, step: 5, min: 0, max: 90, onChange: set('travelTimeToCenterMin') }),
+          React.createElement(InputField, { label: 'Социнфраструктура на 1 000 жит.', value: inputs.socialFacilitiesPer1000, step: 0.5, min: 0, max: 10, onChange: set('socialFacilitiesPer1000') }),
+          React.createElement(InputField, { label: 'Walkability (0–100)', value: inputs.walkabilityIndex, step: 5, min: 0, max: 100, onChange: set('walkabilityIndex') }),
+          React.createElement(InputField, { label: 'Локальная цена м², ₽', value: inputs.localPricePerM2, step: 10000, min: 0, onChange: set('localPricePerM2') }),
+          React.createElement(InputField, { label: 'Рост цены YoY, %', value: inputs.localPriceGrowthYoY, step: 1, onChange: set('localPriceGrowthYoY') }),
+          React.createElement(InputField, { label: 'Прямые конкуренты, шт', value: inputs.directCompetitorsCount, step: 1, min: 0, onChange: set('directCompetitorsCount') }),
+          React.createElement(InputField, { label: 'Совпадение сегмента (0–1)', value: inputs.segmentAlignment, step: 0.1, min: 0, max: 1, onChange: set('segmentAlignment') }),
+          React.createElement('div', { style: { marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 } },
+            React.createElement(CheckboxField, { label: 'Есть метро / МЦД / трамвай', checked: inputs.hasMetro, onChange: set('hasMetro') }),
+            React.createElement(CheckboxField, { label: 'Парки или набережная рядом', checked: inputs.hasParksOrWaterfront, onChange: set('hasParksOrWaterfront') }),
+          ),
+        ),
+      ),
+
+      // Right: results
+      React.createElement(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+        // Big score
+        React.createElement(
+          'div',
+          {
+            style: {
+              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
+              padding: '28px 24px', textAlign: 'center',
+            },
+          },
+          React.createElement(Label, { style: { marginBottom: 12 } }, 'DistrictScore'),
+          React.createElement('div', {
+            style: {
+              fontSize: 80, fontWeight: 700, color: z.fg,
+              fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.03em',
+            },
+          }, result.districtScore.toFixed(1)),
+          React.createElement('div', {
+            style: {
+              display: 'inline-block', marginTop: 14, padding: '6px 20px', borderRadius: 20,
+              background: z.bg, border: `1px solid ${z.fg}30`,
+              fontSize: 11, color: z.fg, letterSpacing: '0.1em', textTransform: 'uppercase',
+            },
+          }, z.label + ' зона'),
+        ),
+        // Sub-scores
+        React.createElement(
+          'div',
+          { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
+          React.createElement(Label, { style: { marginBottom: 14 } }, 'Подскоры'),
+          React.createElement(ScoreBar, { label: 'Доступность',          score: result.breakdown.accessScore }),
+          React.createElement(ScoreBar, { label: 'Социнфраструктура',    score: result.breakdown.socialInfraScore }),
+          React.createElement(ScoreBar, { label: 'Качество среды',       score: result.breakdown.urbanQualityScore }),
+          React.createElement(ScoreBar, { label: 'Локальный рынок',      score: result.breakdown.localMarketScore }),
+          React.createElement(ScoreBar, { label: 'Совпадение сегмента',  score: result.breakdown.alignmentScore }),
+        ),
+      ),
+    ),
+
+    // ── CTA → Site ───────────────────────────────────────────
+    React.createElement(
+      'div',
+      {
+        style: {
+          background: 'rgba(91,191,138,0.04)',
+          border: '1px solid rgba(91,191,138,0.18)',
+          borderRadius: 12, padding: '24px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
+        },
+      },
+      React.createElement(
+        'div',
+        null,
+        React.createElement('div', {
+          style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 6 },
+        }, 'Перейти к скорингу участка'),
+        React.createElement('div', { style: { fontSize: 13, color: T.textSub } },
+          `DistrictScore ${result.districtScore.toFixed(1)} учтётся при расчёте вероятности успеха`),
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => onGotoSite(result, inputs),
+          style: {
+            padding: '13px 28px', background: T.green, color: '#07080B',
+            border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'Inter, sans-serif',
+          },
+        },
+        'Скоринг участка →',
+      ),
+    ),
+  );
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+// ЭКРАН 4 — СКОРИНГ УЧАСТКА
+// ═════════════════════════════════════════════════════════════════
+
+function SiteScreen({ city, districtResult, districtInputs, onBack, onGotoFinance }) {
+  const [inputs, setInputs] = useState({
+    name: 'Участок',
+    districtName: districtResult?.districtName ?? 'Район',
+    areaHa: 2.5,
+    ownershipStatus: 'clean',
+    hasLegalDisputes: false,
+    electricityCapacityMw: 2.0,
+    electricityRequiredMw: 1.5,
+    distanceToUtilitiesMeters: 200,
+    hasPowerLineRestriction: false,
+    hasSanitaryZoneRestriction: false,
+    hasProtectedAreaRestriction: false,
+    distanceToMetroMeters: districtInputs?.hasMetro ? 400 : 2500,
+    distanceToSchoolMeters: 500,
+    distanceToParkMeters: districtInputs?.hasParksOrWaterfront ? 250 : 1200,
+    hasViewAdvantage: false,
+    expectedRevenue: city ? city.inputs.housing.businessClassPricePerM2 * 2.5 * 20000 * 0.8 : 2_500_000_000,
+    expectedCapex:   city ? city.inputs.housing.businessClassPricePerM2 * 2.5 * 20000 * 0.8 * 0.65 : 1_600_000_000,
+    directCompetitorsNearby: 2,
+  });
+
+  const set = (key) => (v) => setInputs((prev) => ({ ...prev, [key]: v }));
+
+  const result = useMemo(() => calculateSiteScore(inputs), [inputs]);
+
+  const z = ZONE[result.zone];
+
+  const DECISION = {
+    'go':      { label: 'GO',      emoji: '✓', color: T.green,  bg: 'rgba(91,191,138,0.09)',   border: 'rgba(91,191,138,0.28)' },
+    'soft-go': { label: 'SOFT-GO', emoji: '⚡', color: T.yellow, bg: 'rgba(212,184,74,0.09)',  border: 'rgba(212,184,74,0.28)' },
+    'no-go':   { label: 'NO-GO',   emoji: '✕', color: T.red,    bg: 'rgba(212,91,91,0.09)',   border: 'rgba(212,91,91,0.28)' },
+  };
+  const dec = DECISION[result.decision];
+
+  return React.createElement(
+    'div',
+    { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+
+    // ── Header ───────────────────────────────────────────────
+    React.createElement(
+      'div',
+      { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 28px' } },
+      React.createElement('button', {
+        onClick: onBack,
+        style: { fontSize: 12, color: T.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 12, fontFamily: 'Inter, sans-serif' },
+      }, `← К скорингу района`),
+      React.createElement('h1', {
+        style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: T.text },
+      }, `Скоринг участка — ${city?.name ?? ''}`),
+      React.createElement('div', { style: { fontSize: 13, color: T.textMuted, marginTop: 6 } },
+        'Уровень 4: юридика, технология, окружение, рынок и черновая финансика',
+      ),
+    ),
+
+    // ── Inputs + Results ─────────────────────────────────────
+    React.createElement(
+      'div',
+      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+
+      // Left: inputs (two columns inside)
+      React.createElement(
+        'div',
+        { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
+        React.createElement(Label, { style: { marginBottom: 16 } }, 'Параметры участка'),
+        React.createElement(
+          'div',
+          { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+          React.createElement(InputField, { label: 'Площадь, га', value: inputs.areaHa, step: 0.5, min: 0.1, onChange: set('areaHa') }),
+          React.createElement(SelectField, {
+            label: 'Право собственности',
+            value: inputs.ownershipStatus,
+            options: [{ value: 'clean', label: 'Чистое' }, { value: 'encumbered', label: 'С обременениями' }],
+            onChange: set('ownershipStatus'),
+          }),
+          React.createElement(InputField, { label: 'Электромощность доступная, МВт', value: inputs.electricityCapacityMw, step: 0.5, min: 0, onChange: set('electricityCapacityMw') }),
+          React.createElement(InputField, { label: 'Электромощность требуемая, МВт', value: inputs.electricityRequiredMw, step: 0.5, min: 0, onChange: set('electricityRequiredMw') }),
+          React.createElement(InputField, { label: 'До сетей, м', value: inputs.distanceToUtilitiesMeters, step: 100, min: 0, onChange: set('distanceToUtilitiesMeters') }),
+          React.createElement(InputField, { label: 'До метро, м', value: inputs.distanceToMetroMeters, step: 100, min: 0, onChange: set('distanceToMetroMeters') }),
+          React.createElement(InputField, { label: 'До школы, м', value: inputs.distanceToSchoolMeters, step: 100, min: 0, onChange: set('distanceToSchoolMeters') }),
+          React.createElement(InputField, { label: 'До парка, м', value: inputs.distanceToParkMeters, step: 100, min: 0, onChange: set('distanceToParkMeters') }),
+          React.createElement(InputField, { label: 'Ожидаемая выручка, ₽', value: inputs.expectedRevenue, step: 100_000_000, onChange: set('expectedRevenue') }),
+          React.createElement(InputField, { label: 'Ожидаемый CAPEX, ₽', value: inputs.expectedCapex, step: 100_000_000, onChange: set('expectedCapex') }),
+          React.createElement(InputField, { label: 'Конкуренты в 1 км, шт', value: inputs.directCompetitorsNearby, step: 1, min: 0, onChange: set('directCompetitorsNearby') }),
+        ),
+        React.createElement(
+          'div',
+          { style: { marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 } },
+          React.createElement(CheckboxField, { label: 'Видовые характеристики', checked: inputs.hasViewAdvantage, onChange: set('hasViewAdvantage') }),
+          React.createElement(CheckboxField, { label: 'Юридические споры по участку', checked: inputs.hasLegalDisputes, onChange: set('hasLegalDisputes'), sub: 'Минус 50 баллов к юридике' }),
+          React.createElement(CheckboxField, { label: 'Ограничение ЛЭП', checked: inputs.hasPowerLineRestriction, onChange: set('hasPowerLineRestriction') }),
+          React.createElement(CheckboxField, { label: 'Санитарная зона', checked: inputs.hasSanitaryZoneRestriction, onChange: set('hasSanitaryZoneRestriction') }),
+          React.createElement(CheckboxField, { label: 'Охраняемая зона', checked: inputs.hasProtectedAreaRestriction, onChange: set('hasProtectedAreaRestriction') }),
+        ),
+      ),
+
+      // Right: results
+      React.createElement(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+        // Decision badge + score
+        React.createElement(
+          'div',
+          {
+            style: {
+              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
+              padding: '28px 24px', textAlign: 'center',
+            },
+          },
+          // Decision
+          React.createElement('div', {
+            style: {
+              display: 'inline-block', padding: '8px 24px', borderRadius: 8,
+              background: dec.bg, border: `1px solid ${dec.border}`,
+              fontSize: 22, fontWeight: 800, color: dec.color,
+              letterSpacing: '0.12em', fontFamily: 'Inter, sans-serif',
+              marginBottom: 16,
+            },
+          }, `${dec.emoji} ${dec.label}`),
+          // Score
+          React.createElement(Label, { style: { marginBottom: 8 } }, 'SiteScore'),
+          React.createElement('div', {
+            style: {
+              fontSize: 72, fontWeight: 700, color: z.fg,
+              fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+              fontFamily: 'Inter, sans-serif', letterSpacing: '-0.03em',
+            },
+          }, result.siteScore.toFixed(1)),
+          React.createElement('div', {
+            style: {
+              display: 'inline-block', marginTop: 12, padding: '5px 18px', borderRadius: 20,
+              background: z.bg, border: `1px solid ${z.fg}30`,
+              fontSize: 11, color: z.fg, letterSpacing: '0.1em', textTransform: 'uppercase',
+            },
+          }, z.label + ' зона'),
+        ),
+        // Sub-scores
+        React.createElement(
+          'div',
+          { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
+          React.createElement(Label, { style: { marginBottom: 14 } }, 'Подскоры участка'),
+          React.createElement(ScoreBar, { label: 'Юридика',            score: result.breakdown.legalScore }),
+          React.createElement(ScoreBar, { label: 'Технология',         score: result.breakdown.techScore }),
+          React.createElement(ScoreBar, { label: 'Окружение',          score: result.breakdown.surroundingsScore }),
+          React.createElement(ScoreBar, { label: 'Рыночное совпадение', score: result.breakdown.marketFitScore }),
+          React.createElement(ScoreBar, { label: 'Финансика',          score: result.breakdown.rawFinancialScore }),
+        ),
+        // District score context
+        districtResult && React.createElement(
+          'div',
+          { style: { background: T.surfaceRaise, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 18px' } },
+          React.createElement(Label, { style: { marginBottom: 8 } }, 'Контекст района'),
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+            React.createElement('span', { style: { fontSize: 12, color: T.textSub } }, 'DistrictScore'),
+            React.createElement('span', { style: { fontSize: 14, fontWeight: 700, color: ZONE[districtResult.zone].fg } },
+              districtResult.districtScore.toFixed(1),
+            ),
+          ),
+        ),
+      ),
+    ),
+
+    // ── CTA → Finance ────────────────────────────────────────
+    result.decision !== 'no-go' && React.createElement(
+      'div',
+      {
+        style: {
+          background: `linear-gradient(135deg, rgba(201,169,110,0.07) 0%, rgba(201,169,110,0.02) 100%)`,
+          border: `1px solid ${T.borderGold}`,
+          borderRadius: 12, padding: '24px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
+        },
+      },
+      React.createElement(
+        'div',
+        null,
+        React.createElement('div', {
+          style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 6 },
+        }, 'Перейти к финансовой модели'),
+        React.createElement('div', { style: { fontSize: 13, color: T.textSub } },
+          `SiteScore ${result.siteScore.toFixed(1)} и DistrictScore ${districtResult ? districtResult.districtScore.toFixed(1) : '—'} войдут в расчёт P(успеха)`),
+      ),
+      React.createElement('button', {
+        onClick: () => onGotoFinance(city, districtResult, result),
+        style: {
+          padding: '13px 28px', background: T.gold, color: '#07080B',
+          border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700,
+          cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'Inter, sans-serif',
+        },
+      }, 'Открыть финмодель →'),
+    ),
+
+    result.decision === 'no-go' && React.createElement(
+      'div',
+      {
+        style: {
+          background: 'rgba(212,91,91,0.05)', border: '1px solid rgba(212,91,91,0.2)',
+          borderRadius: 12, padding: '20px 28px',
+        },
+      },
+      React.createElement('div', { style: { fontSize: 14, color: T.red, fontWeight: 600, marginBottom: 6 } },
+        '✕ NO-GO — участок не прошёл минимальный порог'),
+      React.createElement('div', { style: { fontSize: 13, color: T.textSub } },
+        'Юридика < 40 или финансика < 20 — это жёсткие блокеры. Исправьте вводные или рассмотрите другой участок.'),
+    ),
+  );
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+// ЭКРАН 5 — ФИНАНСОВАЯ МОДЕЛЬ
 // ═════════════════════════════════════════════════════════════════
 
 function KpiCard({ label, value, sub, color }) {
@@ -978,7 +1459,7 @@ function WarningsPanel({ warnings }) {
   );
 }
 
-function FinanceScreen({ city, onBack }) {
+function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const initialInputs = useMemo(() => ({
     landAreaHa: 2.5,
     allowedDensityM2PerHa: 20000,
@@ -1003,11 +1484,15 @@ function FinanceScreen({ city, onBack }) {
 
   const model = useMemo(() =>
     runFinancialModel(inputs, {
-      successProbContext: city
-        ? { cityScore: city.cityScore, districtScore: 65, siteScore: 70, redRiskCount: 0, confidenceScore: 80 }
-        : { cityScore: 70, districtScore: 65, siteScore: 70, redRiskCount: 0, confidenceScore: 80 },
+      successProbContext: {
+        cityScore:     city ? city.cityScore : 70,
+        districtScore: districtResult ? districtResult.districtScore : 65,
+        siteScore:     siteResult ? siteResult.siteScore : 70,
+        redRiskCount:  0,
+        confidenceScore: 80,
+      },
     }),
-  [inputs, city]);
+  [inputs, city, districtResult, siteResult]);
 
   const cur = model.scenarios[scenario];
   const irrColor = cur.irr === null ? T.textSub
@@ -1045,7 +1530,7 @@ function FinanceScreen({ city, onBack }) {
             cursor: 'pointer', padding: 0, marginBottom: 8, letterSpacing: '0.04em',
             fontFamily: 'Inter, sans-serif', display: 'block',
           },
-        }, city ? `← К городу ${city.name}` : '← К рейтингу'),
+        }, siteResult ? `← К участку` : city ? `← К городу ${city.name}` : '← К рейтингу'),
         React.createElement('h1', {
           style: {
             fontFamily: "'Cormorant Garamond', serif",
@@ -1187,14 +1672,37 @@ function App() {
     const city = ranking.cities.find((c) => c.key === screen.cityKey);
     content = React.createElement(CityDetailScreen, {
       city,
-      onBack:        () => setScreen({ name: 'main' }),
-      onGotoFinance: (c) => setScreen({ name: 'finance', cityKey: c.key }),
+      onBack:          () => setScreen({ name: 'main' }),
+      onGotoDistrict:  (c) => setScreen({ name: 'district', cityKey: c.key }),
+      onGotoFinance:   (c) => setScreen({ name: 'finance', cityKey: c.key }),
+    });
+  } else if (screen.name === 'district') {
+    const city = ranking.cities.find((c) => c.key === screen.cityKey);
+    content = React.createElement(DistrictScreen, {
+      city,
+      onBack:      () => setScreen({ name: 'city', cityKey: city.key }),
+      onGotoSite:  (districtResult, districtInputs) =>
+        setScreen({ name: 'site', cityKey: city.key, districtResult, districtInputs }),
+    });
+  } else if (screen.name === 'site') {
+    const city = ranking.cities.find((c) => c.key === screen.cityKey);
+    content = React.createElement(SiteScreen, {
+      city,
+      districtResult: screen.districtResult,
+      districtInputs: screen.districtInputs,
+      onBack:         () => setScreen({ name: 'district', cityKey: city.key }),
+      onGotoFinance:  (c, dResult, sResult) =>
+        setScreen({ name: 'finance', cityKey: c.key, districtResult: dResult, siteResult: sResult }),
     });
   } else if (screen.name === 'finance') {
     const city = ranking.cities.find((c) => c.key === screen.cityKey);
     content = React.createElement(FinanceScreen, {
       city,
-      onBack: () => setScreen({ name: 'city', cityKey: city.key }),
+      districtResult: screen.districtResult,
+      siteResult:     screen.siteResult,
+      onBack: screen.siteResult
+        ? () => setScreen({ name: 'site', cityKey: city.key, districtResult: screen.districtResult, districtInputs: screen.districtInputs })
+        : () => setScreen({ name: 'city', cityKey: city.key }),
     });
   }
 
