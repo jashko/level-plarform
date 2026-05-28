@@ -1574,6 +1574,282 @@ function WarningsPanel({ warnings }) {
   );
 }
 
+// ── Deal Verdict Card ─────────────────────────────────────────────
+function DealVerdictCard({ city, districtResult, siteResult, model }) {
+  const cityScore     = city            ? city.cityScore                  : 70;
+  const districtScore = districtResult  ? districtResult.districtScore    : 65;
+  const siteScore     = siteResult      ? siteResult.siteScore            : 70;
+  const baseIrr       = model.scenarios.base.irr ?? 0;
+  const finScore      = baseIrr >= 30 ? 90 : baseIrr >= 25 ? 78 : baseIrr >= 20 ? 65 : baseIrr >= 15 ? 48 : 30;
+  const overall       = Math.round(cityScore * 0.25 + districtScore * 0.25 + siteScore * 0.20 + finScore * 0.30);
+  const verdict       = overall >= 75 ? { label: 'INVEST', color: T.green,  bg: T.greenDim  }
+                      : overall >= 58 ? { label: 'WATCH',  color: T.yellow, bg: T.yellowDim }
+                      :                 { label: 'PASS',   color: T.red,    bg: T.redDim    };
+
+  const levels = [
+    { label: 'Город',   score: Math.round(cityScore) },
+    { label: 'Район',   score: Math.round(districtScore) },
+    { label: 'Участок', score: Math.round(siteScore) },
+    { label: 'Финансы', score: Math.round(finScore) },
+  ];
+
+  return React.createElement('div', {
+    style: {
+      background: T.surface,
+      border: `1px solid ${verdict.color}55`,
+      borderRadius: 12,
+      padding: '28px 32px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 44,
+      flexWrap: 'wrap',
+    },
+  },
+    // Verdict badge
+    React.createElement('div', {
+      style: {
+        background: verdict.bg,
+        border: `2px solid ${verdict.color}66`,
+        borderRadius: 14,
+        padding: '20px 48px',
+        textAlign: 'center',
+        flexShrink: 0,
+      },
+    },
+      React.createElement('div', {
+        style: { fontSize: 9, color: verdict.color, letterSpacing: '0.22em', marginBottom: 8, fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
+      }, 'Решение комитета'),
+      React.createElement('div', {
+        style: { fontSize: 40, fontWeight: 800, color: verdict.color, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', lineHeight: 1 },
+      }, verdict.label),
+    ),
+
+    // Level circular gauges
+    React.createElement('div', { style: { display: 'flex', gap: 32, flex: 1, justifyContent: 'center' } },
+      levels.map(({ label, score }) => {
+        const color = score >= 70 ? T.green : score >= 50 ? T.yellow : T.red;
+        const R = 27, C = 2 * Math.PI * R;
+        const dash = (score / 100) * C;
+        return React.createElement('div', { key: label, style: { textAlign: 'center' } },
+          React.createElement('svg', { width: 70, height: 70, viewBox: '0 0 70 70' },
+            React.createElement('circle', { cx: 35, cy: 35, r: R, fill: 'none', stroke: 'rgba(255,255,255,0.06)', strokeWidth: 5 }),
+            React.createElement('circle', {
+              cx: 35, cy: 35, r: R, fill: 'none',
+              stroke: color, strokeWidth: 5,
+              strokeDasharray: `${dash} ${C}`,
+              strokeLinecap: 'round',
+              transform: 'rotate(-90 35 35)',
+              style: { transition: 'stroke-dasharray 0.6s ease' },
+            }),
+            React.createElement('text', {
+              x: 35, y: 40,
+              textAnchor: 'middle',
+              fontSize: 15,
+              fontWeight: 700,
+              fill: color,
+              fontFamily: 'Inter, sans-serif',
+            }, score),
+          ),
+          React.createElement('div', {
+            style: { fontSize: 9, color: T.textMuted, marginTop: 5, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
+          }, label),
+        );
+      }),
+    ),
+
+    // Composite score
+    React.createElement('div', { style: { textAlign: 'center', flexShrink: 0 } },
+      React.createElement(Label, { style: { marginBottom: 10 } }, 'Composite Score'),
+      React.createElement('div', {
+        style: {
+          fontSize: 60,
+          fontWeight: 800,
+          color: verdict.color,
+          letterSpacing: '-0.04em',
+          fontVariantNumeric: 'tabular-nums',
+          fontFamily: 'Inter, sans-serif',
+          lineHeight: 1,
+        },
+      }, overall),
+      React.createElement('div', { style: { fontSize: 13, color: T.textSub, marginTop: 4, fontFamily: 'Inter, sans-serif' } }, '/ 100'),
+    ),
+  );
+}
+
+// ── Tornado Sensitivity Chart ─────────────────────────────────────
+function TornadoChart({ inputs, baseIrr, successProbContext }) {
+  const VARS = [
+    { key: 'basePricePerM2',          label: 'Цена продажи, ₽/м²',   delta: 0.15 },
+    { key: 'constructionCostPerM2',   label: 'Себестоимость стройки', delta: 0.15 },
+    { key: 'salesVelocityM2PerMonth', label: 'Темп продаж, м²/мес',  delta: 0.20 },
+    { key: 'landCost',                label: 'Стоимость земли',       delta: 0.20 },
+    { key: 'constructionMonths',      label: 'Срок строительства',    delta: 0.20 },
+    { key: 'infrastructureCost',      label: 'Инфраструктура',        delta: 0.25 },
+  ];
+
+  const rows = useMemo(() => {
+    const ctx = { successProbContext };
+    return VARS.map(({ key, label, delta }) => {
+      const upI   = { ...inputs, [key]: inputs[key] * (1 + delta) };
+      const downI = { ...inputs, [key]: inputs[key] * (1 - delta) };
+      const upIrr   = runFinancialModel(upI,   ctx).scenarios.base.irr ?? 0;
+      const downIrr = runFinancialModel(downI, ctx).scenarios.base.irr ?? 0;
+      const posIrr = Math.max(upIrr, downIrr);
+      const negIrr = Math.min(upIrr, downIrr);
+      return {
+        label,
+        posDelta: posIrr - baseIrr,
+        negDelta: negIrr - baseIrr,
+        range: posIrr - negIrr,
+      };
+    }).sort((a, b) => b.range - a.range);
+  }, [inputs, baseIrr, successProbContext]);
+
+  const maxAbs = Math.max(...rows.map(r => r.posDelta), 0.1);
+  const W = 195;
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement(Label, { style: { marginBottom: 4 } }, 'Анализ чувствительности · Tornado'),
+    React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginBottom: 22 } },
+      `Влияние ±15–25% изменения параметра на IRR. База: ${baseIrr != null ? baseIrr.toFixed(1) : '—'}%`
+    ),
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+      rows.map(({ label, posDelta, negDelta }) => {
+        const posW = (posDelta / maxAbs) * W;
+        const negW = (Math.abs(negDelta) / maxAbs) * W;
+        return React.createElement('div', { key: label },
+          React.createElement('div', { style: { fontSize: 10, color: T.textSub, marginBottom: 4, letterSpacing: '0.02em' } }, label),
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center' } },
+            // Left bar (negative effect)
+            React.createElement('div', { style: { width: W, display: 'flex', justifyContent: 'flex-end' } },
+              React.createElement('div', {
+                style: {
+                  width: negW, height: 20,
+                  background: T.red, opacity: 0.76,
+                  borderRadius: '3px 0 0 3px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                  paddingRight: 5, overflow: 'hidden',
+                  transition: 'width 0.4s ease',
+                },
+              }, negW > 38 && React.createElement('span', { style: { fontSize: 9, color: '#fff', fontWeight: 700 } }, `${negDelta.toFixed(1)}%`)),
+            ),
+            // Center spine
+            React.createElement('div', { style: { width: 1, height: 26, background: 'rgba(255,255,255,0.2)', flexShrink: 0 } }),
+            // Right bar (positive effect)
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', {
+                style: {
+                  width: posW, height: 20,
+                  background: T.green, opacity: 0.76,
+                  borderRadius: '0 3px 3px 0',
+                  display: 'flex', alignItems: 'center',
+                  paddingLeft: 5, overflow: 'hidden',
+                  transition: 'width 0.4s ease',
+                },
+              }, posW > 38 && React.createElement('span', { style: { fontSize: 9, color: '#fff', fontWeight: 700 } }, `+${posDelta.toFixed(1)}%`)),
+            ),
+          ),
+        );
+      }),
+    ),
+    React.createElement('div', { style: { display: 'flex', gap: 24, marginTop: 16, justifyContent: 'center' } },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted } },
+        React.createElement('div', { style: { width: 14, height: 3, background: T.red, opacity: 0.7, borderRadius: 2 } }),
+        'Негативный эффект',
+      ),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted } },
+        React.createElement('div', { style: { width: 14, height: 3, background: T.green, opacity: 0.7, borderRadius: 2 } }),
+        'Позитивный эффект',
+      ),
+    ),
+  );
+}
+
+// ── IRR Benchmark Card ────────────────────────────────────────────
+function IRRBenchmarkCard({ irr, npv, netMargin }) {
+  const MAX = 40;
+  const pct  = (v) => Math.min(97, Math.max(1, (v / MAX) * 100));
+  const irrColor = !irr ? T.textSub
+                 : irr >= 25 ? T.green
+                 : irr >= 15 ? T.yellow
+                 : T.red;
+  const benchmarks = [
+    { label: 'Мин. порог', value: 15, color: T.red },
+    { label: 'Ср. рынок',  value: 22, color: T.yellow },
+    { label: 'Топ-25%',    value: 30, color: T.green },
+  ];
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement(Label, { style: { marginBottom: 4 } }, 'IRR vs. отраслевые бенчмарки'),
+    React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginBottom: 32 } }, 'Бизнес-класс · Россия · 2024–25'),
+
+    // Benchmark track
+    React.createElement('div', { style: { position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, margin: '0 10px 52px' } },
+      // Gradient fill to project IRR
+      irr && React.createElement('div', {
+        style: {
+          position: 'absolute', left: 0, top: 0, height: '100%',
+          width: `${pct(irr)}%`,
+          background: `linear-gradient(90deg, rgba(212,91,91,0.35), ${irrColor}77)`,
+          borderRadius: 3,
+          transition: 'width 0.5s ease',
+        },
+      }),
+      // Benchmark ticks
+      benchmarks.map(({ label, value, color }) =>
+        React.createElement('div', { key: label, style: { position: 'absolute', left: `${pct(value)}%`, top: -3, transform: 'translateX(-50%)' } },
+          React.createElement('div', { style: { width: 2, height: 12, background: color, borderRadius: 1 } }),
+          React.createElement('div', {
+            style: { position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', whiteSpace: 'nowrap' },
+          },
+            React.createElement('div', { style: { fontSize: 11, fontWeight: 700, color } }, `${value}%`),
+            React.createElement('div', { style: { fontSize: 9, color: T.textMuted, marginTop: 1 } }, label),
+          ),
+        ),
+      ),
+      // Project IRR dot
+      irr && React.createElement('div', {
+        style: { position: 'absolute', left: `${pct(irr)}%`, top: '50%', transform: 'translate(-50%, -50%)' },
+      },
+        React.createElement('div', {
+          style: {
+            width: 16, height: 16, borderRadius: '50%',
+            background: irrColor,
+            border: `3px solid ${T.bg}`,
+            boxShadow: `0 0 12px ${irrColor}88`,
+          },
+        }),
+        React.createElement('div', {
+          style: { position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', whiteSpace: 'nowrap' },
+        },
+          React.createElement('div', { style: { fontSize: 15, fontWeight: 800, color: irrColor, fontVariantNumeric: 'tabular-nums' } }, `${irr.toFixed(1)}%`),
+          React.createElement('div', { style: { fontSize: 9, color: T.textMuted, marginTop: 1 } }, 'Проект'),
+        ),
+      ),
+    ),
+
+    // NPV + Margin stats
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+      React.createElement('div', null,
+        React.createElement(Label, { style: { marginBottom: 7 } }, 'NPV проекта'),
+        React.createElement('div', {
+          style: { fontSize: 22, fontWeight: 700, color: npv >= 0 ? T.green : T.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' },
+        }, fmtRub(npv)),
+      ),
+      React.createElement('div', null,
+        React.createElement(Label, { style: { marginBottom: 7 } }, 'Чистая маржа'),
+        React.createElement('div', {
+          style: { fontSize: 22, fontWeight: 700, color: netMargin >= 25 ? T.green : netMargin >= 15 ? T.yellow : T.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' },
+        }, fmtPct(netMargin)),
+      ),
+    ),
+  );
+}
+
 function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const initialInputs = useMemo(() => ({
     landAreaHa: 2.5,
@@ -1597,17 +1873,17 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const [scenario, setScenario] = useState('base');
   useEffect(() => { setInputs(initialInputs); }, [initialInputs]);
 
+  const successProbContext = useMemo(() => ({
+    cityScore:       city           ? city.cityScore                : 70,
+    districtScore:   districtResult ? districtResult.districtScore  : 65,
+    siteScore:       siteResult     ? siteResult.siteScore          : 70,
+    redRiskCount:    0,
+    confidenceScore: 80,
+  }), [city, districtResult, siteResult]);
+
   const model = useMemo(() =>
-    runFinancialModel(inputs, {
-      successProbContext: {
-        cityScore:     city ? city.cityScore : 70,
-        districtScore: districtResult ? districtResult.districtScore : 65,
-        siteScore:     siteResult ? siteResult.siteScore : 70,
-        redRiskCount:  0,
-        confidenceScore: 80,
-      },
-    }),
-  [inputs, city, districtResult, siteResult]);
+    runFinancialModel(inputs, { successProbContext }),
+  [inputs, successProbContext]);
 
   const cur = model.scenarios[scenario];
   const irrColor = cur.irr === null ? T.textSub
@@ -1618,6 +1894,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   return React.createElement(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+
+    // Deal Verdict Card — always first
+    React.createElement(DealVerdictCard, { city, districtResult, siteResult, model }),
 
     // header
     React.createElement(
@@ -1717,6 +1996,22 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     ),
 
     model.warnings.length > 0 && React.createElement(WarningsPanel, { warnings: model.warnings }),
+
+    // Tornado + Benchmark row
+    React.createElement(
+      'div',
+      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+      React.createElement(TornadoChart, {
+        inputs,
+        baseIrr: model.scenarios.base.irr,
+        successProbContext,
+      }),
+      React.createElement(IRRBenchmarkCard, {
+        irr:       cur.irr,
+        npv:       cur.npv,
+        netMargin: cur.netMargin,
+      }),
+    ),
   );
 }
 
