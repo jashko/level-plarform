@@ -323,13 +323,16 @@ function SelectField({ label, value, options, onChange }) {
 }
 
 // ── Score progress bar ────────────────────────────────────────────
-function ScoreBar({ label, score }) {
+function ScoreBar({ label, score, hint }) {
   const color = score >= 70 ? T.green : score >= 45 ? T.yellow : T.red;
   return React.createElement('div', { style: { marginBottom: 12 } },
     React.createElement('div', {
-      style: { display: 'flex', justifyContent: 'space-between', marginBottom: 5 },
+      style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
     },
-      React.createElement('span', { style: { fontSize: 11, color: T.textSub } }, label),
+      React.createElement('span', { style: { display: 'flex', alignItems: 'center', fontSize: 11, color: T.textSub } },
+        label,
+        hint && React.createElement(HintIcon, { id: hint }),
+      ),
       React.createElement('span', {
         style: { fontSize: 13, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' },
       }, score.toFixed(0)),
@@ -391,10 +394,10 @@ function MacroSnapshotBanner({ snapshot }) {
     React.createElement(
       'div',
       { style: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 24 } },
-      React.createElement(MacroMetric, { label: 'Ключевая ставка',  value: fmtPct(snapshot.keyRateAnnual, 2),         gold: true }),
-      React.createElement(MacroMetric, { label: 'Рыночная ипотека', value: fmtPct(snapshot.mortgageRateAnnual, 2) }),
-      React.createElement(MacroMetric, { label: 'Семейная ипотека', value: snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1) : '—' }),
-      React.createElement(MacroMetric, { label: 'MacroScore',       value: `${snapshot.macroScore.toFixed(0)} / 100`,  gold: true }),
+      React.createElement(MacroMetric, { label: 'Ключевая ставка',  value: fmtPct(snapshot.keyRateAnnual, 2),         gold: true, hint: 'keyRate' }),
+      React.createElement(MacroMetric, { label: 'Рыночная ипотека', value: fmtPct(snapshot.mortgageRateAnnual, 2),                  hint: 'mortgageRate' }),
+      React.createElement(MacroMetric, { label: 'Семейная ипотека', value: snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1) : '—', hint: 'familyMortgage' }),
+      React.createElement(MacroMetric, { label: 'MacroScore',       value: `${snapshot.macroScore.toFixed(0)} / 100`,  gold: true, hint: 'macroScore' }),
       React.createElement(MacroMetric, { label: 'Дата снимка',      value: snapshot.asOfDate }),
     ),
   );
@@ -1295,11 +1298,11 @@ function DistrictScreen({ city, onBack, onGotoSite }) {
           'div',
           { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
           React.createElement(Label, { style: { marginBottom: 14 } }, 'Подскоры'),
-          React.createElement(ScoreBar, { label: 'Доступность',          score: result.breakdown.accessScore }),
-          React.createElement(ScoreBar, { label: 'Социнфраструктура',    score: result.breakdown.socialInfraScore }),
-          React.createElement(ScoreBar, { label: 'Качество среды',       score: result.breakdown.urbanQualityScore }),
-          React.createElement(ScoreBar, { label: 'Локальный рынок',      score: result.breakdown.localMarketScore }),
-          React.createElement(ScoreBar, { label: 'Совпадение сегмента',  score: result.breakdown.alignmentScore }),
+          React.createElement(ScoreBar, { label: 'Доступность',          score: result.breakdown.accessScore,        hint: 'accessScore' }),
+          React.createElement(ScoreBar, { label: 'Социнфраструктура',    score: result.breakdown.socialInfraScore,   hint: 'socialInfraScore' }),
+          React.createElement(ScoreBar, { label: 'Качество среды',       score: result.breakdown.urbanQualityScore,  hint: 'urbanQualityScore' }),
+          React.createElement(ScoreBar, { label: 'Локальный рынок',      score: result.breakdown.localMarketScore,   hint: 'localMarketScore' }),
+          React.createElement(ScoreBar, { label: 'Совпадение сегмента',  score: result.breakdown.alignmentScore,     hint: 'alignmentScore' }),
         ),
       ),
     ),
@@ -1486,11 +1489,11 @@ function SiteScreen({ city, districtResult, districtInputs, onBack, onGotoFinanc
           'div',
           { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' } },
           React.createElement(Label, { style: { marginBottom: 14 } }, 'Подскоры участка'),
-          React.createElement(ScoreBar, { label: 'Юридика',            score: result.breakdown.legalScore }),
-          React.createElement(ScoreBar, { label: 'Технология',         score: result.breakdown.techScore }),
-          React.createElement(ScoreBar, { label: 'Окружение',          score: result.breakdown.surroundingsScore }),
-          React.createElement(ScoreBar, { label: 'Рыночное совпадение', score: result.breakdown.marketFitScore }),
-          React.createElement(ScoreBar, { label: 'Финансика',          score: result.breakdown.rawFinancialScore }),
+          React.createElement(ScoreBar, { label: 'Юридика',             score: result.breakdown.legalScore,          hint: 'legalScore' }),
+          React.createElement(ScoreBar, { label: 'Технология',          score: result.breakdown.techScore,           hint: 'techScore' }),
+          React.createElement(ScoreBar, { label: 'Окружение',           score: result.breakdown.surroundingsScore,   hint: 'surroundingsScore' }),
+          React.createElement(ScoreBar, { label: 'Рыночное совпадение', score: result.breakdown.marketFitScore,      hint: 'marketFitScore' }),
+          React.createElement(ScoreBar, { label: 'Финансика',           score: result.breakdown.rawFinancialScore,   hint: 'rawFinancialScore' }),
         ),
         // District score context
         districtResult && React.createElement(
@@ -1558,11 +1561,14 @@ function SiteScreen({ city, districtResult, districtInputs, onBack, onGotoFinanc
 // ЭКРАН 5 — ФИНАНСОВАЯ МОДЕЛЬ
 // ═════════════════════════════════════════════════════════════════
 
-function KpiCard({ label, value, sub, color }) {
+function KpiCard({ label, value, sub, color, hint }) {
   return React.createElement(
     'div',
     { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' } },
-    React.createElement(Label, { style: { marginBottom: 8 } }, label),
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 8 } },
+      React.createElement(Label, null, label),
+      hint && React.createElement(HintIcon, { id: hint }),
+    ),
     React.createElement('div', {
       style: {
         fontSize: 18,
@@ -1786,10 +1792,10 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
                       :                 { label: 'PASS',   color: T.red,    bg: T.redDim    };
 
   const levels = [
-    { label: 'Город',   score: Math.round(cityScore) },
-    { label: 'Район',   score: Math.round(districtScore) },
-    { label: 'Участок', score: Math.round(siteScore) },
-    { label: 'Финансы', score: Math.round(finScore) },
+    { label: 'Город',   score: Math.round(cityScore),     hint: 'cityScore' },
+    { label: 'Район',   score: Math.round(districtScore), hint: 'districtScore' },
+    { label: 'Участок', score: Math.round(siteScore),     hint: 'siteScore' },
+    { label: 'Финансы', score: Math.round(finScore),      hint: 'finScore' },
   ];
 
   return React.createElement('div', {
@@ -1850,15 +1856,18 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
             }, score),
           ),
           React.createElement('div', {
-            style: { fontSize: 9, color: T.textMuted, marginTop: 5, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
-          }, label),
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontSize: 9, color: T.textMuted, marginTop: 5, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
+          }, label, React.createElement(HintIcon, { id: hint })),
         );
       }),
     ),
 
     // Composite score
     React.createElement('div', { style: { textAlign: 'center', flexShrink: 0 } },
-      React.createElement(Label, { style: { marginBottom: 10 } }, 'Composite Score'),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 } },
+        React.createElement(Label, null, 'Composite Score'),
+        React.createElement(HintIcon, { id: 'compositeScore' }),
+      ),
       React.createElement('div', {
         style: {
           fontSize: 60,
@@ -2034,13 +2043,19 @@ function IRRBenchmarkCard({ irr, npv, netMargin }) {
     // NPV + Margin stats
     React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
       React.createElement('div', null,
-        React.createElement(Label, { style: { marginBottom: 7 } }, 'NPV проекта'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 7 } },
+          React.createElement(Label, null, 'NPV проекта'),
+          React.createElement(HintIcon, { id: 'npv' }),
+        ),
         React.createElement('div', {
           style: { fontSize: 22, fontWeight: 700, color: npv >= 0 ? T.green : T.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' },
         }, fmtRub(npv)),
       ),
       React.createElement('div', null,
-        React.createElement(Label, { style: { marginBottom: 7 } }, 'Чистая маржа'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 7 } },
+          React.createElement(Label, null, 'Чистая маржа'),
+          React.createElement(HintIcon, { id: 'netMargin' }),
+        ),
         React.createElement('div', {
           style: { fontSize: 22, fontWeight: 700, color: netMargin >= 25 ? T.green : netMargin >= 15 ? T.yellow : T.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' },
         }, fmtPct(netMargin)),
@@ -2168,12 +2183,12 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     React.createElement(
       'div',
       { style: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 } },
-      React.createElement(KpiCard, { label: 'Выручка',   value: fmtRub(cur.revenue.totalRevenue) }),
-      React.createElement(KpiCard, { label: 'CAPEX',     value: fmtRub(cur.capex.total) }),
-      React.createElement(KpiCard, { label: 'IRR',       value: fmtPct(cur.irr), color: irrColor }),
-      React.createElement(KpiCard, { label: 'NPV',       value: fmtRub(cur.npv), color: cur.npv >= 0 ? T.green : T.red }),
-      React.createElement(KpiCard, { label: 'P(успеха)', value: fmtPct(model.successProb, 0) }),
-      React.createElement(KpiCard, { label: 'Sell-out',  value: `${cur.sellOutMonths.toFixed(0)} мес.`, sub: `проект ${cur.totalProjectMonths} мес.` }),
+      React.createElement(KpiCard, { label: 'Выручка',   value: fmtRub(cur.revenue.totalRevenue),                              hint: 'revenue' }),
+      React.createElement(KpiCard, { label: 'CAPEX',     value: fmtRub(cur.capex.total),                                       hint: 'capex' }),
+      React.createElement(KpiCard, { label: 'IRR',       value: fmtPct(cur.irr),   color: irrColor,                            hint: 'irr' }),
+      React.createElement(KpiCard, { label: 'NPV',       value: fmtRub(cur.npv),   color: cur.npv >= 0 ? T.green : T.red,     hint: 'npv' }),
+      React.createElement(KpiCard, { label: 'P(успеха)', value: fmtPct(model.successProb, 0),                                  hint: 'successProb' }),
+      React.createElement(KpiCard, { label: 'Sell-out',  value: `${cur.sellOutMonths.toFixed(0)} мес.`, sub: `проект ${cur.totalProjectMonths} мес.`, hint: 'sellOut' }),
     ),
 
     // charts + inputs
