@@ -132,7 +132,7 @@ const HINTS = {
   },
   mortgageRate: {
     title: 'Рыночная ипотека',
-    desc: 'Средневзвешенная ставка по рыночной ипотеке на новостройки. Высокая ставка снижает платёжеспособный спрос и замедляет темп продаж бизнес-класса.',
+    desc: 'Средневзвешенная ставка по рыночной ипотеке на новостройки. Высокая ставка снижает платёжеспособный спрос и замедляет темп продаж бизнес-класса.\n\n🔄 Обновляется автоматически каждый понедельник в 10:00 МСК через GitHub Actions из открытых источников (Дом.РФ / ЦБ РФ).',
     formula: '≈ Ключевая ставка + 3–5 п.п. маржи банка',
   },
   familyMortgage: {
@@ -257,6 +257,78 @@ const HINTS = {
     desc: 'Производная оценка финансовых показателей (0–100), рассчитанная из IRR базового сценария. Нормализует IRR в единую шкалу скоров для Composite Score.',
     formula: 'IRR≥30%→90 | ≥25%→78 | ≥20%→65 | ≥15%→48 | <15%→30',
   },
+
+  // ── Метрики города ──────────────────────────────────────────────
+  population: {
+    title: 'Население города',
+    desc: 'Численность постоянного населения, тысяч человек. Города-миллионники обеспечивают достаточный объём платёжеспособного спроса для проекта бизнес-класса.',
+    formula: 'Источник: Росстат, актуализировано 2024–2025',
+  },
+  migration: {
+    title: 'Миграционный баланс',
+    desc: 'Разница между числом прибывших и убывших за год, тыс. чел. Положительный баланс — приток новых жителей и потенциальных покупателей. Отрицательный — сигнал оттока населения.',
+    formula: 'Прибывшие − Убывшие (тыс. чел/год)',
+  },
+  youngAdults: {
+    title: 'Доля 25–45 лет',
+    desc: 'Доля населения в возрасте 25–45 лет — ключевая целевая аудитория покупателей бизнес-класса: работающие, с накоплениями и карьерными перспективами.',
+    formula: 'Норма для активного рынка: ≥28–32%',
+  },
+  avgSalary: {
+    title: 'Средняя зарплата',
+    desc: 'Среднемесячная начисленная зарплата по городу. Соотношение зарплаты и цены метра определяет доступность без субсидированной ипотеки. Рост YoY — сигнал растущей покупательной способности.',
+    formula: 'Источник: Росстат / HH.ru',
+  },
+  businessClassPrice: {
+    title: 'Цена м² бизнес-класс',
+    desc: 'Средняя цена квадратного метра в новостройках бизнес-класса. Ключевой параметр для финансовой модели: определяет выручку и рентабельность проекта.',
+    formula: 'Источник: Дом.РФ, ЦИАН, NF Group',
+  },
+  absorptionRate: {
+    title: 'Запас предложения (Absorption Rate)',
+    desc: 'Число месяцев для реализации текущего объёма предложения при текущем темпе продаж.\n\n≤6 мес — дефицит (благоприятно)\n6–12 мес — норма\n12–18 мес — избыток\n>18 мес — серьёзный перегрев',
+    formula: 'Остаток предложения ÷ Темп продаж в мес',
+  },
+  developers: {
+    title: 'Количество девелоперов',
+    desc: 'Число активных застройщиков в сегменте бизнес-класса. Высокая концентрация топ-5 (>70%) сигнализирует о барьерах входа. Низкая конкуренция — возможность для нового игрока.',
+    formula: 'Топ-5 доля рынка по объёму выведенного предложения',
+  },
+  unemployment: {
+    title: 'Уровень безработицы',
+    desc: 'Официальная безработица по методологии МОТ. Низкий показатель (<4%) — признак сильного рынка труда, высокой занятости и устойчивого спроса на жильё.',
+    formula: 'Норма для бизнес-класса: ≤4%',
+  },
+  krt: {
+    title: 'КРТ-программы',
+    desc: 'Площадь территорий комплексного развития (га), доступных для девелопмента. Наличие КРТ упрощает согласование, даёт доступ к крупным участкам в сложившейся городской среде и государственной поддержке.',
+  },
+  // ── Подскоры города ─────────────────────────────────────────────
+  demographyScore: {
+    title: 'Блок «Демография»',
+    desc: 'Оценка демографического потенциала: прирост населения, миграционный баланс, доля трудоспособного населения 25–45 лет.',
+    formula: 'Вес в CityScore: 25%',
+  },
+  economyScore: {
+    title: 'Блок «Экономика»',
+    desc: 'Уровень и динамика доходов: средняя зарплата, рост YoY, безработица, ВРП на душу населения. Определяет финансовую состоятельность покупателей.',
+    formula: 'Вес в CityScore: 25%',
+  },
+  housingMarketScore: {
+    title: 'Блок «Рынок жилья»',
+    desc: 'Активность рынка первичной недвижимости: темп поглощения, объём продаж бизнес-класса, ценовой тренд, разрыв спроса и предложения.',
+    formula: 'Вес в CityScore: 30%',
+  },
+  competitionScore: {
+    title: 'Блок «Конкуренция»',
+    desc: 'Уровень конкуренции среди застройщиков: количество активных игроков, концентрация рынка, барьеры входа.',
+    formula: 'Вес в CityScore: 10%',
+  },
+  infrastructureScore: {
+    title: 'Блок «Инфраструктура»',
+    desc: 'Качество транспортной и инженерной инфраструктуры, наличие КРТ-программ, планы крупных проектов (метро, ТПУ, дороги).',
+    formula: 'Вес в CityScore: 10%',
+  },
 };
 
 // ── Small shared atoms ────────────────────────────────────────────
@@ -280,52 +352,68 @@ function HintIcon({ id, content: customContent }) {
 
   const show = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setPos({ x: r.left + r.width / 2, y: r.top });
+    setPos({ x: r.left + r.width / 2, y: r.top - 6 });
   };
+
+  const active = pos !== null;
 
   return React.createElement('span', {
     style: { display: 'inline-flex', alignItems: 'center', marginLeft: 5, verticalAlign: 'middle', position: 'relative' },
     onMouseEnter: show,
     onMouseLeave: () => setPos(null),
   },
+    // ⓘ иконка — крупнее и отчётливее
     React.createElement('span', {
       style: {
-        fontSize: 9, color: pos ? T.gold : T.textMuted,
-        border: `1px solid ${pos ? T.gold : T.textMuted}`,
-        borderRadius: '50%', width: 13, height: 13,
+        fontSize: 10,
+        color:        active ? '#E2C98A' : '#6E7585',
+        border:       `1.5px solid ${active ? '#C9A96E' : '#50586A'}`,
+        borderRadius: '50%',
+        width: 16, height: 16,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'default', userSelect: 'none', fontWeight: 700, lineHeight: 1,
-        transition: 'color 0.15s, border-color 0.15s',
+        cursor: 'help', userSelect: 'none', fontWeight: 800, lineHeight: 1,
+        background: active ? 'rgba(201,169,110,0.12)' : 'rgba(255,255,255,0.05)',
+        transition: 'all 0.15s ease',
         flexShrink: 0,
       },
     }, 'i'),
-    pos && React.createElement('div', {
+
+    // Всплывающая подсказка — светлый фон, читаемый текст
+    active && React.createElement('div', {
       style: {
-        position: 'fixed',
-        left: Math.max(10, Math.min(pos.x - 130, (typeof window !== 'undefined' ? window.innerWidth : 800) - 280)),
-        top: pos.y - 12,
+        position:  'fixed',
+        left:      Math.max(10, Math.min(pos.x - 140, (typeof window !== 'undefined' ? window.innerWidth : 800) - 300)),
+        top:       pos.y - 8,
         transform: 'translateY(-100%)',
-        background: T.surfaceRaise,
-        border: `1px solid ${T.borderGold}`,
-        borderRadius: 10,
-        padding: '13px 16px',
-        width: 260,
-        zIndex: 99999,
+        background: '#1A2235',
+        border:     '1.5px solid rgba(201,169,110,0.55)',
+        borderRadius: 12,
+        padding:   '15px 18px',
+        width:     288,
+        zIndex:    99999,
         pointerEvents: 'none',
-        boxShadow: '0 16px 48px rgba(0,0,0,0.75)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(201,169,110,0.08)',
         fontFamily: 'Inter, sans-serif',
       },
     },
-      React.createElement('div', { style: { fontSize: 12, fontWeight: 700, color: T.gold, marginBottom: 7 } }, info.title),
-      React.createElement('div', { style: { fontSize: 11, color: T.textSub, lineHeight: 1.65, whiteSpace: 'pre-line' } }, info.desc),
+      // Заголовок
+      React.createElement('div', {
+        style: { fontSize: 13, fontWeight: 700, color: '#E2C98A', marginBottom: 9, letterSpacing: '0.02em' },
+      }, info.title),
+      // Описание — яркий читаемый текст
+      React.createElement('div', {
+        style: { fontSize: 12, color: '#C8CDD8', lineHeight: 1.72, whiteSpace: 'pre-line' },
+      }, info.desc),
+      // Формула / источник
       info.formula && React.createElement('div', {
         style: {
-          fontSize: 10, color: T.textMuted, marginTop: 8,
-          padding: '5px 8px',
-          background: 'rgba(255,255,255,0.04)',
-          borderRadius: 4,
+          fontSize: 11, color: '#94A3B8', marginTop: 10,
+          padding: '6px 10px',
+          background: 'rgba(255,255,255,0.07)',
+          borderLeft: '2px solid rgba(201,169,110,0.4)',
+          borderRadius: '0 5px 5px 0',
           fontFamily: "'Courier New', monospace",
-          lineHeight: 1.5,
+          lineHeight: 1.6,
         },
       }, info.formula),
     ),
@@ -1084,13 +1172,27 @@ function MainScreen({ ranking, onCityClick }) {
               { style: { background: T.bg, borderBottom: `1px solid ${T.border}` } },
               React.createElement('th', { style: { ...thCell('left'), paddingLeft: 16 } }, '#'),
               React.createElement('th', { style: thCell('left') }, 'Город'),
-              React.createElement('th', { style: thCell('left') }, 'CityScore'),
-              React.createElement('th', { style: thCell() }, 'Демогр'),
-              React.createElement('th', { style: thCell() }, 'Эконом'),
-              React.createElement('th', { style: thCell() }, 'Жильё'),
-              React.createElement('th', { style: thCell() }, 'Конкур'),
-              React.createElement('th', { style: thCell() }, 'Инфра'),
-              React.createElement('th', { style: { ...thCell('right'), paddingRight: 16 } }, 'Цена м² БК'),
+              React.createElement('th', { style: { ...thCell('left'), whiteSpace: 'nowrap' } },
+                'CityScore', React.createElement(HintIcon, { id: 'cityScore' }),
+              ),
+              React.createElement('th', { style: thCell() },
+                'Демогр', React.createElement(HintIcon, { id: 'demographyScore' }),
+              ),
+              React.createElement('th', { style: thCell() },
+                'Эконом', React.createElement(HintIcon, { id: 'economyScore' }),
+              ),
+              React.createElement('th', { style: thCell() },
+                'Жильё', React.createElement(HintIcon, { id: 'housingMarketScore' }),
+              ),
+              React.createElement('th', { style: thCell() },
+                'Конкур', React.createElement(HintIcon, { id: 'competitionScore' }),
+              ),
+              React.createElement('th', { style: thCell() },
+                'Инфра', React.createElement(HintIcon, { id: 'infrastructureScore' }),
+              ),
+              React.createElement('th', { style: { ...thCell('right'), paddingRight: 16 } },
+                'Цена м² БК', React.createElement(HintIcon, { id: 'businessClassPrice' }),
+              ),
               React.createElement('th', { style: thCell() }),
             ),
           ),
@@ -1121,7 +1223,7 @@ function MainScreen({ ranking, onCityClick }) {
 // ЭКРАН 2 — КАРТОЧКА ГОРОДА
 // ═════════════════════════════════════════════════════════════════
 
-function MetricCard({ label, value, sub, accent, gold }) {
+function MetricCard({ label, value, sub, accent, gold, hint }) {
   const valueColor = gold
     ? T.gold
     : accent === 'good' ? T.green
@@ -1137,7 +1239,10 @@ function MetricCard({ label, value, sub, accent, gold }) {
         padding: '16px 18px',
       },
     },
-    React.createElement(Label, { style: { marginBottom: 8 } }, label),
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 8 } },
+      React.createElement(Label, null, label),
+      hint && React.createElement(HintIcon, { id: hint }),
+    ),
     React.createElement('div', {
       style: {
         fontSize: 20,
@@ -1291,29 +1396,34 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
           value: `${city.inputs.demography.populationThousands.toLocaleString('ru-RU')} тыс.`,
           sub: `${city.inputs.demography.populationTrend5yPct >= 0 ? '+' : ''}${city.inputs.demography.populationTrend5yPct.toFixed(1)}% за 5 лет`,
           accent: city.inputs.demography.populationTrend5yPct >= 0 ? 'good' : 'bad',
+          hint: 'population',
         }),
         React.createElement(MetricCard, {
           label: 'Миграция',
           value: `${city.inputs.demography.migrationBalanceThousands >= 0 ? '+' : ''}${city.inputs.demography.migrationBalanceThousands.toFixed(1)} тыс.`,
           sub: 'чел/год',
           accent: city.inputs.demography.migrationBalanceThousands >= 0 ? 'good' : 'bad',
+          hint: 'migration',
         }),
         React.createElement(MetricCard, {
           label: '25–45 лет',
           value: fmtPct(city.inputs.demography.shareAge25to45 * 100, 0),
           sub: 'доля группы',
+          hint: 'youngAdults',
         }),
         React.createElement(MetricCard, {
           label: 'Средняя зарплата',
           value: fmtRub(city.inputs.economy.avgSalary),
           sub: `+${city.inputs.economy.salaryGrowthYoY.toFixed(1)}% YoY`,
           accent: 'good',
+          hint: 'avgSalary',
         }),
         React.createElement(MetricCard, {
           label: 'Цена м² бизнес-класс',
           value: fmtRub(city.inputs.housing.businessClassPricePerM2),
           sub: `+${city.inputs.housing.priceGrowthYoY.toFixed(1)}% YoY`,
           gold: true,
+          hint: 'businessClassPrice',
         }),
         React.createElement(MetricCard, {
           label: 'Темп поглощения',
@@ -1321,23 +1431,27 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
           sub: 'запас предложения',
           accent: city.inputs.housing.monthsOfSupply <= 9 ? 'good'
                 : city.inputs.housing.monthsOfSupply >= 15 ? 'bad' : null,
+          hint: 'absorptionRate',
         }),
         React.createElement(MetricCard, {
           label: 'Девелоперов',
           value: city.inputs.competition.activeDevelopers,
           sub: `топ-5: ${fmtPct(city.inputs.competition.top5MarketShare * 100, 0)}`,
+          hint: 'developers',
         }),
         React.createElement(MetricCard, {
           label: 'Безработица',
           value: fmtPct(city.inputs.economy.unemploymentRate, 1),
           accent: city.inputs.economy.unemploymentRate <= 3 ? 'good'
                 : city.inputs.economy.unemploymentRate >= 5 ? 'bad' : null,
+          hint: 'unemployment',
         }),
         React.createElement(MetricCard, {
           label: 'КРТ-программы',
           value: `${city.inputs.infrastructure.krtProgramsHa} га`,
           sub: city.inputs.infrastructure.hasMajorInfraProjects ? '✓ крупные проекты' : '',
           accent: city.inputs.infrastructure.hasMajorInfraProjects ? 'good' : null,
+          hint: 'krt',
         }),
       ),
     ),
