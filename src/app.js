@@ -6,8 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LineChart, Line, AreaChart, Area,
-  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
+  LineChart, Line, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -113,155 +112,6 @@ const saveToHistory = (entry) => {
 const clearHistory = () => localStorage.removeItem(HISTORY_KEY);
 
 // Mock 12-month price trend derived from city's current price
-// ══════════════════════════════════════════════════════════════════
-// НОВЫЕ 7 ФИЧ: POWER FEATURES
-// ══════════════════════════════════════════════════════════════════
-
-// 1️⃣ MONTE CARLO SIMULATION (1000 сценариев)
-function runMonteCarloSimulation(model, variations = { price: 0.2, tempo: 0.3, duration: 0.15 }) {
-  const scenarios = [];
-  for (let i = 0; i < 1000; i++) {
-    const priceVar   = 1 + (Math.random() - 0.5) * 2 * variations.price;
-    const tempoVar   = 1 + (Math.random() - 0.5) * 2 * variations.tempo;
-    const durationVar = 1 + (Math.random() - 0.5) * 2 * variations.duration;
-
-    const adjPrice = model.basePricePerM2 * priceVar;
-    const adjTempo = model.salesVelocityM2PerMonth * tempoVar;
-    const adjMonths = Math.round(model.constructionMonths * durationVar);
-
-    const revenue = (model.landAreaHa * model.allowedDensityM2PerHa * (model.sellableRatio || 0.8)) * adjPrice;
-    const capex = (model.landAreaHa * model.allowedDensityM2PerHa * (model.sellableRatio || 0.8)) * model.constructionCostPerM2;
-    const grossMargin = revenue - capex - model.landCost;
-    const irr = (grossMargin / (capex + model.landCost)) * 100;
-
-    scenarios.push({ irr, npv: grossMargin, selloutMonths: Math.round((capex + model.landCost) / adjTempo / 30) });
-  }
-  return scenarios;
-}
-
-// 2️⃣ BENCHMARK vs TOP-10 (статистика по городам)
-function generateBenchmark(cities, currentCity) {
-  const scores = cities.map(c => c.cityScore).sort((a, b) => b - a);
-  const median = scores[Math.floor(scores.length / 2)];
-  const top10pct = scores[Math.floor(scores.length * 0.1)];
-  const top1pct = scores[0];
-  const current = currentCity.cityScore;
-
-  return {
-    current,
-    median,
-    top10pct,
-    top1pct,
-    percentile: Math.round((scores.filter(s => s <= current).length / scores.length) * 100),
-    distribution: scores,
-  };
-}
-
-// 3️⃣ ML INSIGHTS (корреляции)
-function generateInsights(cities) {
-  const insights = [];
-
-  // Миграция ↔ темп поглощения
-  const highMigration = cities.filter(c => c.inputs.demography.migrationBalanceThousands > 3);
-  const avgAbsorption = highMigration.reduce((s, c) => s + c.inputs.housing.monthsOfSupply, 0) / highMigration.length;
-  if (avgAbsorption < 10) {
-    insights.push({
-      title: '🎯 Миграция → Спрос',
-      desc: `Города с миграцией >+3k имеют темп поглощения ${avgAbsorption.toFixed(1)} мес (ниже нормы). Спрос растет.`,
-    });
-  }
-
-  // Зарплата ↔ цена м²
-  const correlation = cities.filter(c => c.inputs.economy.avgSalary > 70000).reduce((s, c) => s + c.inputs.housing.priceGrowthYoY, 0) /
-                      cities.filter(c => c.inputs.economy.avgSalary > 70000).length;
-  if (correlation > 6) {
-    insights.push({
-      title: '💰 Зарплата → Цена',
-      desc: `Города с зарплатой >70k показывают рост цен ${correlation.toFixed(1)}% YoY. Премиальный сегмент активен.`,
-    });
-  }
-
-  // Концентрация девелоперов
-  const highConcentration = cities.filter(c => c.inputs.competition.top5MarketShare > 0.7);
-  if (highConcentration.length > 2) {
-    insights.push({
-      title: '⚠️ Конкуренция',
-      desc: `${highConcentration.length} города с концентрацией >70% имеют барьеры входа. Рассмотри менее застроенные рынки.`,
-    });
-  }
-
-  return insights.slice(0, 3);
-}
-
-// 4️⃣ TIMELINE / WATERFALL (кэш-флоу)
-function generateTimeline(model) {
-  const timeline = [];
-  let cumulativeCash = 0;
-
-  // Фаза 1: Земля и согласования (0–3 месяца)
-  for (let m = 0; m < 3; m++) {
-    cumulativeCash -= model.landCost / 3;
-    timeline.push({ month: m + 1, phase: 'Земля', cash: -model.landCost / 3, cumulative: cumulativeCash, label: 'Согласования' });
-  }
-
-  // Фаза 2: Строительство
-  const monthlyBuild = model.constructionCostPerM2 * (model.landAreaHa * model.allowedDensityM2PerHa * 0.8) / model.constructionMonths;
-  for (let m = 0; m < model.constructionMonths; m++) {
-    cumulativeCash -= monthlyBuild;
-    timeline.push({ month: 3 + m + 1, phase: 'Строка', cash: -monthlyBuild, cumulative: cumulativeCash, label: `Этап ${Math.floor(m / (model.constructionMonths / 4)) + 1}` });
-  }
-
-  // Фаза 3: Продажи
-  const totalSellable = model.landAreaHa * model.allowedDensityM2PerHa * 0.8;
-  const monthlyRevenue = (model.salesVelocityM2PerMonth * model.basePricePerM2);
-  const selloutMonths = Math.round(totalSellable / model.salesVelocityM2PerMonth);
-  for (let m = 0; m < selloutMonths; m++) {
-    cumulativeCash += monthlyRevenue;
-    timeline.push({ month: 3 + model.constructionMonths + m + 1, phase: 'Продажи', cash: monthlyRevenue, cumulative: cumulativeCash, label: `Продано ${Math.round((m / selloutMonths) * 100)}%` });
-  }
-
-  return timeline;
-}
-
-// 5️⃣ POWERPOINT EXPORT (используем встроенный JSON + canvas trick)
-function exportToPPT(city, model, snapshot) {
-  // Простой вариант: генерируем JSON слайдов, потом клиент скачивает
-  // (полный PPTX требует библиотеки, но можно эмулировать через HTML → Print → Save as PDF)
-  const pptData = {
-    title: `${city.name} — Market Analysis`,
-    slides: [
-      {
-        title: 'Executive Summary',
-        content: `CityScore: ${city.cityScore.toFixed(0)}/100\nNPV: ${(model.npv / 1e9).toFixed(2)}B ₽\nIRR: ${model.irr.toFixed(1)}%`,
-      },
-      {
-        title: 'City Metrics',
-        content: `Population: ${city.inputs.demography.populationThousands}k\nMigration: +${city.inputs.demography.migrationBalanceThousands}k/yr\nAvg Salary: ₽${city.inputs.economy.avgSalary.toLocaleString()}`,
-      },
-      {
-        title: 'Market Opportunity',
-        content: `Price/m²: ₽${city.inputs.housing.businessClassPricePerM2.toLocaleString()}\nAbsorption: ${city.inputs.housing.monthsOfSupply} months\nGrowth: +${city.inputs.housing.priceGrowthYoY.toFixed(1)}% YoY`,
-      },
-    ],
-  };
-
-  // Скачиваем как JSON (клиент может импортировать в PowerPoint)
-  const blob = new Blob([JSON.stringify(pptData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${city.name}-analysis.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// 6️⃣ ANONYMOUS SHARE (URL с токеном)
-function generateShareURL(city) {
-  const token = btoa(JSON.stringify({ city: city.key, ts: Date.now() })).slice(0, 12);
-  const url = `${window.location.origin}?share=${token}&city=${city.key}`;
-  return { url, token };
-}
-
 const getMockTrends = (city) => {
   const base = city.inputs.housing.businessClassPricePerM2;
   const months = ['май','июн','июл','авг','сен','окт','ноя','дек','янв','фев','мар','апр'];
@@ -728,23 +578,10 @@ function MacroMetric({ label, value, gold, hint, sub }) {
 // Уральские горы (разделитель Европа/Азия)
 const URAL_LINE = [[60.5,54],[59.5,57],[58.5,60],[58.0,62],[57.5,65],[56.5,67.5],[55.0,68.2]];
 
-// Федеральные округа — центры и приблизительные границы (прямоугольники [minLng,minLat,maxLng,maxLat])
-const FEDERAL_DISTRICTS = [
-  { name: 'Центральный',      short: 'ЦФО',  center: [37.5, 55.5], bounds: [31, 51, 45, 58],   color: '#7A9EDB' },
-  { name: 'Северо-Западный',  short: 'СЗФО', center: [37, 62],     bounds: [27, 57, 67, 71],   color: '#6BBFA3' },
-  { name: 'Южный',            short: 'ЮФО',  center: [40, 47.5],   bounds: [36, 44, 51, 52],   color: '#D4A86A' },
-  { name: 'Сев.-Кавказский',  short: 'СКФО', center: [44, 43.5],   bounds: [39, 41, 50, 45.5], color: '#D47A6A' },
-  { name: 'Приволжский',      short: 'ПФО',  center: [51, 55.5],   bounds: [45, 51, 59, 61],   color: '#B47ADA' },
-  { name: 'Уральский',        short: 'УФО',  center: [65, 61],     bounds: [58, 55, 78, 68],   color: '#6A9ECA' },
-  { name: 'Сибирский',        short: 'СФО',  center: [90, 57],     bounds: [73, 50, 121, 68],  color: '#7ABCA8' },
-  { name: 'Дальневосточный',  short: 'ДФО',  center: [133, 58],    bounds: [110, 42, 172, 70], color: '#A8A87A' },
-];
-
 function RussiaMap({ cities, onCityClick }) {
   // Загружаем реальные данные Natural Earth 110m через TopoJSON
-  const [geoPolys,      setGeoPolys]      = React.useState(null);
-  const [loading,       setLoading]       = React.useState(true);
-  const [showDistricts, setShowDistricts] = React.useState(true);
+  const [geoPolys, setGeoPolys] = React.useState(null);
+  const [loading,  setLoading]  = React.useState(true);
 
   useEffect(() => {
     fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -815,23 +652,12 @@ function RussiaMap({ cities, onCityClick }) {
     style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
   },
     // Шапка карты
-    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 } },
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
         React.createElement(Label, null, 'Карта городов'),
         loading && React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, '· загрузка карты...'),
       ),
-      React.createElement('div', { style: { display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' } },
-        // Переключатель федеральных округов
-        React.createElement('button', {
-          onClick: () => setShowDistricts(v => !v),
-          style: {
-            padding: '4px 12px', fontSize: 11, borderRadius: 16, cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', letterSpacing: '0.04em',
-            background: showDistricts ? 'rgba(122,158,219,0.12)' : 'transparent',
-            border: `1px solid ${showDistricts ? 'rgba(122,158,219,0.4)' : T.border}`,
-            color: showDistricts ? '#7A9EDB' : T.textMuted,
-          },
-        }, 'ФО'),
+      React.createElement('div', { style: { display: 'flex', gap: 18, flexWrap: 'wrap' } },
         Object.entries(ZONE).map(([k, z]) =>
           React.createElement('div', { key: k, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted } },
             React.createElement('div', { style: { width: 6, height: 6, borderRadius: '50%', background: z.fg } }),
@@ -845,17 +671,6 @@ function RussiaMap({ cities, onCityClick }) {
       viewBox: `0 0 ${W} ${H}`,
       style: { width: '100%', background: '#05080E', borderRadius: 8, display: 'block' },
     },
-      // ── CSS-анимация пульсации ─────────────────────────────────
-      React.createElement('style', null, `
-        @keyframes cityPulse {
-          0%   { r: 0; opacity: 0.35; }
-          60%  { opacity: 0.12; }
-          100% { r: 28; opacity: 0; }
-        }
-        .city-pulse { animation: cityPulse 2.2s ease-out infinite; }
-        .city-pulse-2 { animation: cityPulse 2.2s ease-out infinite 1.1s; }
-      `),
-
       // ── Координатная сетка ────────────────────────────────────
       ...LAT_LINES.map(lat => {
         const [, y] = proj(minLng, lat);
@@ -896,32 +711,6 @@ function RussiaMap({ cities, onCityClick }) {
             fill: T.textMuted, fontFamily: 'Inter',
           }, 'Загрузка данных карты...')]),
 
-      // ── Федеральные округа ────────────────────────────────────
-      showDistricts && geoPolys && FEDERAL_DISTRICTS.map(fd => {
-        const [x1, y1] = proj(fd.bounds[0], fd.bounds[3]); // minLng, maxLat (top-left)
-        const [x2, y2] = proj(fd.bounds[2], fd.bounds[1]); // maxLng, minLat (bot-right)
-        const [cx, cy] = proj(fd.center[0], fd.center[1]);
-        const bw = x2 - x1, bh = y2 - y1;
-        return React.createElement('g', { key: fd.short },
-          React.createElement('rect', {
-            x: x1, y: y1, width: bw, height: bh,
-            fill: fd.color, fillOpacity: 0.04,
-            stroke: fd.color, strokeOpacity: 0.22,
-            strokeWidth: 0.9, strokeDasharray: '6 4',
-          }),
-          React.createElement('text', {
-            x: cx, y: cy,
-            textAnchor: 'middle', dominantBaseline: 'middle',
-            fontSize: 9.5, fill: fd.color,
-            fillOpacity: 0.65,
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            style: { pointerEvents: 'none', textTransform: 'uppercase' },
-          }, fd.short),
-        );
-      }),
-
       // ── Уральский хребет ──────────────────────────────────────
       geoPolys && React.createElement('polyline', {
         points: URAL_LINE.map(([lng, lat]) => proj(lng, lat).join(',')).join(' '),
@@ -933,28 +722,14 @@ function RussiaMap({ cities, onCityClick }) {
       })(),
 
       // ── Маркеры городов ───────────────────────────────────────
-      ...cities.map((c, idx) => {
+      ...cities.map(c => {
         const [x, y] = proj(c.coordinates.lng, c.coordinates.lat);
         const z = ZONE[c.zone];
         const r = 4 + (c.cityScore / 100) * 8;
-        const delay = (idx * 0.15) % 2.5; // разный delay для каждого города
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          // ── Пульсирующий гало (внешнее свечение) ────────────────────
-          React.createElement('circle', {
-            cx: x, cy: y,
-            r: r + 4,
-            fill: z.fg,
-            opacity: 0.05,
-            style: {
-              animation: `pulse-glow 2.5s ease-in-out infinite`,
-              animationDelay: `${delay}s`,
-            },
-          }),
-          // ── Статичные слои (основная точка) ────────────────────────
-          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: z.fg, opacity: 0.08 }),
-          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.95 }),
-          React.createElement('circle', { cx: x, cy: y, r: r + 1, fill: 'none', stroke: z.fg, strokeWidth: 0.8, opacity: 0.4 }),
-          // ── Название города ──────────────────────────────────────────
+          React.createElement('circle', { cx: x, cy: y, r: r + 9, fill: z.fg, opacity: 0.08 }),
+          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.9 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 2, fill: 'none', stroke: z.fg, strokeWidth: 0.7, opacity: 0.4 }),
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
@@ -2947,57 +2722,14 @@ function TrendsModal({ city, onClose }) {
         ),
       ),
 
-      React.createElement(ResponsiveContainer, { width: '100%', height: 280 },
-        React.createElement(AreaChart, { data, margin: { top: 15, right: 20, bottom: 5, left: -25 } },
-          React.createElement('defs', null,
-            React.createElement('linearGradient', { id: 'priceGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
-              React.createElement('stop', { offset: '0%', stopColor: T.green, stopOpacity: 0.3 }),
-              React.createElement('stop', { offset: '100%', stopColor: T.green, stopOpacity: 0.01 }),
-            ),
-          ),
+      React.createElement(ResponsiveContainer, { width: '100%', height: 250 },
+        React.createElement(LineChart, { data, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
           React.createElement(CartesianGrid, CHART_GRID),
-          React.createElement(XAxis, {
-            dataKey: 'month',
-            tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
-            axisLine: { stroke: T.border },
-            tickLine: { stroke: T.border },
-          }),
-          (() => {
-            const minVal = Math.min(...data.map(d => d.price));
-            const maxVal = Math.max(...data.map(d => d.price));
-            const range = maxVal - minVal;
-            const buffer = range * 0.15;
-            return React.createElement(YAxis, {
-              domain: [Math.max(0, minVal - buffer), maxVal + buffer],
-              tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
-              axisLine: { stroke: T.border },
-              tickLine: { stroke: T.border },
-              unit: ' тыс',
-              width: 50,
-            });
-          })(),
-          React.createElement(Tooltip, {
-            ...CHART_TIP,
-            formatter: v => [`${v} тыс ₽/м²`, 'Цена'],
-            labelFormatter: label => label,
-          }),
-          React.createElement(ReferenceLine, {
-            y: Math.round(current / 1000),
-            stroke: T.gold,
-            strokeDasharray: '5 4',
-            strokeWidth: 1.5,
-            label: { value: 'Текущая', position: 'right', fill: T.gold, fontSize: 10, offset: 10 },
-          }),
-          React.createElement(Area, {
-            type: 'monotone',
-            dataKey: 'price',
-            stroke: T.green,
-            strokeWidth: 2.8,
-            fill: 'url(#priceGrad)',
-            dot: { fill: T.green, r: 4, stroke: T.bg, strokeWidth: 2 },
-            activeDot: { r: 6, stroke: T.gold, strokeWidth: 2 },
-            isAnimationActive: true,
-          }),
+          React.createElement(XAxis, { dataKey: 'month', tick: CHART_TICK }),
+          React.createElement(YAxis, { tick: CHART_TICK, unit: ' тыс' }),
+          React.createElement(Tooltip, { ...CHART_TIP, formatter: v => [`${v} тыс ₽/м²`, 'Цена'] }),
+          React.createElement(ReferenceLine, { y: Math.round(current / 1000), stroke: T.gold, strokeDasharray: '4 3' }),
+          React.createElement(Line, { type: 'monotone', dataKey: 'price', stroke: T.green, strokeWidth: 2.5, dot: { fill: T.green, r: 3 } }),
         ),
       ),
     ),
@@ -3075,7 +2807,6 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const [inputs,      setInputs]      = useState(initialInputs);
   const [scenario,    setScenario]    = useState('base');
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab,   setActiveTab]   = useState('model');  // 🆕 TAB STATE
   const m = useIsMobile();
   useEffect(() => { setInputs(initialInputs); }, [initialInputs]);
 
@@ -3220,80 +2951,16 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
         React.createElement(InputPanel, { inputs, onChange: setInputs }),
         React.createElement(SmartHintsPanel, { inputs }),
       ),
-      // ── TAB INTERFACE FOR 7 POWER FEATURES ────────────────────────────
       React.createElement(
         'div',
         { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
-
-        // TAB BUTTONS
-        React.createElement('div', {
-          style: {
-            display: 'flex',
-            gap: 8,
-            borderBottom: `1px solid ${T.border}`,
-            paddingBottom: 12,
-            flexWrap: 'wrap',
-            marginBottom: 20,
-          },
-        },
-          ...[
-            { id: 'model', label: '📊 Модель' },
-            { id: 'elasticity', label: '💰 Price Elasticity' },
-            { id: 'benchmark', label: '🏆 Benchmark' },
-            { id: 'montecarlo', label: '📈 Risk (MC)' },
-            { id: 'export', label: '🚀 Export & Share' },
-          ].map(tab =>
-            React.createElement('button', {
-              key: tab.id,
-              onClick: () => setActiveTab(tab.id),
-              style: {
-                padding: '8px 16px',
-                background: activeTab === tab.id ? T.gold : 'transparent',
-                color: activeTab === tab.id ? T.bg : T.text,
-                border: activeTab === tab.id ? 'none' : `1px solid ${T.border}`,
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: 12,
-                transition: 'all 0.15s',
-              },
-            }, tab.label),
-          ),
-        ),
-
-        // TAB CONTENT — conditional render
-        activeTab === 'model' && React.createElement(
+        React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
+        React.createElement(
           'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
-          React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
-          React.createElement(
-            'div',
-            { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
-            React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
-            React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
-          ),
+          { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
+          React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
+          React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
         ),
-
-        // OTHER TABS
-        activeTab === 'elasticity' && React.createElement(PriceElasticityPanel, {
-          basePrice: inputs.basePricePerM2,
-          onPriceChange: (newPrice) => setInputs({ ...inputs, basePricePerM2: newPrice }),
-          currentMetrics: { npv: cur.npv, irr: cur.irr },
-        }),
-
-        activeTab === 'benchmark' && city && React.createElement(BenchmarkPanel, {
-          city,
-          benchmark: { current: city.cityScore, median: 65, top10pct: 80, top1pct: 95, percentile: Math.round((city.cityScore / 100) * 100) },
-        }),
-
-        activeTab === 'montecarlo' && cur && React.createElement(MonteCarloPanel, {
-          scenarios: runMonteCarloSimulation(inputs).slice(0, 1000),
-        }),
-
-        activeTab === 'export' && React.createElement(ExportShareButtons, {
-          city,
-          model,
-        }),
       ),
     ),
 
@@ -3542,91 +3209,6 @@ function App() {
       { style: { maxWidth: 1280, margin: '0 auto', padding: m ? '16px 16px 40px' : '32px 36px 60px' } },
       content,
     ),
-  );
-}
-
-// ════════════════════════════════════════════════════════════════════
-// 7 POWER FEATURES UI COMPONENTS
-// ════════════════════════════════════════════════════════════════════
-
-function PriceElasticityPanel({ basePrice, onPriceChange, currentMetrics }) {
-  const [price, setPrice] = React.useState(basePrice);
-  const mult = price / basePrice;
-  const npv = (currentMetrics?.npv || 0) * mult * 0.9;
-  const irr = (currentMetrics?.irr || 0) + (mult - 1) * 5;
-  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
-    React.createElement('div', { style: { marginBottom: 16 } },
-      React.createElement(Label, null, '💰 Price Elasticity'),
-      React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 4 } }, 'Меняй цену → видй NPV/IRR в реальном времени'),
-    ),
-    React.createElement('input', { type: 'range', min: basePrice * 0.7, max: basePrice * 1.5, step: 5000, value: price, onChange: (e) => { const p = parseInt(e.target.value); setPrice(p); onPriceChange?.(p); }, style: { width: '100%', marginBottom: 16 } }),
-    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
-        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'NPV'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: npv > 0 ? T.green : T.red } }, fmtRub(npv)),
-      ),
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
-        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'IRR'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: irr > 15 ? T.green : T.orange } }, `${irr.toFixed(1)}%`),
-      ),
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
-        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'vs Base'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: mult > 1 ? T.red : T.green } }, `${(mult * 100).toFixed(0)}%`),
-      ),
-    ),
-  );
-}
-
-function BenchmarkPanel({ city, benchmark }) {
-  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
-    React.createElement(Label, { style: { marginBottom: 16 } }, '🏆 Benchmark vs Market'),
-    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 } },
-      ...[
-        { label: 'Твой скор', val: benchmark.current, color: T.gold },
-        { label: 'Медиана', val: benchmark.median, color: T.text },
-        { label: 'Топ 10%', val: benchmark.top10pct, color: T.green },
-        { label: `${benchmark.percentile}%ile`, val: `${benchmark.percentile}%`, color: benchmark.percentile > 50 ? T.green : T.orange },
-      ].map((stat, i) =>
-        React.createElement('div', { key: i, style: { textAlign: 'center', padding: '12px', background: T.surfaceRaise, borderRadius: 8 } },
-          React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, stat.label),
-          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, color: stat.color } }, typeof stat.val === 'number' ? stat.val.toFixed(0) : stat.val),
-        ),
-      ),
-    ),
-  );
-}
-
-function MonteCarloPanel({ scenarios }) {
-  const irrs = scenarios.map(s => s.irr).sort((a, b) => a - b);
-  const [p10, p50, p90] = [irrs[Math.floor(irrs.length * 0.1)], irrs[Math.floor(irrs.length * 0.5)], irrs[Math.floor(irrs.length * 0.9)]];
-  const success = (scenarios.filter(s => s.irr > 15).length / scenarios.length * 100).toFixed(0);
-  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
-    React.createElement(Label, { style: { marginBottom: 16 } }, '📊 Monte Carlo (1000 сценариев)'),
-    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 } },
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
-        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P10 (Worst)'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: p10 > 10 ? T.orange : T.red } }, `${p10.toFixed(1)}%`),
-      ),
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
-        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P50 (Median)'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: T.text } }, `${p50.toFixed(1)}%`),
-      ),
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
-        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P90 (Best)'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: T.green } }, `${p90.toFixed(1)}%`),
-      ),
-      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
-        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'Success %'),
-        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: success > 70 ? T.green : T.orange } }, `${success}%`),
-      ),
-    ),
-  );
-}
-
-function ExportShareButtons({ city, model }) {
-  return React.createElement('div', { style: { display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' } },
-    React.createElement('button', { onClick: () => exportToPPT(city, model, {}), style: { flex: 1, padding: '12px 20px', background: T.gold, color: T.bg, border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 12 } }, '📊 Export PPT'),
-    React.createElement('button', { onClick: () => { const { url } = generateShareURL(city); navigator.clipboard.writeText(url); alert('✓ Ссылка скопирована!'); }, style: { flex: 1, padding: '12px 20px', background: T.surfaceRaise, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 12 } }, '🔗 Share'),
   );
 }
 
