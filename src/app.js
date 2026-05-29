@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LineChart, Line, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
+  LineChart, Line, AreaChart, Area, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -722,14 +722,21 @@ function RussiaMap({ cities, onCityClick }) {
       })(),
 
       // ── Маркеры городов ───────────────────────────────────────
-      ...cities.map(c => {
+      ...cities.map((c, idx) => {
         const [x, y] = proj(c.coordinates.lng, c.coordinates.lat);
         const z = ZONE[c.zone];
         const r = 4 + (c.cityScore / 100) * 8;
+        const delay = `${(idx * 0.18) % 2.5}s`;
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          React.createElement('circle', { cx: x, cy: y, r: r + 9, fill: z.fg, opacity: 0.08 }),
+          // Пульсирующий ореол (animate через SVG тег)
+          React.createElement('circle', {
+            cx: x, cy: y, r: r + 10, fill: z.fg,
+            style: { animation: 'pulse-glow 2.5s ease-in-out infinite', animationDelay: delay },
+          }),
+          // Статичные слои
+          React.createElement('circle', { cx: x, cy: y, r: r + 3, fill: z.fg, opacity: 0.1 }),
           React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.9 }),
-          React.createElement('circle', { cx: x, cy: y, r: r + 2, fill: 'none', stroke: z.fg, strokeWidth: 0.7, opacity: 0.4 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 0.8, opacity: 0.35 }),
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
@@ -2722,14 +2729,38 @@ function TrendsModal({ city, onClose }) {
         ),
       ),
 
-      React.createElement(ResponsiveContainer, { width: '100%', height: 250 },
-        React.createElement(LineChart, { data, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+      React.createElement(ResponsiveContainer, { width: '100%', height: 280 },
+        React.createElement(AreaChart, { data, margin: { top: 15, right: 20, bottom: 5, left: -25 } },
+          React.createElement('defs', null,
+            React.createElement('linearGradient', { id: 'priceGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
+              React.createElement('stop', { offset: '0%', stopColor: T.green, stopOpacity: 0.3 }),
+              React.createElement('stop', { offset: '100%', stopColor: T.green, stopOpacity: 0.01 }),
+            ),
+          ),
           React.createElement(CartesianGrid, CHART_GRID),
-          React.createElement(XAxis, { dataKey: 'month', tick: CHART_TICK }),
-          React.createElement(YAxis, { tick: CHART_TICK, unit: ' тыс' }),
+          React.createElement(XAxis, {
+            dataKey: 'month',
+            tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
+            axisLine: { stroke: T.border }, tickLine: { stroke: T.border },
+          }),
+          React.createElement(YAxis, {
+            domain: [Math.max(0, minP - (maxP - minP) * 0.15), maxP + (maxP - minP) * 0.15],
+            tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
+            axisLine: { stroke: T.border }, tickLine: { stroke: T.border },
+            unit: ' тыс', width: 52,
+          }),
           React.createElement(Tooltip, { ...CHART_TIP, formatter: v => [`${v} тыс ₽/м²`, 'Цена'] }),
-          React.createElement(ReferenceLine, { y: Math.round(current / 1000), stroke: T.gold, strokeDasharray: '4 3' }),
-          React.createElement(Line, { type: 'monotone', dataKey: 'price', stroke: T.green, strokeWidth: 2.5, dot: { fill: T.green, r: 3 } }),
+          React.createElement(ReferenceLine, {
+            y: Math.round(current / 1000), stroke: T.gold, strokeDasharray: '5 4', strokeWidth: 1.5,
+            label: { value: 'текущая', position: 'right', fill: T.gold, fontSize: 10 },
+          }),
+          React.createElement(Area, {
+            type: 'monotone', dataKey: 'price',
+            stroke: T.green, strokeWidth: 2.8,
+            fill: 'url(#priceGrad)',
+            dot: { fill: T.green, r: 4, stroke: T.bg, strokeWidth: 2 },
+            activeDot: { r: 6, stroke: T.gold, strokeWidth: 2 },
+          }),
         ),
       ),
     ),
