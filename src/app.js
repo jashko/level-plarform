@@ -74,6 +74,17 @@ const fmtPct = (n, d = 1) =>
   n === null || n === undefined || isNaN(n) ? '—' : `${n.toFixed(d)}%`;
 const fmtNum = (n) => n.toLocaleString('ru-RU');
 
+// ── Responsive hook ──────────────────────────────────────────────
+function useIsMobile() {
+  const [m, setM] = React.useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return m;
+}
+
 // ── Utilities ─────────────────────────────────────────────────────
 const debounce = (fn, wait) => {
   let t;
@@ -389,6 +400,7 @@ function ScoreBar({ label, score, hint }) {
 // ═════════════════════════════════════════════════════════════════
 
 function MacroSnapshotBanner({ snapshot }) {
+  const m      = useIsMobile();
   const isAuto = snapshot.fetchMethod === 'automatic';
   return React.createElement(
     'div',
@@ -431,7 +443,7 @@ function MacroSnapshotBanner({ snapshot }) {
     // metrics grid
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 24 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: m ? 16 : 24 } },
       React.createElement(MacroMetric, { label: 'Ключевая ставка',  value: fmtPct(snapshot.keyRateAnnual, 2),         gold: true, hint: 'keyRate' }),
       React.createElement(MacroMetric, { label: 'Рыночная ипотека', value: fmtPct(snapshot.mortgageRateAnnual, 2),                  hint: 'mortgageRate' }),
       React.createElement(MacroMetric, { label: 'Семейная ипотека', value: snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1) : '—', hint: 'familyMortgage' }),
@@ -442,6 +454,7 @@ function MacroSnapshotBanner({ snapshot }) {
 }
 
 function MacroMetric({ label, value, gold, hint }) {
+  const m = useIsMobile();
   return React.createElement(
     'div',
     null,
@@ -451,7 +464,7 @@ function MacroMetric({ label, value, gold, hint }) {
     ),
     React.createElement('div', {
       style: {
-        fontSize: 22,
+        fontSize: m ? 17 : 22,
         fontWeight: 600,
         fontVariantNumeric: 'tabular-nums',
         color: gold ? T.gold : T.text,
@@ -1027,6 +1040,7 @@ function MetricCard({ label, value, sub, accent, gold }) {
 }
 
 function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
+  const m = useIsMobile();
   const z = ZONE[city.zone];
   const radarData = [
     { name: 'Демография',    score: city.breakdown.demographyScore },
@@ -1120,7 +1134,7 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
     // ── Radar + KPIs ───────────────────────────────────────────
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 2fr', gap: 20 } },
       // radar
       React.createElement(
         'div',
@@ -1156,7 +1170,7 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
       // KPI grid 3×3
       React.createElement(
         'div',
-        { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, alignContent: 'start' } },
+        { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12, alignContent: 'start' } },
         React.createElement(MetricCard, {
           label: 'Население',
           value: `${city.inputs.demography.populationThousands.toLocaleString('ru-RU')} тыс.`,
@@ -1342,6 +1356,7 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
 // ═════════════════════════════════════════════════════════════════
 
 function DistrictScreen({ city, onBack, onGotoSite }) {
+  const m = useIsMobile();
   const [inputs, setInputs] = useState({
     name: 'Район',
     cityName: city.name,
@@ -1388,7 +1403,7 @@ function DistrictScreen({ city, onBack, onGotoSite }) {
     // ── Inputs + Results ─────────────────────────────────────
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
 
       // Left: inputs
       React.createElement(
@@ -1497,6 +1512,7 @@ function DistrictScreen({ city, onBack, onGotoSite }) {
 // ═════════════════════════════════════════════════════════════════
 
 function SiteScreen({ city, districtResult, districtInputs, onBack, onGotoFinance }) {
+  const m = useIsMobile();
   const [inputs, setInputs] = useState({
     name: 'Участок',
     districtName: districtResult?.districtName ?? 'Район',
@@ -1554,7 +1570,7 @@ function SiteScreen({ city, districtResult, districtInputs, onBack, onGotoFinanc
     // ── Inputs + Results ─────────────────────────────────────
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
 
       // Left: inputs (two columns inside)
       React.createElement(
@@ -1769,6 +1785,7 @@ function InputField({ label, value, onChange, step, min, max }) {
 }
 
 function InputPanel({ inputs, onChange }) {
+  const m = useIsMobile();
   const set    = (key) => (v) => onChange({ ...inputs, [key]: v });
   const setFin = (key) => (v) => onChange({ ...inputs, financing: { ...inputs.financing, [key]: v } });
   return React.createElement(
@@ -1777,7 +1794,7 @@ function InputPanel({ inputs, onChange }) {
     React.createElement(Label, { style: { marginBottom: 16 } }, 'Параметры проекта'),
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 12 } },
       React.createElement(InputField, { label: 'Площадь, га',             value: inputs.landAreaHa,                  step: 0.1,         onChange: set('landAreaHa') }),
       React.createElement(InputField, { label: 'Плотность, м²/га',        value: inputs.allowedDensityM2PerHa,       step: 1000,        onChange: set('allowedDensityM2PerHa') }),
       React.createElement(InputField, { label: 'Цена м² бизнес-класс, ₽', value: inputs.basePricePerM2,              step: 5000,        onChange: set('basePricePerM2') }),
@@ -1929,6 +1946,7 @@ function WarningsPanel({ warnings }) {
 
 // ── Deal Verdict Card ─────────────────────────────────────────────
 function DealVerdictCard({ city, districtResult, siteResult, model }) {
+  const m = useIsMobile();
   const cityScore     = city            ? city.cityScore                  : 70;
   const districtScore = districtResult  ? districtResult.districtScore    : 65;
   const siteScore     = siteResult      ? siteResult.siteScore            : 70;
@@ -1951,10 +1969,11 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
       background: T.surface,
       border: `1px solid ${verdict.color}55`,
       borderRadius: 12,
-      padding: '28px 32px',
+      padding: m ? '20px 16px' : '28px 32px',
       display: 'flex',
       alignItems: 'center',
-      gap: 44,
+      justifyContent: m ? 'center' : undefined,
+      gap: m ? 20 : 44,
       flexWrap: 'wrap',
     },
   },
@@ -1973,7 +1992,7 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
         style: { fontSize: 9, color: verdict.color, letterSpacing: '0.22em', marginBottom: 8, fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
       }, 'Решение комитета'),
       React.createElement('div', {
-        style: { fontSize: 40, fontWeight: 800, color: verdict.color, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', lineHeight: 1 },
+        style: { fontSize: m ? 28 : 40, fontWeight: 800, color: verdict.color, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', lineHeight: 1 },
       }, verdict.label),
     ),
 
@@ -2018,7 +2037,7 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
       ),
       React.createElement('div', {
         style: {
-          fontSize: 60,
+          fontSize: m ? 44 : 60,
           fontWeight: 800,
           color: verdict.color,
           letterSpacing: '-0.04em',
@@ -2034,6 +2053,7 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
 
 // ── Tornado Sensitivity Chart ─────────────────────────────────────
 function TornadoChart({ inputs, baseIrr, successProbContext }) {
+  const m = useIsMobile();
   const VARS = [
     { key: 'basePricePerM2',          label: 'Цена продажи, ₽/м²',   delta: 0.15 },
     { key: 'constructionCostPerM2',   label: 'Себестоимость стройки', delta: 0.15 },
@@ -2062,7 +2082,7 @@ function TornadoChart({ inputs, baseIrr, successProbContext }) {
   }, [inputs, baseIrr, successProbContext]);
 
   const maxAbs = Math.max(...rows.map(r => r.posDelta), 0.1);
-  const W = 195;
+  const W = m ? 110 : 195;
 
   return React.createElement('div', {
     style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
@@ -2125,6 +2145,7 @@ function TornadoChart({ inputs, baseIrr, successProbContext }) {
 
 // ── IRR Benchmark Card ────────────────────────────────────────────
 function IRRBenchmarkCard({ irr, npv, netMargin }) {
+  const m = useIsMobile();
   const MAX = 40;
   const pct  = (v) => Math.min(97, Math.max(1, (v / MAX) * 100));
   const irrColor = !irr ? T.textSub
@@ -2189,7 +2210,7 @@ function IRRBenchmarkCard({ irr, npv, netMargin }) {
     ),
 
     // NPV + Margin stats
-    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 16 } },
       React.createElement('div', null,
         React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 7 } },
           React.createElement(Label, null, 'NPV проекта'),
@@ -2251,6 +2272,7 @@ function Toast({ message, type = 'info', onClose }) {
 // ══════════════════════════════════════════════════════════════════
 
 function ComparisonModal({ cities, onClose }) {
+  const m      = useIsMobile();
   const COLORS = [T.gold, T.green, '#5B8FBF', '#B06FAF'];
 
   // Build radar data from known metrics
@@ -2288,7 +2310,7 @@ function ComparisonModal({ cities, onClose }) {
   },
     React.createElement('div', {
       onClick: e => e.stopPropagation(),
-      style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 32, width: '100%', maxWidth: 920, maxHeight: '90vh', overflow: 'auto' },
+      style: { background: T.surface, border: m ? 'none' : `1px solid ${T.border}`, borderRadius: m ? 0 : 16, padding: m ? '20px 16px' : 32, width: '100%', maxWidth: m ? '100%' : 920, maxHeight: m ? '100dvh' : '90vh', height: m ? '100dvh' : undefined, overflow: 'auto' },
     },
       React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 } },
         React.createElement('div', null,
@@ -2360,13 +2382,14 @@ function ComparisonModal({ cities, onClose }) {
 // ══════════════════════════════════════════════════════════════════
 
 function HistoryPanel({ onLoad, onClose }) {
+  const m = useIsMobile();
   const [history, setHistory] = React.useState(getHistory);
 
   const handleClear = () => { clearHistory(); setHistory([]); };
 
   return React.createElement('div', {
     style: {
-      position: 'fixed', top: 0, right: 0, bottom: 0, width: 360, zIndex: 40000,
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: m ? '100%' : 360, zIndex: 40000,
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       boxShadow: '-12px 0 40px rgba(0,0,0,0.55)',
       display: 'flex', flexDirection: 'column',
@@ -2431,6 +2454,7 @@ function HistoryPanel({ onLoad, onClose }) {
 // ══════════════════════════════════════════════════════════════════
 
 function TrendsModal({ city, onClose }) {
+  const m       = useIsMobile();
   const data    = getMockTrends(city);
   const current = city.inputs.housing.businessClassPricePerM2;
   const firstP  = data[0].price * 1000;
@@ -2444,7 +2468,7 @@ function TrendsModal({ city, onClose }) {
   },
     React.createElement('div', {
       onClick: e => e.stopPropagation(),
-      style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 32, width: '100%', maxWidth: 700 },
+      style: { background: T.surface, border: m ? 'none' : `1px solid ${T.border}`, borderRadius: m ? 0 : 16, padding: m ? '20px 16px' : 32, width: '100%', maxWidth: m ? '100%' : 700, height: m ? '100dvh' : undefined, overflow: m ? 'auto' : undefined },
     },
       React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 } },
         React.createElement('div', null,
@@ -2454,7 +2478,7 @@ function TrendsModal({ city, onClose }) {
         React.createElement('button', { onClick: onClose, style: { background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 24 } }, '×'),
       ),
 
-      React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 } },
+      React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: 14, marginBottom: 24 } },
         React.createElement('div', { style: { background: T.surfaceRaise, borderRadius: 8, padding: '12px 16px' } },
           React.createElement(Label, { style: { marginBottom: 6 } }, 'Рост за 12 мес.'),
           React.createElement('div', { style: { fontSize: 22, fontWeight: 700, color: growth >= 0 ? T.green : T.red } }, `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`),
@@ -2554,6 +2578,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const [inputs,      setInputs]      = useState(initialInputs);
   const [scenario,    setScenario]    = useState('base');
   const [showHistory, setShowHistory] = useState(false);
+  const m = useIsMobile();
   useEffect(() => { setInputs(initialInputs); }, [initialInputs]);
 
   const successProbContext = useMemo(() => ({
@@ -2680,7 +2705,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     // KPIs
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)', gap: 12 } },
       React.createElement(KpiCard, { label: 'Выручка',   value: fmtRub(cur.revenue.totalRevenue),                              hint: 'revenue' }),
       React.createElement(KpiCard, { label: 'CAPEX',     value: fmtRub(cur.capex.total),                                       hint: 'capex' }),
       React.createElement(KpiCard, { label: 'IRR',       value: fmtPct(cur.irr),   color: irrColor,                            hint: 'irr' }),
@@ -2692,7 +2717,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     // charts + inputs
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 2fr', gap: 20 } },
       React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
         React.createElement(InputPanel, { inputs, onChange: setInputs }),
         React.createElement(SmartHintsPanel, { inputs }),
@@ -2703,7 +2728,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
         React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
         React.createElement(
           'div',
-          { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+          { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
           React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
           React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
         ),
@@ -2715,7 +2740,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     // Tornado + Benchmark row
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 } },
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
       React.createElement(TornadoChart, {
         inputs,
         baseIrr: model.scenarios.base.irr,
@@ -2747,6 +2772,7 @@ function App() {
   const [error,    setError]    = useState(null);
   const [screen,   setScreen]   = useState({ name: 'main' });
   const [toast,    setToast]    = useState(null);
+  const m = useIsMobile();
 
   const showToast = (message, type = 'info') => setToast({ message, type, id: Date.now() });
 
@@ -2886,7 +2912,7 @@ function App() {
           style: {
             maxWidth: 1280,
             margin: '0 auto',
-            padding: '0 36px',
+            padding: m ? '0 16px' : '0 36px',
             height: 58,
             display: 'flex',
             alignItems: 'center',
@@ -2951,7 +2977,7 @@ function App() {
     // ── Content ──────────────────────────────────────────────
     React.createElement(
       'main',
-      { style: { maxWidth: 1280, margin: '0 auto', padding: '32px 36px 60px' } },
+      { style: { maxWidth: 1280, margin: '0 auto', padding: m ? '16px 16px 40px' : '32px 36px 60px' } },
       content,
     ),
   );

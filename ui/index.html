@@ -70,6 +70,22 @@
     /* Recharts label text */
     .recharts-text { font-family: 'Inter', sans-serif; }
     .recharts-legend-item-text { color: var(--text-sub) !important; font-size: 11px !important; }
+
+    /* ── Mobile / touch ──────────────────────────── */
+    * { -webkit-tap-highlight-color: transparent; }
+    input[type=range] { height: 22px; cursor: pointer; }
+
+    @media (max-width: 767px) {
+      body { -webkit-overflow-scrolling: touch; overflow-x: hidden; }
+      /* Prevent iOS auto-zoom on input focus */
+      input, select, textarea { font-size: 16px !important; }
+      /* Recharts: prevent clipping */
+      .recharts-wrapper { overflow: visible !important; }
+      /* Bigger tap targets */
+      .l-row td, .l-row th { padding-top: 14px !important; padding-bottom: 14px !important; }
+      /* Scrollable tables */
+      table { min-width: 480px; }
+    }
   </style>
 </head>
 <body>
