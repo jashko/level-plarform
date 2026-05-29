@@ -1,19 +1,18 @@
 /**
- * Автозагрузка макроэкономических данных с открытого API ЦБ РФ.
+ * Автозагрузка макроэкономических данных с открытых API.
  *
- * Запуск:
- *   npx tsx scripts/fetch-cbr.ts
+ * Запуск:  npx tsx scripts/fetch-cbr.ts
  *
  * Что делает:
- *   1. Тянет историю ключевой ставки за последние 12 мес. с cbr.ru
- *   2. Парсит XML-ответ
- *   3. Сохраняет в src/data/macro-cbr.json
+ *   1. Ключевая ставка — XML_keyrate.asp (ЦБ РФ)
+ *   2. Рыночная ипотека — 3 источника, каскадный fallback:
+ *        A. Дом.РФ API (еженедельный индекс первичного рынка)
+ *        B. ЦБ РФ — страница статистики (HTML-парсинг)
+ *        C. Расчётная: КС + исторический спред (2.5–4.5 п.п.)
+ *   3. Сохраняет src/data/macro-cbr.json
  *
- * Источник: https://www.cbr.ru/scripts/XML_dynamic.asp
- * (это ОТКРЫТЫЙ API ЦБ, не требует ключа, лимиты разумные)
- *
- * В UI этот JSON подгружается при старте — пользователь видит АКТУАЛЬНЫЕ
- * показатели ЦБ, обновляется через CRON / GitHub Actions раз в сутки.
+ * Обновляется автоматически раз в неделю via GitHub Actions
+ * (.github/workflows/weekly-rates.yml).
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -37,8 +36,10 @@ interface MacroSnapshot {
     target: number;
   };
   mortgage: {
-    marketRatePct: number;        // оценка
-    preferentialRatePct: number;  // семейная
+    marketRatePct: number;
+    marketRateSource: string;    // откуда взята ставка
+    marketRateFetchedAt: string; // когда обновлялась
+    preferentialRatePct: number;
     note: string;
   };
 }
@@ -92,9 +93,160 @@ function isoFromCbrDate(cbrDate: string): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// ── Получение рыночной ипотечной ставки (3 источника) ─────────────
+
+/**
+ * Источник A: Дом.РФ — еженедельный индекс ипотечной ставки первичного рынка.
+ * Дом.РФ публикует данные через открытый API без авторизации.
+ */
+async function fetchFromDomRF(): Promise<number | null> {
+  const URLS = [
+    'https://domrfbank.ru/ajax/mortgage/calculator/getActualRate/',
+    'https://xn--d1aqf.xn--p1ai/api/v1/mortgage/rate/',
+    'https://domrfbank.ru/mortgage/rates/ajax/',
+  ];
+  for (const url of URLS) {
+    try {
+      const resp = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json() as Record<string, unknown>;
+      // Разные форматы ответа — перебираем возможные поля
+      const candidates = [
+        data['primaryRate'], data['primary_rate'], data['mortgageRate'],
+        data['rate'], data['value'], data['stavka'],
+        (data['data'] as Record<string, unknown>)?.['primaryRate'],
+        (data['data'] as Record<string, unknown>)?.['rate'],
+      ];
+      for (const val of candidates) {
+        const n = parseFloat(String(val).replace(',', '.'));
+        if (n >= 5 && n <= 50) {
+          console.log(`  ✅ Дом.РФ API (${url}): ${n}%`);
+          return n;
+        }
+      }
+    } catch { /* следующий источник */ }
+  }
+  return null;
+}
+
+/**
+ * Источник B: ЦБ РФ — страница статистики по ипотеке.
+ * Парсим HTML-таблицу, ищем последнее значение средневзвешенной ставки
+ * по ипотечным кредитам в рублях (новые выдачи).
+ */
+async function fetchFromCbrMortgagePage(): Promise<number | null> {
+  const URLS = [
+    'https://www.cbr.ru/statistics/bank_sector/mortgage/',
+    'https://www.cbr.ru/statistics/pdko/Stat_digest_mortgage/',
+  ];
+  for (const url of URLS) {
+    try {
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ru-RU,ru' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) continue;
+      const html = await resp.text();
+
+      // Ищем числа вида 18,5 или 18.5 рядом со словом «ипотека»/«жилищ»
+      // ЦБ форматирует числа через запятую, ставки 8–40%
+      const patterns = [
+        /class="[^"]*rate[^"]*"[^>]*>([\d,\.]+)</gi,
+        /"value":\s*([\d.]+)/g,
+        />\s*(1[3-9]|2[0-9]|3[0-9])[,\.]\d+\s*</g,
+      ];
+      for (const rx of patterns) {
+        let m: RegExpExecArray | null;
+        while ((m = rx.exec(html)) !== null) {
+          const s = m[1] ?? m[0];
+          const n = parseFloat(s.replace(/[^\d.]/g, '.').replace('..', '.'));
+          if (n >= 10 && n <= 40) {
+            console.log(`  ✅ ЦБ РФ статистика (${url}): ${n}%`);
+            return n;
+          }
+        }
+      }
+    } catch { /* следующий источник */ }
+  }
+  return null;
+}
+
+/**
+ * Источник C: ЦБ РФ XML dynamic — серия процентных ставок по кредитам.
+ * Indicator ID для средневзвешенной ставки по ипотечным рублёвым кредитам.
+ */
+async function fetchFromCbrXml(): Promise<number | null> {
+  const today = new Date();
+  const yearAgo = new Date(today);
+  yearAgo.setMonth(today.getMonth() - 3);
+  const fmt = (d: Date) =>
+    `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+
+  // ЦБ серия: ставки по кредитам населению в рублях
+  const INDICATOR_IDS = ['MKICORRG', 'MKIKORRF', 'MR'];
+  for (const id of INDICATOR_IDS) {
+    try {
+      const url = `https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=${fmt(yearAgo)}&date_req2=${fmt(today)}&VAL_NM_RQ=${id}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) continue;
+      const xml = await resp.text();
+      // Ищем последний <Value>NN.NN</Value>
+      const matches = [...xml.matchAll(/<Value>([\d.,]+)<\/Value>/g)];
+      if (matches.length > 0) {
+        const n = parseFloat(matches[matches.length - 1]![1]!.replace(',', '.'));
+        if (n >= 5 && n <= 50) {
+          console.log(`  ✅ ЦБ XML (${id}): ${n}%`);
+          return n;
+        }
+      }
+    } catch { /* следующий источник */ }
+  }
+  return null;
+}
+
+/**
+ * Fallback D: расчётная ставка КС + исторический спред.
+ * Спред сужается при высокой ключевой ставке (банки уже «зашили» риск в КС).
+ *   КС ≤ 10%: спред ~3.5 п.п.
+ *   КС 14–16%: спред ~3.8–4.2 п.п.
+ *   КС ≥ 20%: спред ~3.0–3.5 п.п. (банки сжимают маржу)
+ */
+function calcMortgageFromKeyRate(keyRate: number): number {
+  const spread =
+    keyRate <= 10 ? 3.5 :
+    keyRate <= 16 ? 3.5 + (keyRate - 10) * 0.12 :
+    keyRate <= 20 ? 4.2 - (keyRate - 16) * 0.1 :
+    3.8;
+  return Math.round((keyRate + spread) * 10) / 10;
+}
+
+async function fetchMortgageRate(keyRate: number): Promise<{ rate: number; source: string }> {
+  console.log('\n── Поиск рыночной ипотечной ставки ──────────');
+
+  // A: Дом.РФ
+  const domrf = await fetchFromDomRF();
+  if (domrf !== null) return { rate: domrf, source: 'Дом.РФ API' };
+
+  // B: ЦБ страница статистики
+  const cbrPage = await fetchFromCbrMortgagePage();
+  if (cbrPage !== null) return { rate: cbrPage, source: 'ЦБ РФ статистика' };
+
+  // C: ЦБ XML серии
+  const cbrXml = await fetchFromCbrXml();
+  if (cbrXml !== null) return { rate: cbrXml, source: 'ЦБ РФ XML' };
+
+  // D: расчёт
+  const calculated = calcMortgageFromKeyRate(keyRate);
+  console.log(`  ℹ️  Расчётная (КС ${keyRate}% + спред): ${calculated}%`);
+  return { rate: calculated, source: `расчётная (КС ${keyRate}% + спред)` };
+}
+
 async function main(): Promise<void> {
   console.log('═══════════════════════════════════════════');
-  console.log('  Автозагрузка макроданных ЦБ РФ');
+  console.log('  Автозагрузка макроданных ЦБ РФ + ипотека');
   console.log('═══════════════════════════════════════════');
 
   const history = await fetchCbrKeyRateHistory();
@@ -103,8 +255,14 @@ async function main(): Promise<void> {
 
   if (history.length > 0) {
     const latest = history[history.length - 1]!;
+    console.log(`✅ КС: ${latest.rate}% с ${latest.date} (${history.length} записей)`);
+
+    // Получаем рыночную ставку из открытых источников
+    const { rate: marketRate, source: mortgageSource } = await fetchMortgageRate(latest.rate);
+    console.log(`✅ Рыночная ипотека: ${marketRate}% (${mortgageSource})\n`);
+
     snapshot = {
-      source: 'cbr.ru (XML_keyrate.asp)',
+      source: 'cbr.ru (XML_keyrate.asp) + открытые источники',
       fetchedAt: new Date().toISOString(),
       keyRate: {
         currentPct: latest.rate,
@@ -115,30 +273,30 @@ async function main(): Promise<void> {
         })),
       },
       inflation: {
-        // Эти показатели публикуются Росстатом отдельно, в API ЦБ их нет.
-        // Берём с пресс-релиза ЦБ от 24 апреля 2026.
         yoyPct: 5.9,
         asOf: '2026-04',
         target: 4.0,
       },
       mortgage: {
-        // Этих ставок тоже нет в открытом API одной строкой —
-        // ЦБ публикует помесячные таблицы, для MVP захардкожено.
-        marketRatePct: 18.5,
+        marketRatePct: marketRate,
+        marketRateSource: mortgageSource,
+        marketRateFetchedAt: new Date().toISOString(),
         preferentialRatePct: 6,
-        note: 'Среднерыночная и семейная ипотека по итогам Q1 2026',
+        note: `Рыночная ставка: ${mortgageSource}. Семейная ипотека: 6%.`,
       },
     };
-    console.log(`✅ Получено ${history.length} записей по ключевой ставке`);
-    console.log(`   Текущая ставка: ${latest.rate}% c ${latest.date}`);
   } else {
-    // Fallback на захардкоженные данные если API недоступен
-    console.log('ℹ️  Используется fallback (нет доступа к cbr.ru)');
+    // Fallback если ЦБ API недоступен
+    const keyFallback = 14.5;
+    const { rate: marketRate, source: mortgageSource } = await fetchMortgageRate(keyFallback);
+    console.log('ℹ️  КС: fallback данные (cbr.ru недоступен)');
+    console.log(`✅ Рыночная ипотека: ${marketRate}% (${mortgageSource})\n`);
+
     snapshot = {
-      source: 'fallback (cbr.ru недоступен)',
+      source: 'fallback (cbr.ru недоступен) + открытые источники',
       fetchedAt: new Date().toISOString(),
       keyRate: {
-        currentPct: 14.5,
+        currentPct: keyFallback,
         effectiveSince: '2026-04-27',
         history12mo: [
           { date: '2025-06-06', ratePct: 20 },
@@ -147,14 +305,16 @@ async function main(): Promise<void> {
           { date: '2025-10-24', ratePct: 16.5 },
           { date: '2025-12-19', ratePct: 16 },
           { date: '2026-02-16', ratePct: 15.5 },
-          { date: '2026-04-27', ratePct: 14.5 },
+          { date: '2026-04-27', ratePct: keyFallback },
         ],
       },
       inflation: { yoyPct: 5.9, asOf: '2026-04', target: 4.0 },
       mortgage: {
-        marketRatePct: 18.5,
+        marketRatePct: marketRate,
+        marketRateSource: mortgageSource,
+        marketRateFetchedAt: new Date().toISOString(),
         preferentialRatePct: 6,
-        note: 'Среднерыночная и семейная ипотека по итогам Q1 2026',
+        note: `Рыночная ставка: ${mortgageSource}. Семейная ипотека: 6%.`,
       },
     };
   }

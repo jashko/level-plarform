@@ -445,7 +445,16 @@ function MacroSnapshotBanner({ snapshot }) {
       'div',
       { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: m ? 16 : 24 } },
       React.createElement(MacroMetric, { label: 'Ключевая ставка',  value: fmtPct(snapshot.keyRateAnnual, 2),         gold: true, hint: 'keyRate' }),
-      React.createElement(MacroMetric, { label: 'Рыночная ипотека', value: fmtPct(snapshot.mortgageRateAnnual, 2),                  hint: 'mortgageRate' }),
+      React.createElement(MacroMetric, {
+        label: 'Рыночная ипотека',
+        value: fmtPct(snapshot.mortgageRateAnnual, 2),
+        hint: 'mortgageRate',
+        sub: snapshot.mortgageRateSource
+          ? snapshot.mortgageRateSource.startsWith('расчётная')
+            ? 'расчётная (КС + спред)'
+            : snapshot.mortgageRateSource
+          : null,
+      }),
       React.createElement(MacroMetric, { label: 'Семейная ипотека', value: snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1) : '—', hint: 'familyMortgage' }),
       React.createElement(MacroMetric, { label: 'MacroScore',       value: `${snapshot.macroScore.toFixed(0)} / 100`,  gold: true, hint: 'macroScore' }),
       React.createElement(MacroMetric, { label: 'Дата снимка',      value: snapshot.asOfDate }),
@@ -453,7 +462,7 @@ function MacroSnapshotBanner({ snapshot }) {
   );
 }
 
-function MacroMetric({ label, value, gold, hint }) {
+function MacroMetric({ label, value, gold, hint, sub }) {
   const m = useIsMobile();
   return React.createElement(
     'div',
@@ -472,6 +481,9 @@ function MacroMetric({ label, value, gold, hint }) {
         letterSpacing: '-0.02em',
       },
     }, value),
+    sub && React.createElement('div', {
+      style: { fontSize: 10, color: T.textMuted, marginTop: 4, fontFamily: 'Inter, sans-serif' },
+    }, sub),
   );
 }
 

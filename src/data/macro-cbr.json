@@ -1,6 +1,6 @@
 {
-  "source": "fallback (cbr.ru недоступен)",
-  "fetchedAt": "2026-05-15T12:46:44.917Z",
+  "source": "fallback (cbr.ru недоступен) + открытые источники",
+  "fetchedAt": "2026-05-29T13:04:07.578Z",
   "keyRate": {
     "currentPct": 14.5,
     "effectiveSince": "2026-04-27",
@@ -42,7 +42,9 @@
   },
   "mortgage": {
     "marketRatePct": 18.5,
+    "marketRateSource": "расчётная (КС 14.5% + спред)",
+    "marketRateFetchedAt": "2026-05-29T13:04:07.579Z",
     "preferentialRatePct": 6,
-    "note": "Среднерыночная и семейная ипотека по итогам Q1 2026"
+    "note": "Рыночная ставка: расчётная (КС 14.5% + спред). Семейная ипотека: 6%."
   }
 }

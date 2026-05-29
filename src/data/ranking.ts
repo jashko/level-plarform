@@ -116,6 +116,8 @@ export async function buildCityRanking(): Promise<RankingResult> {
     macroSnapshot: {
       keyRateAnnual: cbr.keyRateAnnual,
       mortgageRateAnnual: cbr.mortgageRateAnnual,
+      mortgageRateSource: cbr.mortgageRateSource,
+      mortgageRateFetchedAt: cbr.mortgageRateFetchedAt,
       preferentialMortgageRate: cbr.preferentialMortgageRate,
       asOfDate: cbr.asOfDate,
       source: cbr.source,

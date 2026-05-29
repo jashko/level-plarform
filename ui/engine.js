@@ -1029,15 +1029,79 @@ var CITY_COORDINATES = {
   krasnoyarsk: { lat: 56.0184, lng: 92.8672 }
 };
 
+// src/data/macro-cbr.json
+var macro_cbr_default = {
+  source: "fallback (cbr.ru \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D) + \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0438",
+  fetchedAt: "2026-05-29T13:04:07.578Z",
+  keyRate: {
+    currentPct: 14.5,
+    effectiveSince: "2026-04-27",
+    history12mo: [
+      {
+        date: "2025-06-06",
+        ratePct: 20
+      },
+      {
+        date: "2025-07-25",
+        ratePct: 18
+      },
+      {
+        date: "2025-09-12",
+        ratePct: 17
+      },
+      {
+        date: "2025-10-24",
+        ratePct: 16.5
+      },
+      {
+        date: "2025-12-19",
+        ratePct: 16
+      },
+      {
+        date: "2026-02-16",
+        ratePct: 15.5
+      },
+      {
+        date: "2026-04-27",
+        ratePct: 14.5
+      }
+    ]
+  },
+  inflation: {
+    yoyPct: 5.9,
+    asOf: "2026-04",
+    target: 4
+  },
+  mortgage: {
+    marketRatePct: 18.5,
+    marketRateSource: "\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434)",
+    marketRateFetchedAt: "2026-05-29T13:04:07.579Z",
+    preferentialRatePct: 6,
+    note: "\u0420\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430: \u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434). \u0421\u0435\u043C\u0435\u0439\u043D\u0430\u044F \u0438\u043F\u043E\u0442\u0435\u043A\u0430: 6%."
+  }
+};
+
 // src/engine/datasources/cbr.ts
+var saved = macro_cbr_default;
+function calcMortgageSpread(keyRate) {
+  if (keyRate <= 10) return 3.5;
+  if (keyRate <= 16) return 3.5 + (keyRate - 10) * 0.12;
+  if (keyRate <= 20) return 4.2 - (keyRate - 16) * 0.1;
+  return 3.8;
+}
 async function fetchCbrSnapshot() {
+  const savedMortgage = saved?.mortgage?.marketRatePct;
+  const mortgageSource = saved?.mortgage?.marketRateSource ?? "\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F";
+  const mortgageFetchedAt = saved?.mortgage?.marketRateFetchedAt ?? saved?.fetchedAt ?? "";
+  const preferential = saved?.mortgage?.preferentialRatePct ?? 6;
   const FALLBACK = {
-    asOfDate: "2026-04-27",
-    keyRateAnnual: 14.5,
-    mortgageRateAnnual: 17.8,
-    preferentialMortgageRate: 6,
-    // Семейная ипотека
-    source: "\u0411\u0430\u043D\u043A \u0420\u043E\u0441\u0441\u0438\u0438 / \u0414\u043E\u043C.\u0420\u0424 (\u0441\u0442\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u0441\u043D\u0438\u043C\u043E\u043A)",
+    asOfDate: saved?.keyRate?.effectiveSince ?? "2026-04-27",
+    keyRateAnnual: saved?.keyRate?.currentPct ?? 14.5,
+    mortgageRateAnnual: savedMortgage ?? 18.5,
+    mortgageRateSource: mortgageSource,
+    mortgageRateFetchedAt: mortgageFetchedAt,
+    preferentialMortgageRate: preferential,
+    source: "\u0411\u0430\u043D\u043A \u0420\u043E\u0441\u0441\u0438\u0438 / macro-cbr.json (\u0441\u0442\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u0441\u043D\u0438\u043C\u043E\u043A)",
     fetchMethod: "manual"
   };
   if (typeof fetch !== "function") return FALLBACK;
@@ -1050,21 +1114,23 @@ async function fetchCbrSnapshot() {
     const xml = await response.text();
     const rateMatches = [...xml.matchAll(/<Rate>([\d.,]+)<\/Rate>/g)];
     if (rateMatches.length === 0) throw new Error("no Rate tags");
-    const lastRate = parseFloat(
+    const liveKeyRate = parseFloat(
       rateMatches[rateMatches.length - 1][1].replace(",", ".")
     );
+    const mortgageRate = savedMortgage != null && savedMortgage > 0 ? savedMortgage : Math.round((liveKeyRate + calcMortgageSpread(liveKeyRate)) * 10) / 10;
+    const mortgageSrc = savedMortgage != null && savedMortgage > 0 ? mortgageSource : `\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 ${liveKeyRate}% + \u0441\u043F\u0440\u0435\u0434)`;
     return {
       asOfDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
-      keyRateAnnual: lastRate,
-      // Рыночная ипотека = ключевая + 2.5-3.5 п.п. (расчёт по корреляции)
-      mortgageRateAnnual: lastRate + 3.3,
-      preferentialMortgageRate: 6,
-      // Семейная ипотека пока 6%
-      source: "cbr.ru/scripts/xml_keyrate.asp",
+      keyRateAnnual: liveKeyRate,
+      mortgageRateAnnual: mortgageRate,
+      mortgageRateSource: mortgageSrc,
+      mortgageRateFetchedAt: mortgageFetchedAt,
+      preferentialMortgageRate: preferential,
+      source: "cbr.ru (live \u041A\u0421) + macro-cbr.json (\u0438\u043F\u043E\u0442\u0435\u043A\u0430)",
       fetchMethod: "automatic"
     };
   } catch (e) {
-    console.warn("[cbr] fetch failed, using fallback:", e);
+    console.warn("[cbr] live fetch failed, using snapshot:", e);
     return FALLBACK;
   }
 }
@@ -1117,6 +1183,8 @@ async function buildCityRanking() {
     macroSnapshot: {
       keyRateAnnual: cbr.keyRateAnnual,
       mortgageRateAnnual: cbr.mortgageRateAnnual,
+      mortgageRateSource: cbr.mortgageRateSource,
+      mortgageRateFetchedAt: cbr.mortgageRateFetchedAt,
       preferentialMortgageRate: cbr.preferentialMortgageRate,
       asOfDate: cbr.asOfDate,
       source: cbr.source,
