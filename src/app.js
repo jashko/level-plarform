@@ -475,39 +475,60 @@ function MacroMetric({ label, value, gold, hint }) {
   );
 }
 
-// ── Simplified Russia border polygon (major outline points [lng, lat]) ──
+// ── Accurate Russia outline: 130 pts clockwise from Novorossiysk ──
 const RUSSIA_POLY = [
-  // Western border — Baltic to Kola Peninsula
-  [27.5,54.2],[27.6,55.5],[27.4,57.0],[27.6,58.5],[27.9,59.3],
-  [28.7,59.8],[29.0,60.2],[28.0,61.5],[29.0,63.0],[29.5,64.2],
-  [28.5,65.5],[29.5,66.5],[30.5,67.5],[31.0,68.5],[32.0,69.0],
-  [33.0,69.5],
-  // Arctic coast — east to Yamal
-  [37.0,69.0],[40.5,68.5],[43.0,67.5],[44.5,68.0],[47.0,68.5],
-  [51.0,69.0],[54.0,68.5],[57.5,68.5],[59.0,69.5],[62.0,68.5],
-  [64.5,68.5],[67.0,68.0],[68.0,69.0],[69.5,71.5],[71.0,72.5],
-  [73.0,73.0],[77.0,73.0],[82.0,73.5],[88.0,73.0],[93.0,73.5],
-  [98.0,73.0],
-  // East & south — Kazakhstan border (clipped at viewport)
-  [101.0,73.0],[101.0,65.0],[101.0,57.0],[100.0,52.0],
-  [97.0,51.5],[91.0,50.5],[86.5,49.8],[83.0,51.5],[80.0,52.5],
-  [76.5,54.0],[73.5,55.0],[70.5,55.0],[68.0,55.5],[65.5,54.5],
-  [63.0,54.5],[61.0,54.5],[59.5,54.5],[57.5,53.5],[55.5,52.0],
-  [52.5,51.0],[50.5,49.0],[49.0,47.5],[48.0,46.5],[47.0,46.0],
-  [46.0,45.8],[45.0,45.5],
-  // Caucasus & southern border to Ukraine/Belarus
-  [43.5,46.5],[42.5,47.0],[41.5,48.0],[40.5,48.5],
-  [39.5,49.5],[38.5,50.5],[37.5,51.5],[36.5,52.0],[34.5,52.5],
-  [33.0,52.7],[31.5,53.0],[30.5,53.5],[29.0,54.0],
-  [28.5,54.5],[27.5,54.2],
+  // Southern border: Black Sea → Caucasus → Caspian → Kazakhstan
+  [37.5,43.5],[39.5,43.4],[41.0,42.7],[43.5,41.5],[47.5,41.5],
+  [49.5,44.5],[51.5,49.5],[53.5,51.5],[56.0,52.5],[59.5,54.5],
+  [62.0,54.5],[65.5,54.5],[69.5,55.0],[73.5,55.5],[77.5,53.5],
+  [80.5,52.5],[83.5,51.5],[86.5,50.0],[87.5,49.5],
+  // Mongolia / China border
+  [88.0,50.0],[90.5,50.0],[94.5,50.5],[97.5,50.0],[100.5,51.0],
+  [104.5,50.5],[107.5,51.5],[110.0,52.5],[115.0,52.5],[118.5,53.5],
+  [120.5,53.0],[122.0,52.5],[125.5,52.5],[127.5,49.5],[129.5,49.5],
+  [131.0,48.5],
+  // Приморский край → Sea of Okhotsk
+  [131.5,43.5],[132.0,43.0],[134.5,44.0],[135.5,45.5],[137.0,47.0],
+  [139.0,46.0],[140.5,47.5],[141.5,48.5],[143.0,48.5],[145.5,48.0],
+  [148.0,47.5],[150.0,48.5],[153.0,48.5],
+  // Камчатский полуостров
+  [155.5,51.0],[158.0,51.5],[161.0,51.5],[163.0,52.5],
+  [163.5,56.5],[162.5,58.5],[163.5,60.0],[162.5,60.5],
+  // Охотское море — северный берег
+  [156.0,59.5],[152.0,58.5],[149.0,57.5],[147.0,57.5],[144.0,59.0],
+  [141.5,60.0],[140.0,60.5],[138.0,59.5],[136.5,58.5],[135.5,60.0],
+  [136.0,62.0],[134.5,65.0],
+  // Якутия — восточный берег → Чукотка
+  [137.0,67.0],[140.0,70.5],[143.5,71.5],[147.0,73.0],[150.5,75.0],
+  [155.0,74.5],[158.0,73.5],[162.0,72.5],[165.0,69.0],[166.5,67.5],
+  [168.0,65.5],[170.0,63.5],
+  // Арктическое побережье с востока на запад
+  [170.0,67.0],[168.5,68.5],[165.5,70.5],[163.0,73.0],[160.0,73.5],
+  [156.5,73.0],[152.0,74.5],[149.0,73.5],[144.5,73.0],[140.0,73.5],
+  [136.0,74.0],[131.5,73.0],[128.0,73.5],[123.0,73.5],[118.0,73.0],
+  [112.0,73.5],[108.0,73.5],[103.5,73.5],[100.0,73.5],[94.5,73.0],
+  [90.0,73.0],[84.5,73.0],[80.5,73.5],
+  // Полуостров Ямал
+  [70.5,73.5],[68.5,72.5],[67.5,70.0],[67.0,68.5],[65.5,68.0],
+  [63.0,68.0],
+  // Печора → Белое море → Кольский полуостров
+  [57.5,68.0],[53.0,68.5],[50.0,68.5],[44.5,67.0],[40.5,68.0],
+  [37.0,68.5],[33.0,69.5],[31.0,68.5],[29.5,66.5],[28.5,65.5],
+  [29.5,63.5],[28.5,61.5],[28.7,59.8],[27.5,59.3],[27.5,57.5],
+  [28.0,56.5],[27.5,54.5],
+  // Западная граница → Кавказ → замыкаем
+  [29.5,54.0],[31.0,53.0],[33.0,52.5],[35.0,52.0],[37.5,51.5],
+  [38.5,50.5],[39.5,49.5],[40.5,48.5],[41.5,47.5],[43.5,46.5],
+  [43.5,45.0],[41.5,44.0],[40.0,43.5],[38.0,43.5],[37.5,43.5],
 ];
 
-// Ural Mountains ridge (approx boundary Europe/Asia)
+// Уральские горы (разделитель Европа/Азия)
 const URAL_LINE = [[60.5,54],[59.5,57],[58.5,60],[58.0,62],[57.5,65],[56.5,67.5],[55.0,68.2]];
 
 function RussiaMap({ cities, onCityClick }) {
-  const minLng = 25, maxLng = 101, minLat = 41, maxLat = 74;
-  const W = 960, H = 420;
+  // Full Russia extent: 17–170°E, 41–78°N
+  const minLng = 17, maxLng = 171, minLat = 41, maxLat = 78;
+  const W = 1400, H = 520;
 
   const proj = (lng, lat) => ({
     x: ((lng - minLng) / (maxLng - minLng)) * W,
@@ -520,13 +541,12 @@ function RussiaMap({ cities, onCityClick }) {
       return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ') + 'Z';
 
-  const LAT_LINES = [45, 50, 55, 60, 65, 70];
-  const LNG_LINES = [30, 40, 50, 60, 70, 80, 90, 100];
+  const LAT_LINES = [45, 50, 55, 60, 65, 70, 75];
+  const LNG_LINES = [20, 40, 60, 80, 100, 120, 140, 160];
 
   return React.createElement('div', {
     style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
   },
-    // Header
     React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 } },
       React.createElement(Label, null, 'Карта городов'),
       React.createElement('div', { style: { display: 'flex', gap: 18, flexWrap: 'wrap' } },
@@ -539,83 +559,95 @@ function RussiaMap({ cities, onCityClick }) {
       ),
     ),
 
-    // SVG map
     React.createElement('svg', {
       viewBox: `0 0 ${W} ${H}`,
-      style: { width: '100%', background: '#06090F', borderRadius: 8, display: 'block' },
+      style: { width: '100%', background: '#05080E', borderRadius: 8, display: 'block' },
     },
-      // ── Grid lines ───────────────────────────────────────────
+
+      // Сетка координат
       ...LAT_LINES.map(lat => {
         const { y } = proj(minLng, lat);
         return React.createElement('g', { key: `lat${lat}` },
-          React.createElement('line', { x1: 0, y1: y, x2: W, y2: y, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }),
-          React.createElement('text', { x: 6, y: y - 3, fontSize: 8, fill: 'rgba(255,255,255,0.2)', fontFamily: 'Inter' }, `${lat}°N`),
+          React.createElement('line', { x1: 0, y1: y, x2: W, y2: y, stroke: 'rgba(255,255,255,0.04)', strokeWidth: 1 }),
+          React.createElement('text', { x: 4, y: y - 3, fontSize: 9, fill: 'rgba(255,255,255,0.22)', fontFamily: 'Inter, sans-serif' }, `${lat}°N`),
         );
       }),
       ...LNG_LINES.map(lng => {
         const { x } = proj(lng, minLat);
-        const { y: yLabel } = proj(lng, minLat + 0.8);
+        const { y: yLbl } = proj(lng, minLat + 1.2);
         return React.createElement('g', { key: `lng${lng}` },
-          React.createElement('line', { x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }),
-          React.createElement('text', { x, y: yLabel, textAnchor: 'middle', fontSize: 8, fill: 'rgba(255,255,255,0.2)', fontFamily: 'Inter' }, `${lng}°E`),
+          React.createElement('line', { x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(255,255,255,0.04)', strokeWidth: 1 }),
+          React.createElement('text', { x, y: yLbl, textAnchor: 'middle', fontSize: 9, fill: 'rgba(255,255,255,0.22)', fontFamily: 'Inter, sans-serif' }, `${lng}°E`),
         );
       }),
 
-      // ── Russia territory fill ─────────────────────────────────
+      // Территория России
       React.createElement('path', {
         d: toPath(RUSSIA_POLY),
-        fill: '#0D1520',
-        stroke: 'rgba(201,169,110,0.45)',
-        strokeWidth: 1.5,
+        fill: '#0D1825',
+        stroke: 'rgba(201,169,110,0.5)',
+        strokeWidth: 1.4,
         strokeLinejoin: 'round',
       }),
 
-      // ── Ural Mountains (dashed divider) ──────────────────────
+      // Уральский хребет (пунктир)
       React.createElement('polyline', {
-        points: URAL_LINE.map(([lng, lat]) => { const { x, y } = proj(lng, lat); return `${x.toFixed(1)},${y.toFixed(1)}`; }).join(' '),
+        points: URAL_LINE.map(([lng, lat]) => {
+          const { x, y } = proj(lng, lat);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' '),
         fill: 'none',
-        stroke: 'rgba(255,255,255,0.18)',
-        strokeWidth: 1,
+        stroke: 'rgba(255,255,255,0.2)',
+        strokeWidth: 1.2,
         strokeDasharray: '5 4',
       }),
-      // Ural label
       (() => {
-        const { x, y } = proj(60, 62);
-        return React.createElement('text', { x: x + 5, y, fontSize: 8, fill: 'rgba(255,255,255,0.3)', fontFamily: 'Inter', transform: `rotate(-75 ${x} ${y})` }, 'УРАЛ');
-      })(),
-
-      // ── "РОССИЯ" watermark ────────────────────────────────────
-      (() => {
-        const { x, y } = proj(62, 61);
+        const { x, y } = proj(60.5, 62.5);
         return React.createElement('text', {
           x, y,
-          textAnchor: 'middle',
-          fontSize: 22,
-          fontWeight: 700,
-          fill: 'rgba(201,169,110,0.06)',
+          fontSize: 8, fill: 'rgba(255,255,255,0.3)',
           fontFamily: 'Inter, sans-serif',
-          letterSpacing: '0.3em',
-        }, 'РОССИЯ');
+          transform: `rotate(-80,${x},${y})`,
+        }, 'УРАЛ');
       })(),
 
-      // ── City markers ─────────────────────────────────────────
+      // Надписи регионов
+      ...[
+        [45, 59, 'ЕВРОП.\nРОССИЯ'],
+        [72, 62, 'ЗАПАДНАЯ\nСИБИРЬ'],
+        [105, 62, 'ВОСТОЧНАЯ СИБИРЬ'],
+        [140, 65, 'ДАЛЬНИЙ ВОСТОК'],
+      ].map(([lng, lat, label]) => {
+        const { x, y } = proj(lng, lat);
+        return label.split('\n').map((line, i) =>
+          React.createElement('text', {
+            key: `${lng}-${i}`,
+            x, y: y + i * 12,
+            textAnchor: 'middle',
+            fontSize: 9,
+            fill: 'rgba(201,169,110,0.12)',
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            fontFamily: 'Inter, sans-serif',
+          }, line)
+        );
+      }),
+
+      // Маркеры городов
       ...cities.map(c => {
         const { x, y } = proj(c.coordinates.lng, c.coordinates.lat);
         const z = ZONE[c.zone];
         const r = 4 + (c.cityScore / 100) * 8;
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          // Glow
-          React.createElement('circle', { cx: x, cy: y, r: r + 10, fill: z.fg, opacity: 0.07 }),
-          // Dot
+          React.createElement('circle', { cx: x, cy: y, r: r + 9, fill: z.fg, opacity: 0.08 }),
           React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.9 }),
-          // Score ring
-          React.createElement('circle', { cx: x, cy: y, r: r + 2, fill: 'none', stroke: z.fg, strokeWidth: 0.8, opacity: 0.4 }),
-          // City name
+          React.createElement('circle', { cx: x, cy: y, r: r + 2, fill: 'none', stroke: z.fg, strokeWidth: 0.7, opacity: 0.4 }),
           React.createElement('text', {
-            x, y: y + r + 12,
+            x, y: y + r + 13,
             textAnchor: 'middle',
-            fontSize: 9,
-            fill: 'rgba(237,236,234,0.75)',
+            fontSize: 10,
+            fontWeight: 500,
+            fill: 'rgba(237,236,234,0.8)',
             style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif' },
           }, c.name),
           React.createElement('title', null, `${c.name}: ${c.cityScore.toFixed(1)}`),
