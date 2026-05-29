@@ -3075,6 +3075,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const [inputs,      setInputs]      = useState(initialInputs);
   const [scenario,    setScenario]    = useState('base');
   const [showHistory, setShowHistory] = useState(false);
+  const [activeTab,   setActiveTab]   = useState('model');  // 🆕 TAB STATE
   const m = useIsMobile();
   useEffect(() => { setInputs(initialInputs); }, [initialInputs]);
 
@@ -3219,16 +3220,80 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
         React.createElement(InputPanel, { inputs, onChange: setInputs }),
         React.createElement(SmartHintsPanel, { inputs }),
       ),
+      // ── TAB INTERFACE FOR 7 POWER FEATURES ────────────────────────────
       React.createElement(
         'div',
         { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
-        React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
+
+        // TAB BUTTONS
+        React.createElement('div', {
+          style: {
+            display: 'flex',
+            gap: 8,
+            borderBottom: `1px solid ${T.border}`,
+            paddingBottom: 12,
+            flexWrap: 'wrap',
+            marginBottom: 20,
+          },
+        },
+          ...[
+            { id: 'model', label: '📊 Модель' },
+            { id: 'elasticity', label: '💰 Price Elasticity' },
+            { id: 'benchmark', label: '🏆 Benchmark' },
+            { id: 'montecarlo', label: '📈 Risk (MC)' },
+            { id: 'export', label: '🚀 Export & Share' },
+          ].map(tab =>
+            React.createElement('button', {
+              key: tab.id,
+              onClick: () => setActiveTab(tab.id),
+              style: {
+                padding: '8px 16px',
+                background: activeTab === tab.id ? T.gold : 'transparent',
+                color: activeTab === tab.id ? T.bg : T.text,
+                border: activeTab === tab.id ? 'none' : `1px solid ${T.border}`,
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 12,
+                transition: 'all 0.15s',
+              },
+            }, tab.label),
+          ),
+        ),
+
+        // TAB CONTENT — conditional render
+        activeTab === 'model' && React.createElement(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+          React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
         React.createElement(
           'div',
           { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
           React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
           React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
         ),
+        ),
+
+        // OTHER TABS
+        activeTab === 'elasticity' && React.createElement(PriceElasticityPanel, {
+          basePrice: inputs.basePricePerM2,
+          onPriceChange: (newPrice) => setInputs({ ...inputs, basePricePerM2: newPrice }),
+          currentMetrics: { npv: cur.npv, irr: cur.irr },
+        }),
+
+        activeTab === 'benchmark' && React.createElement(BenchmarkPanel, {
+          city,
+          benchmark: generateBenchmark([...(window.__ALL_CITIES || []), city], city),
+        }),
+
+        activeTab === 'montecarlo' && React.createElement(MonteCarloPanel, {
+          scenarios: runMonteCarloSimulation(inputs),
+        }),
+
+        activeTab === 'export' && React.createElement(ExportShareButtons, {
+          city,
+          model,
+        }),
       ),
     ),
 
