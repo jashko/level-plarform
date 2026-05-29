@@ -3266,12 +3266,12 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
           'div',
           { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
           React.createElement(CashflowChart, { monthlyCashFlow: cur.monthlyCashFlow }),
-        React.createElement(
-          'div',
-          { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
-          React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
-          React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
-        ),
+          React.createElement(
+            'div',
+            { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
+            React.createElement(CapexBars, { capex: cur.capex, totalPfInterest: cur.totalPfInterest }),
+            React.createElement(ScenarioCompare, { scenarios: model.scenarios }),
+          ),
         ),
 
         // OTHER TABS
