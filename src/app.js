@@ -6,7 +6,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LineChart, Line, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
+  LineChart, Line, AreaChart, Area,
+  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -578,10 +579,23 @@ function MacroMetric({ label, value, gold, hint, sub }) {
 // Уральские горы (разделитель Европа/Азия)
 const URAL_LINE = [[60.5,54],[59.5,57],[58.5,60],[58.0,62],[57.5,65],[56.5,67.5],[55.0,68.2]];
 
+// Федеральные округа — центры и приблизительные границы (прямоугольники [minLng,minLat,maxLng,maxLat])
+const FEDERAL_DISTRICTS = [
+  { name: 'Центральный',      short: 'ЦФО',  center: [37.5, 55.5], bounds: [31, 51, 45, 58],   color: '#7A9EDB' },
+  { name: 'Северо-Западный',  short: 'СЗФО', center: [37, 62],     bounds: [27, 57, 67, 71],   color: '#6BBFA3' },
+  { name: 'Южный',            short: 'ЮФО',  center: [40, 47.5],   bounds: [36, 44, 51, 52],   color: '#D4A86A' },
+  { name: 'Сев.-Кавказский',  short: 'СКФО', center: [44, 43.5],   bounds: [39, 41, 50, 45.5], color: '#D47A6A' },
+  { name: 'Приволжский',      short: 'ПФО',  center: [51, 55.5],   bounds: [45, 51, 59, 61],   color: '#B47ADA' },
+  { name: 'Уральский',        short: 'УФО',  center: [65, 61],     bounds: [58, 55, 78, 68],   color: '#6A9ECA' },
+  { name: 'Сибирский',        short: 'СФО',  center: [90, 57],     bounds: [73, 50, 121, 68],  color: '#7ABCA8' },
+  { name: 'Дальневосточный',  short: 'ДФО',  center: [133, 58],    bounds: [110, 42, 172, 70], color: '#A8A87A' },
+];
+
 function RussiaMap({ cities, onCityClick }) {
   // Загружаем реальные данные Natural Earth 110m через TopoJSON
-  const [geoPolys, setGeoPolys] = React.useState(null);
-  const [loading,  setLoading]  = React.useState(true);
+  const [geoPolys,      setGeoPolys]      = React.useState(null);
+  const [loading,       setLoading]       = React.useState(true);
+  const [showDistricts, setShowDistricts] = React.useState(true);
 
   useEffect(() => {
     fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -652,12 +666,23 @@ function RussiaMap({ cities, onCityClick }) {
     style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
   },
     // Шапка карты
-    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 } },
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
         React.createElement(Label, null, 'Карта городов'),
         loading && React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, '· загрузка карты...'),
       ),
-      React.createElement('div', { style: { display: 'flex', gap: 18, flexWrap: 'wrap' } },
+      React.createElement('div', { style: { display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' } },
+        // Переключатель федеральных округов
+        React.createElement('button', {
+          onClick: () => setShowDistricts(v => !v),
+          style: {
+            padding: '4px 12px', fontSize: 11, borderRadius: 16, cursor: 'pointer',
+            fontFamily: 'Inter, sans-serif', letterSpacing: '0.04em',
+            background: showDistricts ? 'rgba(122,158,219,0.12)' : 'transparent',
+            border: `1px solid ${showDistricts ? 'rgba(122,158,219,0.4)' : T.border}`,
+            color: showDistricts ? '#7A9EDB' : T.textMuted,
+          },
+        }, 'ФО'),
         Object.entries(ZONE).map(([k, z]) =>
           React.createElement('div', { key: k, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted } },
             React.createElement('div', { style: { width: 6, height: 6, borderRadius: '50%', background: z.fg } }),
@@ -671,6 +696,17 @@ function RussiaMap({ cities, onCityClick }) {
       viewBox: `0 0 ${W} ${H}`,
       style: { width: '100%', background: '#05080E', borderRadius: 8, display: 'block' },
     },
+      // ── CSS-анимация пульсации ─────────────────────────────────
+      React.createElement('style', null, `
+        @keyframes cityPulse {
+          0%   { r: 0; opacity: 0.35; }
+          60%  { opacity: 0.12; }
+          100% { r: 28; opacity: 0; }
+        }
+        .city-pulse { animation: cityPulse 2.2s ease-out infinite; }
+        .city-pulse-2 { animation: cityPulse 2.2s ease-out infinite 1.1s; }
+      `),
+
       // ── Координатная сетка ────────────────────────────────────
       ...LAT_LINES.map(lat => {
         const [, y] = proj(minLng, lat);
@@ -711,6 +747,32 @@ function RussiaMap({ cities, onCityClick }) {
             fill: T.textMuted, fontFamily: 'Inter',
           }, 'Загрузка данных карты...')]),
 
+      // ── Федеральные округа ────────────────────────────────────
+      showDistricts && geoPolys && FEDERAL_DISTRICTS.map(fd => {
+        const [x1, y1] = proj(fd.bounds[0], fd.bounds[3]); // minLng, maxLat (top-left)
+        const [x2, y2] = proj(fd.bounds[2], fd.bounds[1]); // maxLng, minLat (bot-right)
+        const [cx, cy] = proj(fd.center[0], fd.center[1]);
+        const bw = x2 - x1, bh = y2 - y1;
+        return React.createElement('g', { key: fd.short },
+          React.createElement('rect', {
+            x: x1, y: y1, width: bw, height: bh,
+            fill: fd.color, fillOpacity: 0.04,
+            stroke: fd.color, strokeOpacity: 0.22,
+            strokeWidth: 0.9, strokeDasharray: '6 4',
+          }),
+          React.createElement('text', {
+            x: cx, y: cy,
+            textAnchor: 'middle', dominantBaseline: 'middle',
+            fontSize: 9.5, fill: fd.color,
+            fillOpacity: 0.65,
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            style: { pointerEvents: 'none', textTransform: 'uppercase' },
+          }, fd.short),
+        );
+      }),
+
       // ── Уральский хребет ──────────────────────────────────────
       geoPolys && React.createElement('polyline', {
         points: URAL_LINE.map(([lng, lat]) => proj(lng, lat).join(',')).join(' '),
@@ -722,14 +784,28 @@ function RussiaMap({ cities, onCityClick }) {
       })(),
 
       // ── Маркеры городов ───────────────────────────────────────
-      ...cities.map(c => {
+      ...cities.map((c, idx) => {
         const [x, y] = proj(c.coordinates.lng, c.coordinates.lat);
         const z = ZONE[c.zone];
         const r = 4 + (c.cityScore / 100) * 8;
+        const delay = (idx * 0.15) % 2.5; // разный delay для каждого города
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          React.createElement('circle', { cx: x, cy: y, r: r + 9, fill: z.fg, opacity: 0.08 }),
-          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.9 }),
-          React.createElement('circle', { cx: x, cy: y, r: r + 2, fill: 'none', stroke: z.fg, strokeWidth: 0.7, opacity: 0.4 }),
+          // ── Пульсирующий гало (внешнее свечение) ────────────────────
+          React.createElement('circle', {
+            cx: x, cy: y,
+            r: r + 4,
+            fill: z.fg,
+            opacity: 0.05,
+            style: {
+              animation: `pulse-glow 2.5s ease-in-out infinite`,
+              animationDelay: `${delay}s`,
+            },
+          }),
+          // ── Статичные слои (основная точка) ────────────────────────
+          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: z.fg, opacity: 0.08 }),
+          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.95 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 1, fill: 'none', stroke: z.fg, strokeWidth: 0.8, opacity: 0.4 }),
+          // ── Название города ──────────────────────────────────────────
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
@@ -2722,14 +2798,57 @@ function TrendsModal({ city, onClose }) {
         ),
       ),
 
-      React.createElement(ResponsiveContainer, { width: '100%', height: 250 },
-        React.createElement(LineChart, { data, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+      React.createElement(ResponsiveContainer, { width: '100%', height: 280 },
+        React.createElement(AreaChart, { data, margin: { top: 15, right: 20, bottom: 5, left: -25 } },
+          React.createElement('defs', null,
+            React.createElement('linearGradient', { id: 'priceGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
+              React.createElement('stop', { offset: '0%', stopColor: T.green, stopOpacity: 0.3 }),
+              React.createElement('stop', { offset: '100%', stopColor: T.green, stopOpacity: 0.01 }),
+            ),
+          ),
           React.createElement(CartesianGrid, CHART_GRID),
-          React.createElement(XAxis, { dataKey: 'month', tick: CHART_TICK }),
-          React.createElement(YAxis, { tick: CHART_TICK, unit: ' тыс' }),
-          React.createElement(Tooltip, { ...CHART_TIP, formatter: v => [`${v} тыс ₽/м²`, 'Цена'] }),
-          React.createElement(ReferenceLine, { y: Math.round(current / 1000), stroke: T.gold, strokeDasharray: '4 3' }),
-          React.createElement(Line, { type: 'monotone', dataKey: 'price', stroke: T.green, strokeWidth: 2.5, dot: { fill: T.green, r: 3 } }),
+          React.createElement(XAxis, {
+            dataKey: 'month',
+            tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
+            axisLine: { stroke: T.border },
+            tickLine: { stroke: T.border },
+          }),
+          (() => {
+            const minVal = Math.min(...data.map(d => d.price));
+            const maxVal = Math.max(...data.map(d => d.price));
+            const range = maxVal - minVal;
+            const buffer = range * 0.15;
+            return React.createElement(YAxis, {
+              domain: [Math.max(0, minVal - buffer), maxVal + buffer],
+              tick: { fontSize: 11, fill: T.textMuted, fontFamily: 'Inter, sans-serif' },
+              axisLine: { stroke: T.border },
+              tickLine: { stroke: T.border },
+              unit: ' тыс',
+              width: 50,
+            });
+          })(),
+          React.createElement(Tooltip, {
+            ...CHART_TIP,
+            formatter: v => [`${v} тыс ₽/м²`, 'Цена'],
+            labelFormatter: label => label,
+          }),
+          React.createElement(ReferenceLine, {
+            y: Math.round(current / 1000),
+            stroke: T.gold,
+            strokeDasharray: '5 4',
+            strokeWidth: 1.5,
+            label: { value: 'Текущая', position: 'right', fill: T.gold, fontSize: 10, offset: 10 },
+          }),
+          React.createElement(Area, {
+            type: 'monotone',
+            dataKey: 'price',
+            stroke: T.green,
+            strokeWidth: 2.8,
+            fill: 'url(#priceGrad)',
+            dot: { fill: T.green, r: 4, stroke: T.bg, strokeWidth: 2 },
+            activeDot: { r: 6, stroke: T.gold, strokeWidth: 2 },
+            isAnimationActive: true,
+          }),
         ),
       ),
     ),
