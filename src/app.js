@@ -74,6 +74,44 @@ const fmtPct = (n, d = 1) =>
   n === null || n === undefined || isNaN(n) ? '—' : `${n.toFixed(d)}%`;
 const fmtNum = (n) => n.toLocaleString('ru-RU');
 
+// ── Utilities ─────────────────────────────────────────────────────
+const debounce = (fn, wait) => {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };
+};
+
+const downloadCSV = (rows, filename) => {
+  const csv = rows.map(r =>
+    r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+  URL.revokeObjectURL(url);
+};
+
+// History — localStorage
+const HISTORY_KEY = 'level_history_v1';
+const getHistory  = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; } };
+const saveToHistory = (entry) => {
+  const h = getHistory().filter(e => e.id !== entry.id);
+  h.unshift({ ...entry, id: Date.now(), savedAt: new Date().toLocaleString('ru-RU') });
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 20)));
+};
+const clearHistory = () => localStorage.removeItem(HISTORY_KEY);
+
+// Mock 12-month price trend derived from city's current price
+const getMockTrends = (city) => {
+  const base = city.inputs.housing.businessClassPricePerM2;
+  const months = ['май','июн','июл','авг','сен','окт','ноя','дек','янв','фев','мар','апр'];
+  const seed   = city.key.charCodeAt(0);
+  return months.map((month, i) => {
+    const trend = base * (0.92 + (i / 11) * 0.08);           // ~8% growth over year
+    const noise = Math.sin(seed + i * 1.7) * base * 0.018;   // ±1.8% noise
+    return { month, price: Math.round((trend + noise) / 1000) };
+  });
+};
+
 // ── Hint content dictionary ───────────────────────────────────────
 const HINTS = {
   keyRate: {
@@ -535,20 +573,32 @@ function ZoneFilter({ filter, onChange }) {
   );
 }
 
-function CityRow({ rank, city, onClick }) {
+function CityRow({ rank, city, onClick, compareMode, selected, onToggle, onTrends }) {
   const z = ZONE[city.zone];
   const thSub = (s) => s >= 70 ? T.green : s >= 45 ? T.textSub : T.red;
   return React.createElement(
     'tr',
     {
       className: 'l-row',
-      style: { borderBottom: `1px solid rgba(255,255,255,0.04)`, cursor: 'pointer' },
-      onClick: () => onClick(city.key),
+      style: {
+        borderBottom: `1px solid rgba(255,255,255,0.04)`,
+        cursor: 'pointer',
+        background: selected ? `${T.gold}0A` : undefined,
+      },
+      onClick: () => compareMode ? onToggle(city.key) : onClick(city.key),
     },
-    // rank
+    // rank / checkbox
     React.createElement('td', {
       style: { padding: '14px 16px', width: 48, fontSize: 12, color: T.textMuted, fontVariantNumeric: 'tabular-nums' },
-    }, rank),
+    }, compareMode
+      ? React.createElement('input', {
+          type: 'checkbox', checked: selected,
+          onChange: () => onToggle(city.key),
+          onClick: e => e.stopPropagation(),
+          style: { accentColor: T.gold, width: 15, height: 15 },
+        })
+      : rank
+    ),
     // city
     React.createElement(
       'td',
@@ -614,13 +664,19 @@ function CityRow({ rank, city, onClick }) {
       }, fmtRub(city.inputs.housing.businessClassPricePerM2)),
       React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 2 } }, '₽/м² БК'),
     ),
-    // open
+    // actions
     React.createElement(
       'td',
       { style: { padding: '14px 16px', textAlign: 'right' } },
-      React.createElement('span', {
-        style: { fontSize: 12, color: T.gold, letterSpacing: '0.04em', fontWeight: 500 },
-      }, 'Открыть →'),
+      React.createElement('div', { style: { display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
+        React.createElement('button', {
+          onClick: e => { e.stopPropagation(); onTrends(city); },
+          style: { background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, padding: '3px 10px', fontSize: 11, color: T.textSub, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+        }, '📈 Тренд'),
+        React.createElement('span', {
+          style: { fontSize: 12, color: T.gold, letterSpacing: '0.04em', fontWeight: 500 },
+        }, 'Открыть →'),
+      ),
     ),
   );
 }
@@ -739,10 +795,28 @@ function CityQuadrant({ cities, onCityClick }) {
 }
 
 function MainScreen({ ranking, onCityClick }) {
-  const [zoneFilter, setZoneFilter] = useState('all');
-  const filteredCities = zoneFilter === 'all'
-    ? ranking.cities
-    : ranking.cities.filter((c) => c.zone === zoneFilter);
+  const [zoneFilter,    setZoneFilter]    = useState('all');
+  const [minScore,      setMinScore]      = useState(0);
+  const [maxPrice,      setMaxPrice]      = useState(Infinity);
+  const [compareMode,   setCompareMode]   = useState(false);
+  const [selectedKeys,  setSelectedKeys]  = useState(new Set());
+  const [showCompare,   setShowCompare]   = useState(false);
+  const [showTrendsFor, setShowTrendsFor] = useState(null);
+
+  const filteredCities = ranking.cities.filter(c =>
+    (zoneFilter === 'all' || c.zone === zoneFilter) &&
+    c.cityScore >= minScore &&
+    c.inputs.housing.businessClassPricePerM2 <= maxPrice,
+  );
+
+  const toggleCity = (key) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else if (next.size < 4) next.add(key);
+      return next;
+    });
+  };
+  const selectedCities = ranking.cities.filter(c => selectedKeys.has(c.key));
 
   const thCell = (align = 'center') => ({
     padding: '12px 8px',
@@ -759,6 +833,13 @@ function MainScreen({ ranking, onCityClick }) {
   return React.createElement(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+
+    // Modals
+    showCompare && selectedCities.length >= 2 &&
+      React.createElement(ComparisonModal, { cities: selectedCities, onClose: () => setShowCompare(false) }),
+    showTrendsFor &&
+      React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
+
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
@@ -795,7 +876,70 @@ function MainScreen({ ranking, onCityClick }) {
             style: { fontSize: 12, color: T.textMuted, marginTop: 4 },
           }, `${filteredCities.length} из ${ranking.cities.length} · расчёт ${ranking.durationMs} мс`),
         ),
-        React.createElement(ZoneFilter, { filter: zoneFilter, onChange: setZoneFilter }),
+
+        // Controls row
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+          // Score filter
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+            React.createElement('span', { style: { fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap' } }, 'Score ≥'),
+            React.createElement('input', {
+              type: 'range', min: 0, max: 90, step: 5, value: minScore,
+              onChange: e => setMinScore(+e.target.value),
+              style: { width: 80, accentColor: T.gold },
+            }),
+            React.createElement('span', { style: { fontSize: 11, color: T.gold, minWidth: 24, fontVariantNumeric: 'tabular-nums' } }, minScore),
+          ),
+          // Price filter
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+            React.createElement('span', { style: { fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap' } }, 'Цена ≤'),
+            React.createElement('select', {
+              value: maxPrice === Infinity ? '' : maxPrice,
+              onChange: e => setMaxPrice(e.target.value ? +e.target.value : Infinity),
+              style: { background: T.bg, border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 6, color: T.text, fontSize: 11, padding: '3px 6px', fontFamily: 'Inter, sans-serif' },
+            },
+              React.createElement('option', { value: '' }, 'Любая'),
+              React.createElement('option', { value: 150000 }, '150 тыс ₽/м²'),
+              React.createElement('option', { value: 200000 }, '200 тыс ₽/м²'),
+              React.createElement('option', { value: 300000 }, '300 тыс ₽/м²'),
+              React.createElement('option', { value: 400000 }, '400 тыс ₽/м²'),
+            ),
+          ),
+          React.createElement(ZoneFilter, { filter: zoneFilter, onChange: setZoneFilter }),
+
+          // Compare toggle
+          React.createElement('button', {
+            onClick: () => { setCompareMode(m => !m); if (compareMode) setSelectedKeys(new Set()); },
+            style: {
+              padding: '5px 14px', borderRadius: 7, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              background: compareMode ? T.goldDim : T.surfaceRaise,
+              border: `1px solid ${compareMode ? T.borderGold : T.border}`,
+              color: compareMode ? T.gold : T.textSub,
+            },
+          }, compareMode ? `⊞ Выбрано ${selectedKeys.size}/4` : '⊞ Сравнить'),
+
+          compareMode && selectedKeys.size >= 2 &&
+            React.createElement('button', {
+              onClick: () => setShowCompare(true),
+              style: { padding: '5px 14px', borderRadius: 7, fontSize: 11, cursor: 'pointer', background: T.green, border: 'none', color: '#000', fontWeight: 700, fontFamily: 'Inter, sans-serif' },
+            }, '→ Сравнить'),
+
+          // CSV export
+          React.createElement('button', {
+            onClick: () => {
+              const rows = [
+                ['Город', 'CityScore', 'Зона', 'Цена м²', 'Население', 'Продажи м²/мес'],
+                ...filteredCities.map(c => [
+                  c.name, c.cityScore.toFixed(1), c.zone,
+                  c.inputs.housing.businessClassPricePerM2,
+                  c.inputs.demographics.population,
+                  c.inputs.housing.monthlySalesM2,
+                ]),
+              ];
+              downloadCSV(rows, 'city_ranking.csv');
+            },
+            style: { padding: '5px 12px', borderRadius: 7, fontSize: 11, cursor: 'pointer', background: T.surfaceRaise, border: `1px solid ${T.border}`, color: T.textSub, fontFamily: 'Inter, sans-serif' },
+          }, '↓ CSV'),
+        ),
       ),
       // table
       React.createElement(
@@ -827,10 +971,14 @@ function MainScreen({ ranking, onCityClick }) {
             null,
             filteredCities.map((c) =>
               React.createElement(CityRow, {
-                key: c.key,
-                rank: ranking.cities.indexOf(c) + 1,
-                city: c,
-                onClick: onCityClick,
+                key:         c.key,
+                rank:        ranking.cities.indexOf(c) + 1,
+                city:        c,
+                onClick:     onCityClick,
+                compareMode,
+                selected:    selectedKeys.has(c.key),
+                onToggle:    toggleCity,
+                onTrends:    (city) => setShowTrendsFor(city),
               }),
             ),
           ),
@@ -2064,6 +2212,326 @@ function IRRBenchmarkCard({ irr, npv, netMargin }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+// FEATURE: TOAST NOTIFICATION
+// ══════════════════════════════════════════════════════════════════
+
+function Toast({ message, type = 'info', onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 6000); return () => clearTimeout(t); }, []);
+  const color = { info: T.gold, success: T.green, warning: T.yellow, error: T.red }[type] || T.gold;
+  const icon  = { info: 'ℹ', success: '✓', warning: '⚠', error: '⛔' }[type];
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', top: 20, right: 20, zIndex: 100000,
+      background: T.surfaceRaise, border: `1px solid ${color}44`,
+      borderLeft: `3px solid ${color}`, borderRadius: 10,
+      padding: '12px 18px', maxWidth: 360, minWidth: 260,
+      boxShadow: '0 12px 40px rgba(0,0,0,0.65)',
+      fontFamily: 'Inter, sans-serif',
+      display: 'flex', alignItems: 'flex-start', gap: 10,
+      animation: 'fadeIn 0.2s ease',
+    },
+  },
+    React.createElement('span', { style: { fontSize: 15, marginTop: 1, flexShrink: 0 } }, icon),
+    React.createElement('div', { style: { flex: 1 } },
+      React.createElement('div', { style: { fontSize: 12, color, fontWeight: 600, marginBottom: 3 } },
+        type === 'warning' ? 'Обновление ЦБ РФ' : type === 'success' ? 'Готово' : 'Уведомление',
+      ),
+      React.createElement('div', { style: { fontSize: 11, color: T.textSub, lineHeight: 1.55 } }, message),
+    ),
+    React.createElement('button', {
+      onClick: onClose,
+      style: { background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1, marginTop: -1 },
+    }, '×'),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 1: СРАВНЕНИЕ ГОРОДОВ
+// ══════════════════════════════════════════════════════════════════
+
+function ComparisonModal({ cities, onClose }) {
+  const COLORS = [T.gold, T.green, '#5B8FBF', '#B06FAF'];
+
+  // Build radar data from known metrics
+  const allCities = cities;
+  const maxPop  = Math.max(...allCities.map(c => c.inputs.demographics.population));
+  const maxSales = Math.max(...allCities.map(c => c.inputs.housing.monthlySalesM2));
+  const maxPrice = Math.max(...allCities.map(c => c.inputs.housing.businessClassPricePerM2));
+
+  const radarKeys = [
+    { key: 'CityScore',    fn: c => c.cityScore },
+    { key: 'Демография',   fn: c => Math.min(100, (c.inputs.demographics.population / maxPop) * 100 * 1.4) },
+    { key: 'Рост цен',     fn: c => Math.min(100, 40 + (c.inputs.demographics.populationGrowthRate || 0) * 15) },
+    { key: 'Спрос м²/мес', fn: c => Math.min(100, (c.inputs.housing.monthlySalesM2 / maxSales) * 100) },
+    { key: 'Цена vs рынок',fn: c => Math.min(100, (1 - c.inputs.housing.businessClassPricePerM2 / maxPrice) * 80 + 20) },
+  ];
+
+  const radarData = radarKeys.map(({ key, fn }) => {
+    const entry = { subject: key };
+    allCities.forEach(c => { entry[c.name] = Math.round(fn(c)); });
+    return entry;
+  });
+
+  const metricRows = [
+    ['CityScore',              c => c.cityScore.toFixed(1)],
+    ['Зона',                   c => ZONE[c.zone]?.label],
+    ['Цена м² бизнес-класс',  c => fmtRub(c.inputs.housing.businessClassPricePerM2)],
+    ['Население',              c => fmtNum(c.inputs.demographics.population)],
+    ['Рост населения/год',     c => fmtPct(c.inputs.demographics.populationGrowthRate, 2)],
+    ['Продажи м²/мес',        c => fmtNum(c.inputs.housing.monthlySalesM2)],
+  ];
+
+  return React.createElement('div', {
+    onClick: onClose,
+    style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  },
+    React.createElement('div', {
+      onClick: e => e.stopPropagation(),
+      style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 32, width: '100%', maxWidth: 920, maxHeight: '90vh', overflow: 'auto' },
+    },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 } },
+        React.createElement('div', null,
+          React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: T.text } }, 'Сравнение городов'),
+          React.createElement('div', { style: { fontSize: 12, color: T.textMuted, marginTop: 4 } }, cities.map(c => c.name).join(' · ')),
+        ),
+        React.createElement('button', { onClick: onClose, style: { background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 24 } }, '×'),
+      ),
+
+      // Radar
+      React.createElement(Label, { style: { marginBottom: 14 } }, 'Профиль города — паутинная диаграмма'),
+      React.createElement(ResponsiveContainer, { width: '100%', height: 300 },
+        React.createElement(RadarChart, { data: radarData },
+          React.createElement(PolarGrid, { stroke: T.border }),
+          React.createElement(PolarAngleAxis, { dataKey: 'subject', tick: { fill: T.textSub, fontSize: 11, fontFamily: 'Inter' } }),
+          React.createElement(PolarRadiusAxis, { angle: 18, domain: [0, 100], tick: { fill: T.textMuted, fontSize: 9 } }),
+          ...cities.map((c, i) =>
+            React.createElement(Radar, { key: c.key, name: c.name, dataKey: c.name, stroke: COLORS[i], fill: COLORS[i], fillOpacity: 0.13, strokeWidth: 2 })
+          ),
+          React.createElement(Legend, { wrapperStyle: { fontSize: 11, fontFamily: 'Inter' } }),
+        ),
+      ),
+
+      // Metrics table
+      React.createElement('div', { style: { marginTop: 24 } },
+        React.createElement(Label, { style: { marginBottom: 14 } }, 'Ключевые показатели'),
+        React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: 'Inter, sans-serif' } },
+          React.createElement('thead', null,
+            React.createElement('tr', { style: { borderBottom: `1px solid ${T.border}` } },
+              React.createElement('th', { style: { textAlign: 'left', padding: '10px 8px', color: T.textMuted, fontWeight: 400, fontSize: 11 } }, 'Показатель'),
+              ...cities.map((c, i) =>
+                React.createElement('th', { key: c.key, style: { textAlign: 'right', padding: '10px 8px', fontWeight: 700, color: COLORS[i], fontSize: 12 } }, c.name),
+              ),
+            ),
+          ),
+          React.createElement('tbody', null,
+            metricRows.map(([label, fn]) =>
+              React.createElement('tr', { key: label, style: { borderBottom: `1px solid rgba(255,255,255,0.04)` } },
+                React.createElement('td', { style: { padding: '10px 8px', color: T.textSub, fontSize: 12 } }, label),
+                ...cities.map(c =>
+                  React.createElement('td', { key: c.key, style: { textAlign: 'right', padding: '10px 8px', fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' } }, fn(c)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+
+      // Export button
+      React.createElement('div', { style: { marginTop: 20, display: 'flex', justifyContent: 'flex-end' } },
+        React.createElement('button', {
+          onClick: () => {
+            const header = ['Показатель', ...cities.map(c => c.name)];
+            const rows   = metricRows.map(([label, fn]) => [label, ...cities.map(fn)]);
+            downloadCSV([header, ...rows], 'comparison.csv');
+          },
+          style: {
+            padding: '9px 22px', background: T.goldDim, border: `1px solid ${T.borderGold}`,
+            borderRadius: 8, color: T.gold, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+          },
+        }, '↓ Скачать CSV'),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 5: ИСТОРИЯ РАСЧЁТОВ
+// ══════════════════════════════════════════════════════════════════
+
+function HistoryPanel({ onLoad, onClose }) {
+  const [history, setHistory] = React.useState(getHistory);
+
+  const handleClear = () => { clearHistory(); setHistory([]); };
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 360, zIndex: 40000,
+      background: T.surface, borderLeft: `1px solid ${T.border}`,
+      boxShadow: '-12px 0 40px rgba(0,0,0,0.55)',
+      display: 'flex', flexDirection: 'column',
+    },
+  },
+    React.createElement('div', { style: { padding: '20px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: T.text } }, 'История расчётов'),
+        React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 3 } }, `${history.length} / 20 записей`),
+      ),
+      React.createElement('button', { onClick: onClose, style: { background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 22 } }, '×'),
+    ),
+
+    React.createElement('div', { style: { flex: 1, overflow: 'auto', padding: '12px 16px' } },
+      history.length === 0
+        ? React.createElement('div', { style: { textAlign: 'center', padding: '60px 20px', color: T.textMuted, fontSize: 12 } },
+            React.createElement('div', { style: { fontSize: 32, marginBottom: 12 } }, '📊'),
+            'Нет сохранённых расчётов.',
+            React.createElement('br'),
+            'Откройте финмодель и нажмите «Сохранить».',
+          )
+        : history.map(entry =>
+          React.createElement('div', {
+            key: entry.id,
+            onClick: () => { onLoad(entry); onClose(); },
+            className: 'l-row',
+            style: { padding: '14px 16px', borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 10, cursor: 'pointer', background: T.surfaceRaise },
+          },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+              React.createElement('span', { style: { fontSize: 14, fontWeight: 600, color: T.text } }, entry.cityName || 'Проект'),
+              React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, entry.savedAt),
+            ),
+            React.createElement('div', { style: { display: 'flex', gap: 20 } },
+              entry.irr != null && React.createElement('div', null,
+                React.createElement('div', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 } }, 'IRR'),
+                React.createElement('div', { style: { fontSize: 15, fontWeight: 700, color: entry.irr >= 25 ? T.green : entry.irr >= 15 ? T.yellow : T.red } }, fmtPct(entry.irr)),
+              ),
+              entry.npv != null && React.createElement('div', null,
+                React.createElement('div', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 } }, 'NPV'),
+                React.createElement('div', { style: { fontSize: 15, fontWeight: 700, color: entry.npv >= 0 ? T.green : T.red } }, fmtRub(entry.npv)),
+              ),
+              entry.netMargin != null && React.createElement('div', null,
+                React.createElement('div', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 } }, 'МАРЖА'),
+                React.createElement('div', { style: { fontSize: 15, fontWeight: 700, color: T.text } }, fmtPct(entry.netMargin)),
+              ),
+            ),
+          ),
+        ),
+    ),
+
+    history.length > 0 && React.createElement('div', { style: { padding: '16px 20px', borderTop: `1px solid ${T.border}` } },
+      React.createElement('button', {
+        onClick: handleClear,
+        style: { width: '100%', padding: '9px', background: T.redDim, border: `1px solid rgba(212,91,91,0.25)`, borderRadius: 8, color: T.red, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+      }, 'Очистить историю'),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 8: ТРЕНД ЦЕН
+// ══════════════════════════════════════════════════════════════════
+
+function TrendsModal({ city, onClose }) {
+  const data    = getMockTrends(city);
+  const current = city.inputs.housing.businessClassPricePerM2;
+  const firstP  = data[0].price * 1000;
+  const growth  = ((current - firstP) / firstP * 100);
+  const minP    = Math.min(...data.map(d => d.price));
+  const maxP    = Math.max(...data.map(d => d.price));
+
+  return React.createElement('div', {
+    onClick: onClose,
+    style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  },
+    React.createElement('div', {
+      onClick: e => e.stopPropagation(),
+      style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 32, width: '100%', maxWidth: 700 },
+    },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 } },
+        React.createElement('div', null,
+          React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: T.text } }, `Тренд цен · ${city.name}`),
+          React.createElement('div', { style: { fontSize: 12, color: T.textMuted, marginTop: 4 } }, 'Бизнес-класс · 12 месяцев · тыс ₽/м²'),
+        ),
+        React.createElement('button', { onClick: onClose, style: { background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 24 } }, '×'),
+      ),
+
+      React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 } },
+        React.createElement('div', { style: { background: T.surfaceRaise, borderRadius: 8, padding: '12px 16px' } },
+          React.createElement(Label, { style: { marginBottom: 6 } }, 'Рост за 12 мес.'),
+          React.createElement('div', { style: { fontSize: 22, fontWeight: 700, color: growth >= 0 ? T.green : T.red } }, `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`),
+        ),
+        React.createElement('div', { style: { background: T.surfaceRaise, borderRadius: 8, padding: '12px 16px' } },
+          React.createElement(Label, { style: { marginBottom: 6 } }, 'Мин. / Макс.'),
+          React.createElement('div', { style: { fontSize: 15, fontWeight: 700, color: T.text, fontVariantNumeric: 'tabular-nums' } }, `${minP} / ${maxP} тыс`),
+        ),
+        React.createElement('div', { style: { background: T.surfaceRaise, borderRadius: 8, padding: '12px 16px' } },
+          React.createElement(Label, { style: { marginBottom: 6 } }, 'Текущая цена'),
+          React.createElement('div', { style: { fontSize: 18, fontWeight: 700, color: T.gold, fontVariantNumeric: 'tabular-nums' } }, fmtRub(current) + '/м²'),
+        ),
+      ),
+
+      React.createElement(ResponsiveContainer, { width: '100%', height: 250 },
+        React.createElement(LineChart, { data, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+          React.createElement(CartesianGrid, CHART_GRID),
+          React.createElement(XAxis, { dataKey: 'month', tick: CHART_TICK }),
+          React.createElement(YAxis, { tick: CHART_TICK, unit: ' тыс' }),
+          React.createElement(Tooltip, { ...CHART_TIP, formatter: v => [`${v} тыс ₽/м²`, 'Цена'] }),
+          React.createElement(ReferenceLine, { y: Math.round(current / 1000), stroke: T.gold, strokeDasharray: '4 3' }),
+          React.createElement(Line, { type: 'monotone', dataKey: 'price', stroke: T.green, strokeWidth: 2.5, dot: { fill: T.green, r: 3 } }),
+        ),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 10: УМНЫЕ ПОДСКАЗКИ (SMART VALIDATION)
+// ══════════════════════════════════════════════════════════════════
+
+function SmartHintsPanel({ inputs }) {
+  const warnings = useMemo(() => {
+    const list = [];
+    const {
+      basePricePerM2, constructionCostPerM2,
+      landCost, constructionMonths, salesVelocityM2PerMonth,
+      landAreaHa, allowedDensityM2PerHa, sellableRatio,
+    } = inputs;
+    const totalArea = landAreaHa * allowedDensityM2PerHa * (sellableRatio || 0.8);
+    const revenue   = totalArea * basePricePerM2;
+    const margin    = (basePricePerM2 / constructionCostPerM2 - 1) * 100;
+
+    if (margin < 40)
+      list.push({ text: `Цена продажи лишь +${margin.toFixed(0)}% выше себестоимости — критический риск убытка`, sev: 'error' });
+    else if (margin < 70)
+      list.push({ text: `Маржа к себестоимости ${margin.toFixed(0)}% — рекомендуется ≥70% для бизнес-класса`, sev: 'warn' });
+
+    if (revenue > 0 && landCost / revenue > 0.30)
+      list.push({ text: `Стоимость земли ${(landCost / revenue * 100).toFixed(0)}% от выручки — норма ≤20%`, sev: 'warn' });
+
+    if (constructionMonths < 18)
+      list.push({ text: 'Срок стройки <18 мес. нереалистичен для бизнес-класса', sev: 'warn' });
+    else if (constructionMonths > 48)
+      list.push({ text: 'Срок стройки >48 мес. существенно увеличивает % по ПФ', sev: 'info' });
+
+    if (totalArea > 0 && salesVelocityM2PerMonth > totalArea / 8)
+      list.push({ text: `Темп продаж очень высокий — проект продастся за ${(totalArea / salesVelocityM2PerMonth).toFixed(0)} мес.`, sev: 'info' });
+
+    return list;
+  }, [inputs]);
+
+  if (warnings.length === 0) return null;
+  const col = { error: T.red, warn: T.yellow, info: T.gold };
+  const ico = { error: '⛔', warn: '⚠️', info: 'ℹ️' };
+
+  return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+    warnings.map((w, i) =>
+      React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', borderRadius: 7, background: `${col[w.sev]}11`, border: `1px solid ${col[w.sev]}33`, fontSize: 11, color: col[w.sev], lineHeight: 1.55 } },
+        React.createElement('span', { style: { flexShrink: 0 } }, ico[w.sev]),
+        w.text,
+      ),
+    ),
+  );
+}
+
 function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   const initialInputs = useMemo(() => ({
     landAreaHa: 2.5,
@@ -2083,8 +2551,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     financing: { ...DEFAULT_FINANCING_PARAMS },
   }), [city]);
 
-  const [inputs, setInputs] = useState(initialInputs);
-  const [scenario, setScenario] = useState('base');
+  const [inputs,      setInputs]      = useState(initialInputs);
+  const [scenario,    setScenario]    = useState('base');
+  const [showHistory, setShowHistory] = useState(false);
   useEffect(() => { setInputs(initialInputs); }, [initialInputs]);
 
   const successProbContext = useMemo(() => ({
@@ -2146,6 +2615,34 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
           },
         }, city ? `Финмодель — ${city.name}` : 'Финансовая модель проекта'),
       ),
+      // action buttons + scenario tabs
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          onClick: () => {
+            saveToHistory({ cityName: city?.name || 'Проект', irr: cur.irr, npv: cur.npv, netMargin: cur.netMargin, inputs });
+            setShowHistory(true);
+          },
+          style: { padding: '7px 16px', background: T.goldDim, border: `1px solid ${T.borderGold}`, borderRadius: 7, color: T.gold, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+        }, '💾 Сохранить'),
+        React.createElement('button', {
+          onClick: () => {
+            const rows = [
+              ['Параметр', 'BASE', 'OPT', 'STRESS'],
+              ['Выручка', ...['base','optimistic','stress'].map(s => fmtRub(model.scenarios[s].revenue.totalRevenue))],
+              ['CAPEX',   ...['base','optimistic','stress'].map(s => fmtRub(model.scenarios[s].capex.total))],
+              ['IRR',     ...['base','optimistic','stress'].map(s => fmtPct(model.scenarios[s].irr))],
+              ['NPV',     ...['base','optimistic','stress'].map(s => fmtRub(model.scenarios[s].npv))],
+              ['Маржа',   ...['base','optimistic','stress'].map(s => fmtPct(model.scenarios[s].netMargin))],
+            ];
+            downloadCSV(rows, `finmodel_${city?.name || 'project'}.csv`);
+          },
+          style: { padding: '7px 16px', background: T.surfaceRaise, border: `1px solid ${T.border}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+        }, '↓ CSV'),
+        React.createElement('button', {
+          onClick: () => setShowHistory(s => !s),
+          style: { padding: '7px 16px', background: showHistory ? T.goldDim : T.surfaceRaise, border: `1px solid ${showHistory ? T.borderGold : T.border}`, borderRadius: 7, color: showHistory ? T.gold : T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+        }, '📋 История'),
+
       // scenario tabs
       React.createElement(
         'div',
@@ -2177,6 +2674,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
           }, SCENARIO_LABELS[s]),
         ),
       ),
+      ), // close action buttons wrapper
     ),
 
     // KPIs
@@ -2195,7 +2693,10 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     React.createElement(
       'div',
       { style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 } },
-      React.createElement(InputPanel, { inputs, onChange: setInputs }),
+      React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+        React.createElement(InputPanel, { inputs, onChange: setInputs }),
+        React.createElement(SmartHintsPanel, { inputs }),
+      ),
       React.createElement(
         'div',
         { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
@@ -2226,6 +2727,12 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
         netMargin: cur.netMargin,
       }),
     ),
+
+    // History panel (slide-in)
+    showHistory && React.createElement(HistoryPanel, {
+      onLoad:  (entry) => { if (entry.inputs) setInputs(entry.inputs); },
+      onClose: () => setShowHistory(false),
+    }),
   );
 }
 
@@ -2235,16 +2742,40 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
 // ═════════════════════════════════════════════════════════════════
 
 function App() {
-  const [ranking, setRanking] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  const [screen,  setScreen]  = useState({ name: 'main' });
+  const [ranking,  setRanking]  = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [screen,   setScreen]   = useState({ name: 'main' });
+  const [toast,    setToast]    = useState(null);
+
+  const showToast = (message, type = 'info') => setToast({ message, type, id: Date.now() });
 
   useEffect(() => {
     buildCityRanking()
       .then((r) => { setRanking(r); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
+
+  // ── FEATURE 6: Мониторинг ставки ЦБ каждые 5 мин ──────────────
+  useEffect(() => {
+    if (!ranking) return;
+    let lastRate = ranking.macroSnapshot.keyRateAnnual;
+    const timer = setInterval(async () => {
+      try {
+        const fresh = await buildCityRanking();
+        const newRate = fresh.macroSnapshot.keyRateAnnual;
+        if (Math.abs(newRate - lastRate) >= 0.25) {
+          lastRate = newRate;
+          setRanking(fresh);
+          showToast(
+            `Ключевая ставка ЦБ изменилась: ${newRate.toFixed(2)}% — рейтинг городов пересчитан`,
+            'warning',
+          );
+        }
+      } catch { /* silent */ }
+    }, 5 * 60 * 1000); // 5 min
+    return () => clearInterval(timer);
+  }, [ranking?.macroSnapshot?.keyRateAnnual]);
 
   // ── Loading ─────────────────────────────────────────────────
   if (loading) return React.createElement(
@@ -2333,6 +2864,9 @@ function App() {
   return React.createElement(
     'div',
     { style: { minHeight: '100vh', background: T.bg } },
+
+    // Global Toast notification
+    toast && React.createElement(Toast, { key: toast.id, message: toast.message, type: toast.type, onClose: () => setToast(null) }),
 
     // ── Header ───────────────────────────────────────────────
     React.createElement(
