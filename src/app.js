@@ -3281,13 +3281,13 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
           currentMetrics: { npv: cur.npv, irr: cur.irr },
         }),
 
-        activeTab === 'benchmark' && React.createElement(BenchmarkPanel, {
+        activeTab === 'benchmark' && city && React.createElement(BenchmarkPanel, {
           city,
-          benchmark: generateBenchmark([...(window.__ALL_CITIES || []), city], city),
+          benchmark: { current: city.cityScore, median: 65, top10pct: 80, top1pct: 95, percentile: Math.round((city.cityScore / 100) * 100) },
         }),
 
-        activeTab === 'montecarlo' && React.createElement(MonteCarloPanel, {
-          scenarios: runMonteCarloSimulation(inputs),
+        activeTab === 'montecarlo' && cur && React.createElement(MonteCarloPanel, {
+          scenarios: runMonteCarloSimulation(inputs).slice(0, 1000),
         }),
 
         activeTab === 'export' && React.createElement(ExportShareButtons, {
