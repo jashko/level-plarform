@@ -1,6 +1,6 @@
 {
   "source": "fallback (cbr.ru недоступен) + открытые источники",
-  "fetchedAt": "2026-05-29T13:04:07.578Z",
+  "fetchedAt": "2026-05-29T14:17:12.553Z",
   "keyRate": {
     "currentPct": 14.5,
     "effectiveSince": "2026-04-27",
@@ -43,7 +43,7 @@
   "mortgage": {
     "marketRatePct": 18.5,
     "marketRateSource": "расчётная (КС 14.5% + спред)",
-    "marketRateFetchedAt": "2026-05-29T13:04:07.579Z",
+    "marketRateFetchedAt": "2026-05-29T14:17:12.553Z",
     "preferentialRatePct": 6,
     "note": "Рыночная ставка: расчётная (КС 14.5% + спред). Семейная ипотека: 6%."
   }
