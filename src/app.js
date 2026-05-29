@@ -113,6 +113,155 @@ const saveToHistory = (entry) => {
 const clearHistory = () => localStorage.removeItem(HISTORY_KEY);
 
 // Mock 12-month price trend derived from city's current price
+// ══════════════════════════════════════════════════════════════════
+// НОВЫЕ 7 ФИЧ: POWER FEATURES
+// ══════════════════════════════════════════════════════════════════
+
+// 1️⃣ MONTE CARLO SIMULATION (1000 сценариев)
+function runMonteCarloSimulation(model, variations = { price: 0.2, tempo: 0.3, duration: 0.15 }) {
+  const scenarios = [];
+  for (let i = 0; i < 1000; i++) {
+    const priceVar   = 1 + (Math.random() - 0.5) * 2 * variations.price;
+    const tempoVar   = 1 + (Math.random() - 0.5) * 2 * variations.tempo;
+    const durationVar = 1 + (Math.random() - 0.5) * 2 * variations.duration;
+
+    const adjPrice = model.basePricePerM2 * priceVar;
+    const adjTempo = model.salesVelocityM2PerMonth * tempoVar;
+    const adjMonths = Math.round(model.constructionMonths * durationVar);
+
+    const revenue = (model.landAreaHa * model.allowedDensityM2PerHa * (model.sellableRatio || 0.8)) * adjPrice;
+    const capex = (model.landAreaHa * model.allowedDensityM2PerHa * (model.sellableRatio || 0.8)) * model.constructionCostPerM2;
+    const grossMargin = revenue - capex - model.landCost;
+    const irr = (grossMargin / (capex + model.landCost)) * 100;
+
+    scenarios.push({ irr, npv: grossMargin, selloutMonths: Math.round((capex + model.landCost) / adjTempo / 30) });
+  }
+  return scenarios;
+}
+
+// 2️⃣ BENCHMARK vs TOP-10 (статистика по городам)
+function generateBenchmark(cities, currentCity) {
+  const scores = cities.map(c => c.cityScore).sort((a, b) => b - a);
+  const median = scores[Math.floor(scores.length / 2)];
+  const top10pct = scores[Math.floor(scores.length * 0.1)];
+  const top1pct = scores[0];
+  const current = currentCity.cityScore;
+
+  return {
+    current,
+    median,
+    top10pct,
+    top1pct,
+    percentile: Math.round((scores.filter(s => s <= current).length / scores.length) * 100),
+    distribution: scores,
+  };
+}
+
+// 3️⃣ ML INSIGHTS (корреляции)
+function generateInsights(cities) {
+  const insights = [];
+
+  // Миграция ↔ темп поглощения
+  const highMigration = cities.filter(c => c.inputs.demography.migrationBalanceThousands > 3);
+  const avgAbsorption = highMigration.reduce((s, c) => s + c.inputs.housing.monthsOfSupply, 0) / highMigration.length;
+  if (avgAbsorption < 10) {
+    insights.push({
+      title: '🎯 Миграция → Спрос',
+      desc: `Города с миграцией >+3k имеют темп поглощения ${avgAbsorption.toFixed(1)} мес (ниже нормы). Спрос растет.`,
+    });
+  }
+
+  // Зарплата ↔ цена м²
+  const correlation = cities.filter(c => c.inputs.economy.avgSalary > 70000).reduce((s, c) => s + c.inputs.housing.priceGrowthYoY, 0) /
+                      cities.filter(c => c.inputs.economy.avgSalary > 70000).length;
+  if (correlation > 6) {
+    insights.push({
+      title: '💰 Зарплата → Цена',
+      desc: `Города с зарплатой >70k показывают рост цен ${correlation.toFixed(1)}% YoY. Премиальный сегмент активен.`,
+    });
+  }
+
+  // Концентрация девелоперов
+  const highConcentration = cities.filter(c => c.inputs.competition.top5MarketShare > 0.7);
+  if (highConcentration.length > 2) {
+    insights.push({
+      title: '⚠️ Конкуренция',
+      desc: `${highConcentration.length} города с концентрацией >70% имеют барьеры входа. Рассмотри менее застроенные рынки.`,
+    });
+  }
+
+  return insights.slice(0, 3);
+}
+
+// 4️⃣ TIMELINE / WATERFALL (кэш-флоу)
+function generateTimeline(model) {
+  const timeline = [];
+  let cumulativeCash = 0;
+
+  // Фаза 1: Земля и согласования (0–3 месяца)
+  for (let m = 0; m < 3; m++) {
+    cumulativeCash -= model.landCost / 3;
+    timeline.push({ month: m + 1, phase: 'Земля', cash: -model.landCost / 3, cumulative: cumulativeCash, label: 'Согласования' });
+  }
+
+  // Фаза 2: Строительство
+  const monthlyBuild = model.constructionCostPerM2 * (model.landAreaHa * model.allowedDensityM2PerHa * 0.8) / model.constructionMonths;
+  for (let m = 0; m < model.constructionMonths; m++) {
+    cumulativeCash -= monthlyBuild;
+    timeline.push({ month: 3 + m + 1, phase: 'Строка', cash: -monthlyBuild, cumulative: cumulativeCash, label: `Этап ${Math.floor(m / (model.constructionMonths / 4)) + 1}` });
+  }
+
+  // Фаза 3: Продажи
+  const totalSellable = model.landAreaHa * model.allowedDensityM2PerHa * 0.8;
+  const monthlyRevenue = (model.salesVelocityM2PerMonth * model.basePricePerM2);
+  const selloutMonths = Math.round(totalSellable / model.salesVelocityM2PerMonth);
+  for (let m = 0; m < selloutMonths; m++) {
+    cumulativeCash += monthlyRevenue;
+    timeline.push({ month: 3 + model.constructionMonths + m + 1, phase: 'Продажи', cash: monthlyRevenue, cumulative: cumulativeCash, label: `Продано ${Math.round((m / selloutMonths) * 100)}%` });
+  }
+
+  return timeline;
+}
+
+// 5️⃣ POWERPOINT EXPORT (используем встроенный JSON + canvas trick)
+function exportToPPT(city, model, snapshot) {
+  // Простой вариант: генерируем JSON слайдов, потом клиент скачивает
+  // (полный PPTX требует библиотеки, но можно эмулировать через HTML → Print → Save as PDF)
+  const pptData = {
+    title: `${city.name} — Market Analysis`,
+    slides: [
+      {
+        title: 'Executive Summary',
+        content: `CityScore: ${city.cityScore.toFixed(0)}/100\nNPV: ${(model.npv / 1e9).toFixed(2)}B ₽\nIRR: ${model.irr.toFixed(1)}%`,
+      },
+      {
+        title: 'City Metrics',
+        content: `Population: ${city.inputs.demography.populationThousands}k\nMigration: +${city.inputs.demography.migrationBalanceThousands}k/yr\nAvg Salary: ₽${city.inputs.economy.avgSalary.toLocaleString()}`,
+      },
+      {
+        title: 'Market Opportunity',
+        content: `Price/m²: ₽${city.inputs.housing.businessClassPricePerM2.toLocaleString()}\nAbsorption: ${city.inputs.housing.monthsOfSupply} months\nGrowth: +${city.inputs.housing.priceGrowthYoY.toFixed(1)}% YoY`,
+      },
+    ],
+  };
+
+  // Скачиваем как JSON (клиент может импортировать в PowerPoint)
+  const blob = new Blob([JSON.stringify(pptData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${city.name}-analysis.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 6️⃣ ANONYMOUS SHARE (URL с токеном)
+function generateShareURL(city) {
+  const token = btoa(JSON.stringify({ city: city.key, ts: Date.now() })).slice(0, 12);
+  const url = `${window.location.origin}?share=${token}&city=${city.key}`;
+  return { url, token };
+}
+
 const getMockTrends = (city) => {
   const base = city.inputs.housing.businessClassPricePerM2;
   const months = ['май','июн','июл','авг','сен','окт','ноя','дек','янв','фев','мар','апр'];
