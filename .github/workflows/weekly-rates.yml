@@ -1,0 +1,68 @@
+$ cat /Users/jashko/Desktop/vibecoding/level-platform/.github/workflows/weekly-rates.yml
+
+name: Weekly Mortgage Rates Update
+
+# Запускается каждый понедельник в 07:00 UTC (10:00 МСК)
+# + ручной запуск через GitHub UI
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Причина ручного запуска'
+        required: false
+        default: 'Ручное обновление'
+
+jobs:
+  update-rates:
+    name: Fetch rates & rebuild
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch latest rates
+        run: npm run fetch-cbr
+        # Скрипт обновляет src/data/macro-cbr.json
+
+      - name: Rebuild UI bundle
+        run: npm run bundle
+        # Пересобираем app.js и engine.js с новыми данными
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet src/data/macro-cbr.json ui/app.js ui/engine.js \
+            && echo "changed=false" >> "$GITHUB_OUTPUT" \
+            || echo "changed=true"  >> "$GITHUB_OUTPUT"
+
+      - name: Commit & push updated data
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/macro-cbr.json ui/app.js ui/engine.js
+          git commit -m "chore: auto-update mortgage rates $(date -u +'%Y-%m-%d')"
+          git push
+
+      - name: No changes detected
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "ℹ️ Ставки не изменились — коммит не нужен"
+
+      # Vercel автоматически задеплоит при появлении нового коммита в main
