@@ -1,9 +1,4 @@
-$ cat /Users/jashko/Desktop/vibecoding/level-platform/.github/workflows/weekly-rates.yml
-
 name: Weekly Mortgage Rates Update
-
-# Запускается каждый понедельник в 07:00 UTC (10:00 МСК)
-# + ручной запуск через GitHub UI
 
 on:
   schedule:
@@ -39,11 +34,9 @@ jobs:
 
       - name: Fetch latest rates
         run: npm run fetch-cbr
-        # Скрипт обновляет src/data/macro-cbr.json
 
       - name: Rebuild UI bundle
         run: npm run bundle
-        # Пересобираем app.js и engine.js с новыми данными
 
       - name: Check for changes
         id: changes
@@ -52,7 +45,7 @@ jobs:
             && echo "changed=false" >> "$GITHUB_OUTPUT" \
             || echo "changed=true"  >> "$GITHUB_OUTPUT"
 
-      - name: Commit & push updated data
+      - name: Commit and push updated data
         if: steps.changes.outputs.changed == 'true'
         run: |
           git config user.name  "github-actions[bot]"
@@ -63,6 +56,4 @@ jobs:
 
       - name: No changes detected
         if: steps.changes.outputs.changed == 'false'
-        run: echo "ℹ️ Ставки не изменились — коммит не нужен"
-
-      # Vercel автоматически задеплоит при появлении нового коммита в main
+        run: echo "Ставки не изменились"
