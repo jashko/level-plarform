@@ -3480,5 +3480,90 @@ function App() {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════
+// 7 POWER FEATURES UI COMPONENTS
+// ════════════════════════════════════════════════════════════════════
+
+function PriceElasticityPanel({ basePrice, onPriceChange, currentMetrics }) {
+  const [price, setPrice] = React.useState(basePrice);
+  const mult = price / basePrice;
+  const npv = (currentMetrics?.npv || 0) * mult * 0.9;
+  const irr = (currentMetrics?.irr || 0) + (mult - 1) * 5;
+  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
+    React.createElement('div', { style: { marginBottom: 16 } },
+      React.createElement(Label, null, '💰 Price Elasticity'),
+      React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 4 } }, 'Меняй цену → видй NPV/IRR в реальном времени'),
+    ),
+    React.createElement('input', { type: 'range', min: basePrice * 0.7, max: basePrice * 1.5, step: 5000, value: price, onChange: (e) => { const p = parseInt(e.target.value); setPrice(p); onPriceChange?.(p); }, style: { width: '100%', marginBottom: 16 } }),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'NPV'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: npv > 0 ? T.green : T.red } }, fmtRub(npv)),
+      ),
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'IRR'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: irr > 15 ? T.green : T.orange } }, `${irr.toFixed(1)}%`),
+      ),
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px 16px', borderRadius: 8 } },
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, 'vs Base'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: mult > 1 ? T.red : T.green } }, `${(mult * 100).toFixed(0)}%`),
+      ),
+    ),
+  );
+}
+
+function BenchmarkPanel({ city, benchmark }) {
+  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
+    React.createElement(Label, { style: { marginBottom: 16 } }, '🏆 Benchmark vs Market'),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 } },
+      ...[
+        { label: 'Твой скор', val: benchmark.current, color: T.gold },
+        { label: 'Медиана', val: benchmark.median, color: T.text },
+        { label: 'Топ 10%', val: benchmark.top10pct, color: T.green },
+        { label: `${benchmark.percentile}%ile`, val: `${benchmark.percentile}%`, color: benchmark.percentile > 50 ? T.green : T.orange },
+      ].map((stat, i) =>
+        React.createElement('div', { key: i, style: { textAlign: 'center', padding: '12px', background: T.surfaceRaise, borderRadius: 8 } },
+          React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, stat.label),
+          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, color: stat.color } }, typeof stat.val === 'number' ? stat.val.toFixed(0) : stat.val),
+        ),
+      ),
+    ),
+  );
+}
+
+function MonteCarloPanel({ scenarios }) {
+  const irrs = scenarios.map(s => s.irr).sort((a, b) => a - b);
+  const [p10, p50, p90] = [irrs[Math.floor(irrs.length * 0.1)], irrs[Math.floor(irrs.length * 0.5)], irrs[Math.floor(irrs.length * 0.9)]];
+  const success = (scenarios.filter(s => s.irr > 15).length / scenarios.length * 100).toFixed(0);
+  return React.createElement('div', { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px', marginTop: 20 } },
+    React.createElement(Label, { style: { marginBottom: 16 } }, '📊 Monte Carlo (1000 сценариев)'),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 } },
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P10 (Worst)'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: p10 > 10 ? T.orange : T.red } }, `${p10.toFixed(1)}%`),
+      ),
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P50 (Median)'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: T.text } }, `${p50.toFixed(1)}%`),
+      ),
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'P90 (Best)'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: T.green } }, `${p90.toFixed(1)}%`),
+      ),
+      React.createElement('div', { style: { background: T.surfaceRaise, padding: '12px', borderRadius: 8, textAlign: 'center' } },
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, 'Success %'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: success > 70 ? T.green : T.orange } }, `${success}%`),
+      ),
+    ),
+  );
+}
+
+function ExportShareButtons({ city, model }) {
+  return React.createElement('div', { style: { display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' } },
+    React.createElement('button', { onClick: () => exportToPPT(city, model, {}), style: { flex: 1, padding: '12px 20px', background: T.gold, color: T.bg, border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 12 } }, '📊 Export PPT'),
+    React.createElement('button', { onClick: () => { const { url } = generateShareURL(city); navigator.clipboard.writeText(url); alert('✓ Ссылка скопирована!'); }, style: { flex: 1, padding: '12px 20px', background: T.surfaceRaise, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 12 } }, '🔗 Share'),
+  );
+}
+
 const root = createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
