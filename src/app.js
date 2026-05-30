@@ -1154,7 +1154,7 @@ function MainScreen({ ranking, onCityClick }) {
                 ...filteredCities.map(c => [
                   c.name, c.cityScore.toFixed(1), c.zone,
                   c.inputs.housing.businessClassPricePerM2,
-                  c.inputs.demographics.population,
+                  c.inputs.demography.populationThousands,
                   c.inputs.housing.monthlySalesM2,
                 ]),
               ];
@@ -2513,14 +2513,14 @@ function ComparisonModal({ cities, onClose }) {
 
   // Build radar data from known metrics
   const allCities = cities;
-  const maxPop  = Math.max(...allCities.map(c => c.inputs.demographics.population));
+  const maxPop  = Math.max(...allCities.map(c => c.inputs.demography.populationThousands));
   const maxSales = Math.max(...allCities.map(c => c.inputs.housing.monthlySalesM2));
   const maxPrice = Math.max(...allCities.map(c => c.inputs.housing.businessClassPricePerM2));
 
   const radarKeys = [
     { key: 'CityScore',    fn: c => c.cityScore },
-    { key: 'Демография',   fn: c => Math.min(100, (c.inputs.demographics.population / maxPop) * 100 * 1.4) },
-    { key: 'Рост цен',     fn: c => Math.min(100, 40 + (c.inputs.demographics.populationGrowthRate || 0) * 15) },
+    { key: 'Демография',   fn: c => Math.min(100, (c.inputs.demography.populationThousands / maxPop) * 100 * 1.4) },
+    { key: 'Рост населения',fn: c => Math.min(100, 40 + (c.inputs.demography.populationTrend5yPct || 0) * 3) },
     { key: 'Спрос м²/мес', fn: c => Math.min(100, (c.inputs.housing.monthlySalesM2 / maxSales) * 100) },
     { key: 'Цена vs рынок',fn: c => Math.min(100, (1 - c.inputs.housing.businessClassPricePerM2 / maxPrice) * 80 + 20) },
   ];
@@ -2535,8 +2535,8 @@ function ComparisonModal({ cities, onClose }) {
     ['CityScore',              c => c.cityScore.toFixed(1)],
     ['Зона',                   c => ZONE[c.zone]?.label],
     ['Цена м² бизнес-класс',  c => fmtRub(c.inputs.housing.businessClassPricePerM2)],
-    ['Население',              c => fmtNum(c.inputs.demographics.population)],
-    ['Рост населения/год',     c => fmtPct(c.inputs.demographics.populationGrowthRate, 2)],
+    ['Население',              c => fmtNum(Math.round(c.inputs.demography.populationThousands)) + ' тыс.'],
+    ['Тренд населения 5 лет',  c => fmtPct(c.inputs.demography.populationTrend5yPct, 1)],
     ['Продажи м²/мес',        c => fmtNum(c.inputs.housing.monthlySalesM2)],
   ];
 
