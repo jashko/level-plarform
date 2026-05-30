@@ -2234,7 +2234,7 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
 
     // Level circular gauges
     React.createElement('div', { style: { display: 'flex', gap: 32, flex: 1, justifyContent: 'center' } },
-      levels.map(({ label, score }) => {
+      levels.map(({ label, score, hint }) => {
         const color = score >= 70 ? T.green : score >= 50 ? T.yellow : T.red;
         const R = 27, C = 2 * Math.PI * R;
         const dash = (score / 100) * C;
