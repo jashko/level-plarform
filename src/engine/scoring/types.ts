@@ -74,6 +74,10 @@ export interface CityHousingMarketInputs {
   businessClassPricePerM2: number;
   /** Помесячный объём продаж новостроек, м²/мес. */
   monthlySalesM2: number;
+  /** Годовое число зарегистрированных ДДУ (Росреестр). */
+  annualDduCount?: number;
+  /** Объём жилья МКД в активном строительстве, тыс. м² (ЕИСЖС / ДОМ.РФ). */
+  constructionVolumeMkdThousM2?: number;
 }
 
 export interface CityCompetitionInputs {
@@ -88,8 +92,10 @@ export interface CityCompetitionInputs {
 }
 
 export interface CityInfrastructureInputs {
-  /** Объём программ КРТ, га. */
+  /** Объём программ КРТ, га (площадь территорий по договорам/решениям). */
   krtProgramsHa: number;
+  /** Число заключённых договоров / принятых решений КРТ (по данным Минстроя). */
+  krtProjectsCount?: number;
   /** Крупные инфраструктурные проекты (метро/дороги) запланированы в 5-летке. */
   hasMajorInfraProjects: boolean;
   /** Есть ли вузы/технопарки. */

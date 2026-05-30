@@ -134,11 +134,12 @@ export function calculateCompetitionScore(inputs: CityCompetitionInputs): number
 export function calculateInfrastructureScore(
   inputs: CityInfrastructureInputs,
 ): number {
+  // Диапазон расширен по реальным данным: от 45 га (Волгоград) до 822 га (Новосибирск).
   const krtScore = normalizePiecewise(inputs.krtProgramsHa, [
     [0, 0],
-    [50, 40],
-    [200, 80],
-    [500, 100],
+    [100, 30],
+    [350, 65],
+    [800, 100],
   ]);
   const infraBonus = inputs.hasMajorInfraProjects ? 30 : 0;
   const educationBonus = inputs.hasUniversitiesOrTechparks ? 15 : 0;

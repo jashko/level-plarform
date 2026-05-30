@@ -615,9 +615,9 @@ function calculateCompetitionScore(inputs) {
 function calculateInfrastructureScore(inputs) {
   const krtScore = normalizePiecewise(inputs.krtProgramsHa, [
     [0, 0],
-    [50, 40],
-    [200, 80],
-    [500, 100]
+    [100, 30],
+    [350, 65],
+    [800, 100]
   ]);
   const infraBonus = inputs.hasMajorInfraProjects ? 30 : 0;
   const educationBonus = inputs.hasUniversitiesOrTechparks ? 15 : 0;
@@ -848,11 +848,33 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041D\u043E\u0432\u043E\u0441\u0438\u0431\u0438\u0440\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1633.9, populationTrend5yPct: 2.1, shareAge25to45: 0.31, migrationBalanceThousands: 6.2 },
       economy: { avgSalary: 84e3, salaryGrowthYoY: 13.5, highPaidIndustriesShare: 0.19, unemploymentRate: 3.1 },
-      housing: { dealsGrowthYoY: -4, priceGrowthYoY: 9.8, monthsOfSupply: 10, businessClassPricePerM2: 23e4, monthlySalesM2: 78e3 },
+      housing: {
+        dealsGrowthYoY: -7.5,
+        // Росреестр: ДДУ -7.5% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 10.9,
+        // Сибдом: +10.9% янв-нояб 2025
+        monthsOfSupply: 10,
+        businessClassPricePerM2: 23e4,
+        monthlySalesM2: 72e3,
+        // 15 600 ДДУ/год × 55 м² / 12
+        annualDduCount: 15600,
+        constructionVolumeMkdThousM2: 2700
+        // 7-е место в РФ, РИА Рейтинг
+      },
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: { krtProgramsHa: 220, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 822,
+        // 821.57 га, 54 участка КРТ (РБК Новосибирск, дек.2025)
+        krtProjectsCount: 54,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro Jan 2026", "\u0420\u0418\u0410 \u0420\u0435\u0439\u0442\u0438\u043D\u0433 2025", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro Jan 2026", "\u0420\u0418\u0410 \u0420\u0435\u0439\u0442\u0438\u043D\u0433 2025", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442", "\u0421\u0438\u0431\u0434\u043E\u043C \u043D\u043E\u044F\u0431.2025", "\u0420\u0411\u041A \u041D\u043E\u0432\u043E\u0441\u0438\u0431\u0438\u0440\u0441\u043A \u0434\u0435\u043A.2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["hasWhiteSpaceBusinessClass"]
+    }
   },
   yekaterinburg: {
     inputs: {
@@ -860,11 +882,34 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0421\u0432\u0435\u0440\u0434\u043B\u043E\u0432\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1580.1, populationTrend5yPct: 3.8, shareAge25to45: 0.32, migrationBalanceThousands: 9.1 },
       economy: { avgSalary: 92e3, salaryGrowthYoY: 14.2, highPaidIndustriesShare: 0.22, unemploymentRate: 2.8 },
-      housing: { dealsGrowthYoY: 2.5, priceGrowthYoY: 12.1, monthsOfSupply: 8, businessClassPricePerM2: 265e3, monthlySalesM2: 92e3 },
+      housing: {
+        dealsGrowthYoY: -4.6,
+        // Росреестр: ДДУ -4.6% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 8.5,
+        // Метр.ТВ: +8.5% г/г янв-июл 2025
+        monthsOfSupply: 8,
+        businessClassPricePerM2: 265e3,
+        monthlySalesM2: 84e3,
+        // ~18k ДДУ/год (экстраполяция) × 55м² / 12
+        annualDduCount: 18300,
+        // расчётно по данным янв-июл 2025
+        constructionVolumeMkdThousM2: 3700
+        // РИА Рейтинг / ЕРЗ.РФ
+      },
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 280, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 280,
+        krtProjectsCount: 11,
+        // 11 договоров КРТ (7 жил. + 4 нежил.), РБК Екатеринбург
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro Jan 2026", "\u0421\u0432\u0435\u0440\u0434\u043B\u043E\u0432\u0441\u043A\u0441\u0442\u0430\u0442", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro Jan 2026", "\u041C\u0435\u0442\u0440.\u0422\u0412 \u0430\u0432\u0433.2025", "\u0421\u0432\u0435\u0440\u0434\u043B\u043E\u0432\u0441\u043A\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["krtProgramsHa"]
+    }
   },
   kazan: {
     inputs: {
@@ -872,11 +917,34 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0420\u0435\u0441\u043F\u0443\u0431\u043B\u0438\u043A\u0430 \u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D",
       demography: { populationThousands: 1318.6, populationTrend5yPct: 5.4, shareAge25to45: 0.33, migrationBalanceThousands: 11.8 },
       economy: { avgSalary: 86e3, salaryGrowthYoY: 14.8, highPaidIndustriesShare: 0.21, unemploymentRate: 2.5 },
-      housing: { dealsGrowthYoY: -2, priceGrowthYoY: 14.3, monthsOfSupply: 7, businessClassPricePerM2: 274e3, monthlySalesM2: 68e3 },
+      housing: {
+        dealsGrowthYoY: 6,
+        // Росреестр: ДДУ +6.0% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 14.3,
+        // Коммерсант: +14.3% г/г нояб.2025
+        monthsOfSupply: 7,
+        businessClassPricePerM2: 274e3,
+        monthlySalesM2: 44e3,
+        // 9 700 ДДУ/год × 55м² / 12 = 44.5k
+        annualDduCount: 9700,
+        // РБК Недвижимость, итоги 2025
+        constructionVolumeMkdThousM2: void 0
+        // нет данных по городу отдельно
+      },
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: { krtProgramsHa: 350, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 228,
+        // Кадерле 140 га + Васильевский остров 88 га
+        krtProjectsCount: 2,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro Jan 2026", "\u042F\u043D\u0434\u0435\u043A\u0441 \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C Dec 2025", "\u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro Jan 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u043D\u043E\u044F\u0431.2025", "\u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: []
+    }
   },
   nizhny: {
     inputs: {
@@ -884,11 +952,33 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041D\u0438\u0436\u0435\u0433\u043E\u0440\u043E\u0434\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1205, populationTrend5yPct: -2.1, shareAge25to45: 0.28, migrationBalanceThousands: -1.5 },
       economy: { avgSalary: 78e3, salaryGrowthYoY: 12, highPaidIndustriesShare: 0.2, unemploymentRate: 3 },
-      housing: { dealsGrowthYoY: -8, priceGrowthYoY: 11.5, monthsOfSupply: 11, businessClassPricePerM2: 3e5, monthlySalesM2: 42e3 },
+      housing: {
+        dealsGrowthYoY: 36.6,
+        // Росреестр: ДДУ +36.6% г/г — лидер РФ (РБК Нед-ть, 2025)
+        priceGrowthYoY: 16.4,
+        // РБК: +16.4% с нач.2025 — 1-е место среди миллионников
+        monthsOfSupply: 7,
+        // Сокращение запасов подтверждается ростом ДДУ
+        businessClassPricePerM2: 3e5,
+        monthlySalesM2: 32e3,
+        // 6 900 ДДУ/год × 55м² / 12 = 31.6k
+        annualDduCount: 6900,
+        // РБК Недвижимость янв-нояб 2025
+        constructionVolumeMkdThousM2: 810
+        // Домострой НН, авг.2025
+      },
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: { krtProgramsHa: 180, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 180,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["\u0426\u0438\u0430\u043D 2025", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C Nov 2025", "\u041D\u0438\u0436\u0435\u0433\u043E\u0440\u043E\u0434\u0441\u043A\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["\u0426\u0438\u0430\u043D 2025", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C \u043D\u043E\u044F\u0431.2025", "\u041D\u0438\u0436\u0435\u0433\u043E\u0440\u043E\u0434\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0414\u043E\u043C\u043E\u0441\u0442\u0440\u043E\u0439 \u041D\u041D \u0430\u0432\u0433.2025"],
+      needsVerification: ["krtProgramsHa"]
+    }
   },
   chelyabinsk: {
     inputs: {
@@ -896,11 +986,30 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1196.7, populationTrend5yPct: -1.5, shareAge25to45: 0.28, migrationBalanceThousands: -2 },
       economy: { avgSalary: 72e3, salaryGrowthYoY: 11.5, highPaidIndustriesShare: 0.16, unemploymentRate: 3.5 },
-      housing: { dealsGrowthYoY: -10, priceGrowthYoY: 7.2, monthsOfSupply: 14, businessClassPricePerM2: 185e3, monthlySalesM2: 38e3 },
+      housing: {
+        dealsGrowthYoY: -5.9,
+        // Росреестр: ДДУ -5.9% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 3.5,
+        // Коммерсант Челябинск: +3.5% г/г — один из слабейших
+        monthsOfSupply: 14,
+        businessClassPricePerM2: 185e3,
+        monthlySalesM2: 38e3
+      },
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 90, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 349,
+        // 349 га, 47 участков (Интерфакс-Урал)
+        krtProjectsCount: 78,
+        // 78 проектов запланировано до 2032 (pchela.news)
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro Jan 2026", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C", "\u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro Jan 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A \u0438\u044E\u043D.2025", "\u0418\u043D\u0442\u0435\u0440\u0444\u0430\u043A\u0441-\u0423\u0440\u0430\u043B", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["hasWhiteSpaceBusinessClass"]
+    }
   },
   samara: {
     inputs: {
@@ -908,11 +1017,29 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0421\u0430\u043C\u0430\u0440\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1159, populationTrend5yPct: -1.8, shareAge25to45: 0.28, migrationBalanceThousands: -2.5 },
       economy: { avgSalary: 7e4, salaryGrowthYoY: 11, highPaidIndustriesShare: 0.18, unemploymentRate: 3.2 },
-      housing: { dealsGrowthYoY: -6, priceGrowthYoY: 5.5, monthsOfSupply: 12, businessClassPricePerM2: 195e3, monthlySalesM2: 36e3 },
+      housing: {
+        dealsGrowthYoY: -7.9,
+        // Росреестр: ДДУ -7.9% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 6,
+        // Реальные сделки ~6% (предложение +29% — артефакт)
+        monthsOfSupply: 12,
+        businessClassPricePerM2: 195e3,
+        monthlySalesM2: 36e3,
+        constructionVolumeMkdThousM2: 1500
+        // фев.2026: 1.5 млн м² (-16.7% г/г)
+      },
       competition: { activeDevelopers: 16, top5MarketShare: 0.6, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 120, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 120,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u0421\u0430\u043C\u0430\u0440\u0430\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u0421\u0430\u043C\u0430\u0440\u0430\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
+    }
   },
   ufa: {
     inputs: {
@@ -920,11 +1047,30 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0420\u0435\u0441\u043F\u0443\u0431\u043B\u0438\u043A\u0430 \u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D",
       demography: { populationThousands: 1163.3, populationTrend5yPct: 1.2, shareAge25to45: 0.3, migrationBalanceThousands: 2.8 },
       economy: { avgSalary: 76e3, salaryGrowthYoY: 12.8, highPaidIndustriesShare: 0.19, unemploymentRate: 2.9 },
-      housing: { dealsGrowthYoY: -3, priceGrowthYoY: 11, monthsOfSupply: 10, businessClassPricePerM2: 205e3, monthlySalesM2: 41e3 },
+      housing: {
+        dealsGrowthYoY: -4.6,
+        // Росреестр: ДДУ -4.6% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 7,
+        // РБК Уфа: +7% с нач.2025 (167.9→179.6 тыс./м²)
+        monthsOfSupply: 10,
+        businessClassPricePerM2: 205e3,
+        monthlySalesM2: 38e3,
+        // ~5.14k ДДУ (янв-авг) × 55м² / 8 мес
+        constructionVolumeMkdThousM2: 2500
+        // РИА Рейтинг
+      },
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 140, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 140,
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u0420\u0411\u041A \u0423\u0444\u0430 \u043D\u043E\u044F\u0431.2025", "\u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
+    }
   },
   rostov: {
     inputs: {
@@ -932,11 +1078,34 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0420\u043E\u0441\u0442\u043E\u0432\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1140.5, populationTrend5yPct: 1.5, shareAge25to45: 0.29, migrationBalanceThousands: 4.2 },
       economy: { avgSalary: 73e3, salaryGrowthYoY: 12.5, highPaidIndustriesShare: 0.17, unemploymentRate: 3.4 },
-      housing: { dealsGrowthYoY: -5, priceGrowthYoY: 8.5, monthsOfSupply: 11, businessClassPricePerM2: 19e4, monthlySalesM2: 39e3 },
+      housing: {
+        dealsGrowthYoY: 13.2,
+        // Росреестр: ДДУ +13.2% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 4.8,
+        // Коммерсант дек.2025: +4.76% г/г (152.6→159.9 тыс.)
+        monthsOfSupply: 9,
+        businessClassPricePerM2: 19e4,
+        monthlySalesM2: 68e3,
+        // 16 500 ДДУ/год × 50м² / 12 = 68.75k
+        annualDduCount: 16500,
+        // РБК Недвижимость, итоги 2025
+        constructionVolumeMkdThousM2: 3400
+        // РИА Рейтинг; 5-е место в РФ
+      },
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: { krtProgramsHa: 160, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 500,
+        // ~500 га, 6 проектов в стройке (РБК Ростов 2025)
+        krtProjectsCount: 6,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C", "\u0420\u043E\u0441\u0442\u043E\u0432\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0434\u0435\u043A.2025", "\u0420\u043E\u0441\u0442\u043E\u0432\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0420\u0411\u041A \u0420\u043E\u0441\u0442\u043E\u0432 2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      needsVerification: []
+    }
   },
   omsk: {
     inputs: {
@@ -944,11 +1113,34 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041E\u043C\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1104.5, populationTrend5yPct: -4.2, shareAge25to45: 0.27, migrationBalanceThousands: -8.5 },
       economy: { avgSalary: 64e3, salaryGrowthYoY: 9.5, highPaidIndustriesShare: 0.14, unemploymentRate: 4.1 },
-      housing: { dealsGrowthYoY: -12, priceGrowthYoY: 4.8, monthsOfSupply: 16, businessClassPricePerM2: 168e3, monthlySalesM2: 28e3 },
+      housing: {
+        dealsGrowthYoY: 20.7,
+        // Росреестр: ДДУ +20.7% г/г (рост с низкой базы!)
+        priceGrowthYoY: 3.6,
+        // РБК рейтинг: +3.6% г/г
+        monthsOfSupply: 18,
+        // Превышение: маленький рынок + доля новостроек 14-24%
+        businessClassPricePerM2: 168e3,
+        monthlySalesM2: 1e4,
+        // 2 200 ДДУ/год × 50м² / 12 = 9.2k (крошечный рынок!)
+        annualDduCount: 2200
+        // Вечерний Омск: 2 200 квартир куплено в 2025
+      },
       competition: { activeDevelopers: 14, top5MarketShare: 0.7, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 60, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 115,
+        // 115.38 га по 12 решениям КРТ
+        krtProjectsCount: 5,
+        // 5 договоров заключено
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u041E\u043C\u0441\u043A\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u041E\u043C\u0441\u043A\u0441\u0442\u0430\u0442", "\u0412\u0435\u0447\u0435\u0440\u043D\u0438\u0439 \u041E\u043C\u0441\u043A 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["hasWhiteSpaceBusinessClass"]
+    }
   },
   krasnodar: {
     inputs: {
@@ -956,11 +1148,36 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1138.7, populationTrend5yPct: 14.5, shareAge25to45: 0.34, migrationBalanceThousands: 28 },
       economy: { avgSalary: 75e3, salaryGrowthYoY: 15.5, highPaidIndustriesShare: 0.18, unemploymentRate: 2.6 },
-      housing: { dealsGrowthYoY: 1, priceGrowthYoY: 7, monthsOfSupply: 9, businessClassPricePerM2: 215e3, monthlySalesM2: 65e3 },
+      housing: {
+        dealsGrowthYoY: -25.6,
+        // Росреестр: ДДУ -25.6% г/г — рынок перегрет (РБК, 2025)
+        priceGrowthYoY: 7,
+        // РБК: +7-10% г/г
+        monthsOfSupply: 14,
+        // 29 400 нераспроданных квартир (2-е место РФ!)
+        businessClassPricePerM2: 215e3,
+        monthlySalesM2: 73e3,
+        // 17 600 ДДУ/год × 50м² / 12 = 73.3k
+        annualDduCount: 17600,
+        // РБК Недвижимость, итоги 2025
+        constructionVolumeMkdThousM2: 5300
+        // ~5.3 млн м²; 2-е место в РФ
+      },
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: { krtProgramsHa: 420, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 400,
+        // ~400 га в городе (3681 га — весь Краснодарский край)
+        krtProjectsCount: 10,
+        // 10 договоров КРТ (РБК Краснодар авг.2025)
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 Jan 2026", "bnMAP.pro 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u044F\u043D\u0432.2026", "bnMAP.pro 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0420\u0411\u041A \u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440 \u0430\u0432\u0433.2025", "\u041C\u0438\u043D\u0441\u0442\u0440\u043E\u0439 \u0420\u0424"],
+      needsVerification: []
+    }
   },
   voronezh: {
     inputs: {
@@ -968,11 +1185,30 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0412\u043E\u0440\u043E\u043D\u0435\u0436\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1041.7, populationTrend5yPct: 0.5, shareAge25to45: 0.28, migrationBalanceThousands: 1.8 },
       economy: { avgSalary: 65e3, salaryGrowthYoY: 10.5, highPaidIndustriesShare: 0.15, unemploymentRate: 3.3 },
-      housing: { dealsGrowthYoY: -7, priceGrowthYoY: 8.1, monthsOfSupply: 13, businessClassPricePerM2: 185e3, monthlySalesM2: 32e3 },
+      housing: {
+        dealsGrowthYoY: 3.7,
+        // Росреестр: ДДУ ~+3.7% г/г (рост с -7% в прошлой версии)
+        priceGrowthYoY: 6.5,
+        // Коммерсант Воронеж / РБК: +6.5% г/г
+        monthsOfSupply: 13,
+        businessClassPricePerM2: 185e3,
+        monthlySalesM2: 3e4,
+        // 6 900 ДДУ/год × 52м² / 12 = 29.9k
+        annualDduCount: 6900
+        // РБК янв-нояб 2025
+      },
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 110, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 110,
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u0412\u043E\u0440\u043E\u043D\u0435\u0436\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0412\u043E\u0440\u043E\u043D\u0435\u0436 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
+    }
   },
   volgograd: {
     inputs: {
@@ -980,11 +1216,31 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1018.9, populationTrend5yPct: -3.5, shareAge25to45: 0.27, migrationBalanceThousands: -5.2 },
       economy: { avgSalary: 58e3, salaryGrowthYoY: 8.5, highPaidIndustriesShare: 0.13, unemploymentRate: 4.2 },
-      housing: { dealsGrowthYoY: -9, priceGrowthYoY: 3.6, monthsOfSupply: 17, businessClassPricePerM2: 168e3, monthlySalesM2: 22e3 },
+      housing: {
+        dealsGrowthYoY: -5.1,
+        // Росреестр: ДДУ -5.1% г/г (МК Волгоград, 2025)
+        priceGrowthYoY: 2.9,
+        // Слабейший рост среди миллионников (РБК)
+        monthsOfSupply: 22,
+        // 35 500 нераспроданных квартир — 1-е место в РФ!
+        businessClassPricePerM2: 168e3,
+        monthlySalesM2: 17e3,
+        // 4 200 ДДУ/год × 50м² / 12 = 17.5k
+        annualDduCount: 4200
+        // МК Волгоград, янв-нояб 2025
+      },
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 45, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: false }
+      infrastructure: {
+        krtProgramsHa: 45,
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: false
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro Jan 2026", "\u0410\u0438\u0424 \u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro Jan 2026", "\u041C\u041A \u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
+    }
   },
   perm: {
     inputs: {
@@ -992,11 +1248,33 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041F\u0435\u0440\u043C\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1026.9, populationTrend5yPct: -2.8, shareAge25to45: 0.28, migrationBalanceThousands: -3.2 },
       economy: { avgSalary: 68e3, salaryGrowthYoY: 11.8, highPaidIndustriesShare: 0.16, unemploymentRate: 3.5 },
-      housing: { dealsGrowthYoY: -8.5, priceGrowthYoY: 18.1, monthsOfSupply: 12, businessClassPricePerM2: 228e3, monthlySalesM2: 3e4 },
+      housing: {
+        dealsGrowthYoY: 15.7,
+        // Росреестр: ДДУ +15.7% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 15.2,
+        // URA.news: +15.2% г/г — 2-е место среди миллионников
+        monthsOfSupply: 10,
+        businessClassPricePerM2: 228e3,
+        monthlySalesM2: 36e3,
+        // 7 800 ДДУ/год × 55м² / 12 = 35.75k
+        annualDduCount: 7800
+        // РБК Недвижимость, итоги 2025
+      },
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 95, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 770,
+        // 770+ га, 43 договора КРТ (Business-Class.su сент.2025)
+        krtProjectsCount: 40,
+        // 40 проектов КРТ в Пермском крае
+        hasMajorInfraProjects: false,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["RuNews24 Dec 2025", "bnMAP.pro 2025", "\u041F\u0435\u0440\u043C\u044C\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["URA.news 2025", "bnMAP.pro 2025", "\u041F\u0435\u0440\u043C\u044C\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "Business-Class.su \u0441\u0435\u043D\u0442.2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      needsVerification: []
+    }
   },
   krasnoyarsk: {
     inputs: {
@@ -1004,11 +1282,27 @@ var RUSSIA_MILLION_CITIES = {
       region: "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1211.8, populationTrend5yPct: 1.8, shareAge25to45: 0.3, migrationBalanceThousands: 3.5 },
       economy: { avgSalary: 82e3, salaryGrowthYoY: 12.2, highPaidIndustriesShare: 0.2, unemploymentRate: 3 },
-      housing: { dealsGrowthYoY: -4.5, priceGrowthYoY: 7.8, monthsOfSupply: 11, businessClassPricePerM2: 245e3, monthlySalesM2: 35e3 },
+      housing: {
+        dealsGrowthYoY: -11,
+        // Росреестр: ДДУ -11.0% г/г (РБК Нед-ть, 2025)
+        priceGrowthYoY: 4.5,
+        // Сибдом: ~145.3→147 тыс./м², +4.5% г/г
+        monthsOfSupply: 11,
+        businessClassPricePerM2: 245e3,
+        monthlySalesM2: 35e3
+      },
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: { krtProgramsHa: 130, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
+      infrastructure: {
+        krtProgramsHa: 130,
+        hasMajorInfraProjects: true,
+        hasUniversitiesOrTechparks: true
+      }
     },
-    meta: { dataAsOfDate: "2026-02-01", sources: ["bnMAP.pro 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0441\u0442\u0430\u0442"], needsVerification: ["krtProgramsHa"] }
+    meta: {
+      dataAsOfDate: "2026-05-30",
+      sources: ["bnMAP.pro 2025", "\u0421\u0438\u0431\u0434\u043E\u043C 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      needsVerification: ["krtProgramsHa"]
+    }
   }
 };
 var ALL_CITY_KEYS = Object.keys(RUSSIA_MILLION_CITIES);
