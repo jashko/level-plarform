@@ -107,8 +107,38 @@ export function calculateHousingMarketScore(
       [12, 50],
       [30, 100],
     ]);
+
+  /**
+   * Балл баланса спроса/предложения (из данных ЕИСЖС / ДОМ.РФ).
+   * Высокий sellReadinessRatioPct = дефицит предложения = хорошо для девелопера.
+   * Высокий unsoldYearsOfSupply = много нераспроданного жилья = плохо.
+   */
+  let balanceScore = 50; // дефолт нейтральный, если данных нет
+  if (inputs.sellReadinessRatioPct !== undefined) {
+    const sellScore = normalizePiecewise(inputs.sellReadinessRatioPct, [
+      [40,  0],   // глубокий дефицит спроса
+      [55, 20],   // дефицит спроса
+      [65, 45],   // нижняя граница баланса
+      [75, 68],   // баланс
+      [82, 82],   // дефицит предложения
+      [95, 95],
+      [110, 100],
+    ]);
+    // Штраф за высокий срок реализации нераспроданного жилья
+    const unsoldPenalty = inputs.unsoldYearsOfSupply !== undefined
+      ? normalizePiecewise(inputs.unsoldYearsOfSupply, [
+          [0, 0], [3, 0], [4.5, 12], [6, 30], [8, 50],
+        ])
+      : 0;
+    balanceScore = clamp(sellScore - unsoldPenalty, 0, 100);
+  }
+
+  // Веса: сделки 30%, цена 25%, поглощение 25%, баланс ДОМ.РФ 20%
   const raw = clamp(
-    0.40 * dealsScore + 0.30 * priceScore + 0.30 * absorptionScore,
+    0.30 * dealsScore +
+    0.25 * priceScore +
+    0.25 * absorptionScore +
+    0.20 * balanceScore,
     0,
     100,
   );

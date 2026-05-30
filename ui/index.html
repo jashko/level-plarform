@@ -71,12 +71,23 @@
     .recharts-text { font-family: 'Inter', sans-serif; }
     .recharts-legend-item-text { color: var(--text-sub) !important; font-size: 11px !important; }
 
-    /* Pulsing city dots on map */
-    @keyframes pulse-glow {
-      0%, 100% { opacity: 0.05; }
-      50% { opacity: 0.15; }
+    /* Pulsing city dots on map — expanding ring effect */
+    @keyframes pulse-ring {
+      0%   { opacity: 0.75; transform: scale(0.35); }
+      100% { opacity: 0;    transform: scale(2.6);  }
     }
-    .city-pulse { animation: pulse-glow 2.5s ease-in-out infinite; }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.06; }
+      45%      { opacity: 0.38; }
+    }
+    .city-pulse-ring {
+      animation: pulse-ring 2s ease-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .city-pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
 
     /* ── Mobile / touch ──────────────────────────── */
     * { -webkit-tap-highlight-color: transparent; }

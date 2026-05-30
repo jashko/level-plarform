@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ReferenceLine, Cell,
+  ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Cell,
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
@@ -728,15 +728,23 @@ function RussiaMap({ cities, onCityClick }) {
         const r = 4 + (c.cityScore / 100) * 8;
         const delay = `${(idx * 0.18) % 2.5}s`;
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          // Пульсирующий ореол (animate через SVG тег)
+          // Пульс 1 — широкое кольцо, расширяется и исчезает
+          React.createElement('circle', {
+            cx: x, cy: y, r: r + 16, fill: 'none', stroke: z.fg, strokeWidth: 1.5,
+            className: 'city-pulse-ring',
+            style: { animationDelay: delay },
+          }),
+          // Пульс 2 — второе кольцо со смещением фазы
           React.createElement('circle', {
             cx: x, cy: y, r: r + 10, fill: z.fg,
-            style: { animation: 'pulse-glow 2.5s ease-in-out infinite', animationDelay: delay },
+            className: 'city-pulse-glow',
+            style: { animationDelay: `calc(${delay} + 0.4s)` },
           }),
-          // Статичные слои
-          React.createElement('circle', { cx: x, cy: y, r: r + 3, fill: z.fg, opacity: 0.1 }),
-          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.9 }),
-          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 0.8, opacity: 0.35 }),
+          // Статичный ореол
+          React.createElement('circle', { cx: x, cy: y, r: r + 4, fill: z.fg, opacity: 0.12 }),
+          // Основная точка
+          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.92 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 1, opacity: 0.5 }),
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
@@ -1017,6 +1025,162 @@ function CityQuadrant({ cities, onCityClick }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════
+// КАРТА БАЛАНСА СПРОСА И ПРЕДЛОЖЕНИЯ (ЕИСЖС / ДОМ.РФ)
+// ═════════════════════════════════════════════════════════════════
+
+function SupplyDemandBalanceChart({ cities, onCityClick }) {
+  const m = useIsMobile();
+
+  const data = cities
+    .filter(c => c.inputs.housing.sellReadinessRatioPct !== undefined)
+    .map(c => ({
+      x: c.inputs.housing.sellReadinessRatioPct,
+      y: c.inputs.housing.unsoldYearsOfSupply ?? 4,
+      z: c.inputs.housing.constructionVolumeMkdThousM2
+        ? Math.sqrt(c.inputs.housing.constructionVolumeMkdThousM2) * 1.1
+        : 14,
+      name: c.name,
+      key: c.key,
+      zone: c.zone,
+    }));
+
+  const CustomDot = (props) => {
+    const { cx, cy, payload } = props;
+    if (cx == null || cy == null) return null;
+    const z = ZONE[payload.zone];
+    const r = Math.max(5, Math.min(18, payload.z));
+    return React.createElement('g', {
+      key: payload.key,
+      onClick: () => onCityClick(payload.key),
+      style: { cursor: 'pointer' },
+    },
+      React.createElement('circle', { cx, cy, r: r + 5, fill: z.fg, opacity: 0.1 }),
+      React.createElement('circle', { cx, cy, r, fill: z.fg, opacity: 0.88, stroke: T.bg, strokeWidth: 1.5 }),
+      React.createElement('text', {
+        x: cx, y: cy - r - 5,
+        textAnchor: 'middle', fontSize: 9.5, fontWeight: 500,
+        fill: 'rgba(237,236,234,0.82)',
+        style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif' },
+      }, payload.name),
+    );
+  };
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
+    const z = ZONE[d.zone];
+    const zoneLabel =
+      d.x < 60 ? '⚠ Дефицит спроса'
+      : d.x < 80 ? '✓ Баланс'
+      : '★ Дефицит предложения';
+    return React.createElement('div', {
+      style: {
+        background: T.surfaceRaise, border: `1px solid ${T.border}`,
+        borderRadius: 8, padding: '10px 14px',
+        fontSize: 12, fontFamily: 'Inter, sans-serif', minWidth: 190,
+      },
+    },
+      React.createElement('div', { style: { fontWeight: 700, color: z.fg, marginBottom: 6 } }, d.name),
+      React.createElement('div', { style: { color: T.textSub, marginBottom: 2 } }, `Распроданность/стройготовность: ${d.x}%`),
+      React.createElement('div', { style: { color: T.textSub, marginBottom: 6 } }, `Срок реализации: ${d.y.toFixed(1)} лет`),
+      React.createElement('div', {
+        style: {
+          fontSize: 11, fontWeight: 600,
+          color: d.x < 60 ? T.red : d.x < 80 ? T.green : T.yellow,
+        },
+      }, zoneLabel),
+    );
+  };
+
+  const ZONE_LABELS = [
+    { x: 50, y: 7.0, text: 'ДЕФИЦИТ СПРОСА', color: 'rgba(212,91,91,0.55)' },
+    { x: 70, y: 7.0, text: 'БАЛАНС', color: 'rgba(91,191,138,0.55)' },
+    { x: 93, y: 7.0, text: 'ДЕФИЦИТ ПРЕДЛОЖЕНИЯ', color: 'rgba(212,184,74,0.55)' },
+  ];
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    // Header
+    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 } },
+      React.createElement('div', null,
+        React.createElement(Label, null, 'Баланс спроса и предложения · ЕИСЖС / ДОМ.РФ'),
+        React.createElement('div', { style: { fontSize: 12, color: T.textMuted, marginTop: 4 } },
+          'Распроданность к стройготовности vs. срок реализации непроданных квартир · 01.01.2026'
+        ),
+      ),
+      React.createElement('div', { style: { display: 'flex', gap: 14, flexShrink: 0 } },
+        [
+          { label: 'Дефицит спроса', color: T.red },
+          { label: 'Баланс', color: T.green },
+          { label: 'Дефицит предложения', color: T.yellow },
+        ].map(({ label, color }) =>
+          React.createElement('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: T.textMuted } },
+            React.createElement('div', { style: { width: 8, height: 8, borderRadius: 2, background: color, opacity: 0.7 } }),
+            label,
+          ),
+        ),
+      ),
+    ),
+
+    React.createElement(ResponsiveContainer, { width: '100%', height: m ? 280 : 340 },
+      React.createElement(ScatterChart, { margin: { top: 20, right: 30, bottom: 30, left: 10 } },
+        // Цветные зоны
+        React.createElement(ReferenceArea, { x1: 40, x2: 60, y1: 0, y2: 8.5, fill: 'rgba(212,91,91,0.07)', ifOverflow: 'hidden' }),
+        React.createElement(ReferenceArea, { x1: 60, x2: 80, y1: 0, y2: 8.5, fill: 'rgba(91,191,138,0.05)', ifOverflow: 'hidden' }),
+        React.createElement(ReferenceArea, { x1: 80, x2: 112, y1: 0, y2: 8.5, fill: 'rgba(212,184,74,0.06)', ifOverflow: 'hidden' }),
+
+        React.createElement(CartesianGrid, CHART_GRID),
+        React.createElement(XAxis, {
+          type: 'number', dataKey: 'x',
+          domain: [38, 112], ticks: [40, 50, 60, 70, 80, 90, 100, 110],
+          tick: CHART_TICK,
+          label: { value: 'Распроданность / Стройготовность, %', position: 'insideBottom', offset: -18, fill: T.textMuted, fontSize: 10 },
+        }),
+        React.createElement(YAxis, {
+          type: 'number', dataKey: 'y',
+          domain: [0, 8.5], ticks: [0, 2, 4, 6, 8],
+          tick: CHART_TICK,
+          label: { value: 'Срок реализации, лет', angle: -90, position: 'insideLeft', offset: 14, fill: T.textMuted, fontSize: 10 },
+        }),
+        React.createElement(ZAxis, { type: 'number', dataKey: 'z', range: [30, 420] }),
+        React.createElement(Tooltip, { content: React.createElement(CustomTooltip) }),
+
+        // Граничные линии зон
+        React.createElement(ReferenceLine, { x: 60, stroke: 'rgba(255,255,255,0.18)', strokeDasharray: '6 3', strokeWidth: 1.5 }),
+        React.createElement(ReferenceLine, { x: 80, stroke: 'rgba(255,255,255,0.18)', strokeDasharray: '6 3', strokeWidth: 1.5 }),
+        // Линия равновесного темпа (~3.5 лет)
+        React.createElement(ReferenceLine, {
+          y: 3.5, stroke: 'rgba(201,169,110,0.3)', strokeDasharray: '8 4', strokeWidth: 1,
+          label: { value: '≈ равновесие', position: 'right', fill: 'rgba(201,169,110,0.6)', fontSize: 9 },
+        }),
+
+        // Подписи зон (через ReferenceLine-label)
+        ...ZONE_LABELS.map(({ x, y, text, color }) =>
+          React.createElement(ReferenceLine, {
+            key: text, x: x, stroke: 'none',
+            label: {
+              value: text, position: 'insideTop',
+              fill: color, fontSize: 9.5,
+              fontFamily: 'Inter, sans-serif',
+              letterSpacing: '0.07em',
+            },
+          }),
+        ),
+
+        React.createElement(Scatter, { data, shape: React.createElement(CustomDot) }),
+      ),
+    ),
+
+    // Подпись
+    React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 6, textAlign: 'right' } },
+      'Источник: ЕИСЖС, расчёты ДОМ.РФ · Размер пузыря = объём строительства МКД'
+    ),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter,    setZoneFilter]    = useState('all');
   const [minScore,      setMinScore]      = useState(0);
@@ -1065,6 +1229,7 @@ function MainScreen({ ranking, onCityClick }) {
 
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
+    React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
     React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
     React.createElement(
       'div',

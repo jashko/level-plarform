@@ -43,6 +43,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 72_000,        // 15 600 ДДУ/год × 55 м² / 12
         annualDduCount: 15_600,
         constructionVolumeMkdThousM2: 2_700, // 7-е место в РФ, РИА Рейтинг
+        sellReadinessRatioPct: 63,     // ЕИСЖС / ДОМ.РФ, 01.01.2026
+        unsoldYearsOfSupply: 3.7,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: {
@@ -72,6 +74,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 84_000,        // ~18k ДДУ/год (экстраполяция) × 55м² / 12
         annualDduCount: 18_300,        // расчётно по данным янв-июл 2025
         constructionVolumeMkdThousM2: 3_700, // РИА Рейтинг / ЕРЗ.РФ
+        sellReadinessRatioPct: 82,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит предложения
+        unsoldYearsOfSupply: 3.7,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -101,6 +105,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 44_000,        // 9 700 ДДУ/год × 55м² / 12 = 44.5k
         annualDduCount: 9_700,         // РБК Недвижимость, итоги 2025
         constructionVolumeMkdThousM2: undefined, // нет данных по городу отдельно
+        sellReadinessRatioPct: 71,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
+        unsoldYearsOfSupply: 2.9,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: {
@@ -130,6 +136,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 32_000,        // 6 900 ДДУ/год × 55м² / 12 = 31.6k
         annualDduCount: 6_900,         // РБК Недвижимость янв-нояб 2025
         constructionVolumeMkdThousM2: 810, // Домострой НН, авг.2025
+        sellReadinessRatioPct: 100,    // ЕИСЖС / ДОМ.РФ, 01.01.2026 — максимальный дефицит предложения
+        unsoldYearsOfSupply: 2.0,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: {
@@ -156,6 +164,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthsOfSupply: 14,
         businessClassPricePerM2: 185_000,
         monthlySalesM2: 38_000,
+        sellReadinessRatioPct: 56,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
+        unsoldYearsOfSupply: 4.0,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -184,6 +194,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 195_000,
         monthlySalesM2: 36_000,
         constructionVolumeMkdThousM2: 1_500, // фев.2026: 1.5 млн м² (-16.7% г/г)
+        sellReadinessRatioPct: 65,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
+        unsoldYearsOfSupply: 3.3,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 16, top5MarketShare: 0.60, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -211,6 +223,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 205_000,
         monthlySalesM2: 38_000,        // ~5.14k ДДУ (янв-авг) × 55м² / 8 мес
         constructionVolumeMkdThousM2: 2_500, // РИА Рейтинг
+        sellReadinessRatioPct: 56,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
+        unsoldYearsOfSupply: 4.2,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -239,6 +253,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 68_000,        // 16 500 ДДУ/год × 50м² / 12 = 68.75k
         annualDduCount: 16_500,        // РБК Недвижимость, итоги 2025
         constructionVolumeMkdThousM2: 3_400, // РИА Рейтинг; 5-е место в РФ
+        sellReadinessRatioPct: 80,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — граница баланс/дефицит предложения
+        unsoldYearsOfSupply: 4.0,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: {
@@ -267,6 +283,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 168_000,
         monthlySalesM2: 10_000,        // 2 200 ДДУ/год × 50м² / 12 = 9.2k (крошечный рынок!)
         annualDduCount: 2_200,         // Вечерний Омск: 2 200 квартир куплено в 2025
+        sellReadinessRatioPct: 55,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса (оценка, отдельно нет)
+        unsoldYearsOfSupply: 4.5,      // ЕИСЖС / ДОМ.РФ, 01.01.2026 — оценка (Прочие СФО)
       },
       competition: { activeDevelopers: 14, top5MarketShare: 0.70, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -296,6 +314,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthlySalesM2: 73_000,        // 17 600 ДДУ/год × 50м² / 12 = 73.3k
         annualDduCount: 17_600,        // РБК Недвижимость, итоги 2025
         constructionVolumeMkdThousM2: 5_300, // ~5.3 млн м²; 2-е место в РФ
+        sellReadinessRatioPct: 43,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — тяжёлый дефицит спроса
+        unsoldYearsOfSupply: 6.1,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: {
@@ -324,6 +344,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 185_000,
         monthlySalesM2: 30_000,        // 6 900 ДДУ/год × 52м² / 12 = 29.9k
         annualDduCount: 6_900,         // РБК янв-нояб 2025
+        sellReadinessRatioPct: 48,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
+        unsoldYearsOfSupply: 3.0,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -351,6 +373,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 168_000,
         monthlySalesM2: 17_000,        // 4 200 ДДУ/год × 50м² / 12 = 17.5k
         annualDduCount: 4_200,         // МК Волгоград, янв-нояб 2025
+        sellReadinessRatioPct: 44,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — глубокий дефицит спроса
+        unsoldYearsOfSupply: 7.0,      // ЕИСЖС / ДОМ.РФ, 01.01.2026 — худший показатель
       },
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -378,6 +402,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         businessClassPricePerM2: 228_000,
         monthlySalesM2: 36_000,        // 7 800 ДДУ/год × 55м² / 12 = 35.75k
         annualDduCount: 7_800,         // РБК Недвижимость, итоги 2025
+        sellReadinessRatioPct: 68,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
+        unsoldYearsOfSupply: 3.2,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
@@ -405,6 +431,8 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
         monthsOfSupply: 11,
         businessClassPricePerM2: 245_000,
         monthlySalesM2: 35_000,
+        sellReadinessRatioPct: 55,     // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
+        unsoldYearsOfSupply: 5.2,      // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: {
