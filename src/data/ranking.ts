@@ -59,8 +59,8 @@ export interface RankingResult {
   durationMs: number;
 }
 
-const RU_MEDIAN_SALARY = 56_443; // Росстат 2024
-const RU_MEDIAN_PRICE_PER_M2 = 152_410; // Мир квартир Dec 2025
+const RU_MEDIAN_SALARY = 64_000;         // Росстат, медиана фев.2026 (нац. среднее 103 900)
+const RU_MEDIAN_PRICE_PER_M2 = 158_648; // МИР КВАРТИР, I кв. 2026, 70 городов
 
 /**
  * Главная функция — то самое «автоматически подтягивается».
@@ -76,9 +76,9 @@ export async function buildCityRanking(): Promise<RankingResult> {
     keyRateAnnual: cbr.keyRateAnnual,
     mortgageRateAnnual: cbr.mortgageRateAnnual,
     preferentialMortgageRate: cbr.preferentialMortgageRate,
-    mortgageShareOfDeals: 0.78, // 78% сделок с ипотекой, Дом.РФ 2025
-    inflationYoY: 5.9, // Банк России март 2026
-    realIncomeIndex3yr: 1.085, // +8.5% за 3 года, Росстат
+    mortgageShareOfDeals: 0.76, // 76% сделок с ипотекой (охлаждение с 78%), апр.2026
+    inflationYoY: 5.4,          // Росстат, май 2026: 5.36% (дезинфляция)
+    realIncomeIndex3yr: 1.11,   // +11% за 3 года, Росстат янв.2026
     unemploymentRate: 3.2,
     medianMonthlyIncomeRu: RU_MEDIAN_SALARY,
     medianPricePerM2Ru: RU_MEDIAN_PRICE_PER_M2,

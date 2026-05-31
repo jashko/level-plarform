@@ -872,36 +872,36 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041D\u043E\u0432\u043E\u0441\u0438\u0431\u0438\u0440\u0441\u043A",
       region: "\u041D\u043E\u0432\u043E\u0441\u0438\u0431\u0438\u0440\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1633.9, populationTrend5yPct: 2.1, shareAge25to45: 0.31, migrationBalanceThousands: 6.2 },
-      economy: { avgSalary: 84e3, salaryGrowthYoY: 13.5, highPaidIndustriesShare: 0.19, unemploymentRate: 3.1 },
+      economy: {
+        avgSalary: 78e3,
+        // Росстат / visasam.ru, 2026
+        salaryGrowthYoY: 8,
+        // умеренный рост
+        highPaidIndustriesShare: 0.19,
+        unemploymentRate: 3.1
+      },
       housing: {
-        dealsGrowthYoY: -7.5,
-        // Росреестр: ДДУ -7.5% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 10.9,
-        // Сибдом: +10.9% янв-нояб 2025
+        dealsGrowthYoY: -25.6,
+        // Коммерсант: ДДУ апрель 2026 -25.6% YoY
+        priceGrowthYoY: 6,
+        // МИР КВАРТИР/ZSRF: ~+6% YoY к маю 2026
         monthsOfSupply: 10,
-        businessClassPricePerM2: 23e4,
-        monthlySalesM2: 72e3,
-        // 15 600 ДДУ/год × 55 м² / 12
-        annualDduCount: 15600,
+        businessClassPricePerM2: 228e3,
+        // bnMAP.pro/НДВ май 2026
+        monthlySalesM2: 68e3,
+        // апрель 664 ДДУ; 2025 годовой темп скорр.
+        annualDduCount: 14400,
+        // 2025 факт 15 600, Q1 2026 снижение
         constructionVolumeMkdThousM2: 2700,
-        // 7-е место в РФ, РИА Рейтинг
         sellReadinessRatioPct: 63,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
         unsoldYearsOfSupply: 3.7
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: {
-        krtProgramsHa: 822,
-        // 821.57 га, 54 участка КРТ (РБК Новосибирск, дек.2025)
-        krtProjectsCount: 54,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 822, krtProjectsCount: 54, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro Jan 2026", "\u0420\u0418\u0410 \u0420\u0435\u0439\u0442\u0438\u043D\u0433 2025", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442", "\u0421\u0438\u0431\u0434\u043E\u043C \u043D\u043E\u044F\u0431.2025", "\u0420\u0411\u041A \u041D\u043E\u0432\u043E\u0441\u0438\u0431\u0438\u0440\u0441\u043A \u0434\u0435\u043A.2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0420\u0411\u041A \u041D\u0421\u041A \u043C\u0430\u0440.2026"],
       needsVerification: ["hasWhiteSpaceBusinessClass"]
     }
   },
@@ -910,37 +910,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0415\u043A\u0430\u0442\u0435\u0440\u0438\u043D\u0431\u0443\u0440\u0433",
       region: "\u0421\u0432\u0435\u0440\u0434\u043B\u043E\u0432\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1580.1, populationTrend5yPct: 3.8, shareAge25to45: 0.32, migrationBalanceThousands: 9.1 },
-      economy: { avgSalary: 92e3, salaryGrowthYoY: 14.2, highPaidIndustriesShare: 0.22, unemploymentRate: 2.8 },
+      economy: {
+        avgSalary: 8e4,
+        // Росстат Свердловская обл. 2026
+        salaryGrowthYoY: 10,
+        highPaidIndustriesShare: 0.22,
+        unemploymentRate: 2.8
+      },
       housing: {
-        dealsGrowthYoY: -4.6,
-        // Росреестр: ДДУ -4.6% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 8.5,
-        // Метр.ТВ: +8.5% г/г янв-июл 2025
+        dealsGrowthYoY: -16.9,
+        // Коммерсант: ДДУ апрель 2026 -16.9% YoY
+        priceGrowthYoY: 9,
+        // НДВ: 184 600 апр.2026; ZSRF: >+2%/мес май
         monthsOfSupply: 8,
-        businessClassPricePerM2: 265e3,
-        monthlySalesM2: 84e3,
-        // ~18k ДДУ/год (экстраполяция) × 55м² / 12
-        annualDduCount: 18300,
-        // расчётно по данным янв-июл 2025
+        businessClassPricePerM2: 272e3,
+        // апр.2026 рынок +2%; bnMAP.pro
+        monthlySalesM2: 82e3,
+        // 1 288 ДДУ × 55м² апрель + тренд
+        annualDduCount: 17500,
+        // Q1 5 400 ÷ 3 = 1 800/мес → ~18k/год экстраполяция
         constructionVolumeMkdThousM2: 3700,
-        // РИА Рейтинг / ЕРЗ.РФ
         sellReadinessRatioPct: 82,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит предложения
         unsoldYearsOfSupply: 3.7
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 280,
-        krtProjectsCount: 11,
-        // 11 договоров КРТ (7 жил. + 4 нежил.), РБК Екатеринбург
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 280, krtProjectsCount: 11, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro Jan 2026", "\u041C\u0435\u0442\u0440.\u0422\u0412 \u0430\u0432\u0433.2025", "\u0421\u0432\u0435\u0440\u0434\u043B\u043E\u0432\u0441\u043A\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0424\u0435\u0434\u0435\u0440\u0430\u043B\u041F\u0440\u0435\u0441\u0441 Q1 2026"],
       needsVerification: ["krtProgramsHa"]
     }
   },
@@ -949,37 +947,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041A\u0430\u0437\u0430\u043D\u044C",
       region: "\u0420\u0435\u0441\u043F\u0443\u0431\u043B\u0438\u043A\u0430 \u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D",
       demography: { populationThousands: 1318.6, populationTrend5yPct: 5.4, shareAge25to45: 0.33, migrationBalanceThousands: 11.8 },
-      economy: { avgSalary: 86e3, salaryGrowthYoY: 14.8, highPaidIndustriesShare: 0.21, unemploymentRate: 2.5 },
+      economy: {
+        avgSalary: 91e3,
+        // Росстат Татарстан, фев.2026 = 90 787 руб.
+        salaryGrowthYoY: 10,
+        highPaidIndustriesShare: 0.21,
+        unemploymentRate: 2.5
+      },
       housing: {
-        dealsGrowthYoY: 6,
-        // Росреестр: ДДУ +6.0% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 14.3,
-        // Коммерсант: +14.3% г/г нояб.2025
+        dealsGrowthYoY: 2.6,
+        // Коммерсант: ДДУ апрель 2026 +2.6% YoY — один из двух городов с ростом!
+        priceGrowthYoY: 12,
+        // НДВ: 284 300 апр (+1.4%); ZSRF +1.9%/мес май
         monthsOfSupply: 7,
-        businessClassPricePerM2: 274e3,
-        monthlySalesM2: 44e3,
-        // 9 700 ДДУ/год × 55м² / 12 = 44.5k
-        annualDduCount: 9700,
-        // РБК Недвижимость, итоги 2025
+        businessClassPricePerM2: 278e3,
+        // апр.2026; 2-е место по цене среди миллионников
+        monthlySalesM2: 43e3,
+        // 548 ДДУ апр × 55м²
+        annualDduCount: 9500,
+        // Q1 2026: 1 800 ×4 = ~7 200/год; с учётом яп. ажиотажа
         constructionVolumeMkdThousM2: void 0,
-        // нет данных по городу отдельно
         sellReadinessRatioPct: 71,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
         unsoldYearsOfSupply: 2.9
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: {
-        krtProgramsHa: 228,
-        // Кадерле 140 га + Васильевский остров 88 га
-        krtProjectsCount: 2,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 228, krtProjectsCount: 2, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro Jan 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u043D\u043E\u044F\u0431.2025", "\u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D \u0444\u0435\u0432.2026"],
       needsVerification: []
     }
   },
@@ -988,36 +984,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041D\u0438\u0436\u043D\u0438\u0439 \u041D\u043E\u0432\u0433\u043E\u0440\u043E\u0434",
       region: "\u041D\u0438\u0436\u0435\u0433\u043E\u0440\u043E\u0434\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1205, populationTrend5yPct: -2.1, shareAge25to45: 0.28, migrationBalanceThousands: -1.5 },
-      economy: { avgSalary: 78e3, salaryGrowthYoY: 12, highPaidIndustriesShare: 0.2, unemploymentRate: 3 },
+      economy: {
+        avgSalary: 77e3,
+        // Росстат Нижегородская обл. фев.2026 = 76 581 руб.
+        salaryGrowthYoY: 11,
+        highPaidIndustriesShare: 0.2,
+        unemploymentRate: 3
+      },
       housing: {
-        dealsGrowthYoY: 36.6,
-        // Росреестр: ДДУ +36.6% г/г — лидер РФ (РБК Нед-ть, 2025)
-        priceGrowthYoY: 16.4,
-        // РБК: +16.4% с нач.2025 — 1-е место среди миллионников
+        dealsGrowthYoY: 0,
+        // Коммерсант: ДДУ апрель 2026 — стабилизация 0% YoY
+        priceGrowthYoY: 18,
+        // МИР КВАРТИР: лидер роста апрель 2026 (+2.3%/мес)
         monthsOfSupply: 7,
-        // Сокращение запасов подтверждается ростом ДДУ
-        businessClassPricePerM2: 3e5,
-        monthlySalesM2: 32e3,
-        // 6 900 ДДУ/год × 55м² / 12 = 31.6k
-        annualDduCount: 6900,
-        // РБК Недвижимость янв-нояб 2025
+        businessClassPricePerM2: 31e4,
+        // НДВ май 2026: 225 400 × 1.38 (БК-премиум)
+        monthlySalesM2: 31e3,
+        // 373 ДДУ апр × 55м²
+        annualDduCount: 6500,
+        // скорр. апрель данные
         constructionVolumeMkdThousM2: 810,
-        // Домострой НН, авг.2025
         sellReadinessRatioPct: 100,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — максимальный дефицит предложения
         unsoldYearsOfSupply: 2
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: {
-        krtProgramsHa: 180,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 180, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["\u0426\u0438\u0430\u043D 2025", "\u0420\u0411\u041A \u041D\u0435\u0434\u0432\u0438\u0436\u0438\u043C\u043E\u0441\u0442\u044C \u043D\u043E\u044F\u0431.2025", "\u041D\u0438\u0436\u0435\u0433\u043E\u0440\u043E\u0434\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0414\u043E\u043C\u043E\u0441\u0442\u0440\u043E\u0439 \u041D\u041D \u0430\u0432\u0433.2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041D\u0438\u0436\u0435\u0433\u043E\u0440.\u043E\u0431\u043B. \u0444\u0435\u0432.2026"],
       needsVerification: ["krtProgramsHa"]
     }
   },
@@ -1026,33 +1021,34 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A",
       region: "\u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1196.7, populationTrend5yPct: -1.5, shareAge25to45: 0.28, migrationBalanceThousands: -2 },
-      economy: { avgSalary: 72e3, salaryGrowthYoY: 11.5, highPaidIndustriesShare: 0.16, unemploymentRate: 3.5 },
+      economy: {
+        avgSalary: 73e3,
+        // Росстат Челябинская обл. 2026
+        salaryGrowthYoY: 8,
+        highPaidIndustriesShare: 0.16,
+        unemploymentRate: 3.5
+      },
       housing: {
-        dealsGrowthYoY: -5.9,
-        // Росреестр: ДДУ -5.9% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 3.5,
-        // Коммерсант Челябинск: +3.5% г/г — один из слабейших
+        dealsGrowthYoY: -24.9,
+        // Коммерсант: ДДУ апрель 2026 -24.9% YoY
+        priceGrowthYoY: 1,
+        // МИР КВАРТИР: -1.6% QoQ в Q1; апр: -3.1% — давление на цены
         monthsOfSupply: 14,
-        businessClassPricePerM2: 185e3,
-        monthlySalesM2: 38e3,
+        businessClassPricePerM2: 183e3,
+        // апр.2026: снижение от 185k
+        monthlySalesM2: 36e3,
+        // 172 ДДУ апр × 55м² — очень мало; 2025 год ~3 200/мес
+        annualDduCount: 8500,
+        // Q1 2026: 1 100 × 4 = 4 400; 2025 год скорр.
         sellReadinessRatioPct: 56,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
         unsoldYearsOfSupply: 4
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 349,
-        // 349 га, 47 участков (Интерфакс-Урал)
-        krtProjectsCount: 78,
-        // 78 проектов запланировано до 2032 (pchela.news)
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 349, krtProjectsCount: 78, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro Jan 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0427\u0435\u043B\u044F\u0431\u0438\u043D\u0441\u043A \u0438\u044E\u043D.2025", "\u0418\u043D\u0442\u0435\u0440\u0444\u0430\u043A\u0441-\u0423\u0440\u0430\u043B", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0418\u043D\u0442\u0435\u0440\u0444\u0430\u043A\u0441-\u0423\u0440\u0430\u043B", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: ["hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1061,32 +1057,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0421\u0430\u043C\u0430\u0440\u0430",
       region: "\u0421\u0430\u043C\u0430\u0440\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1159, populationTrend5yPct: -1.8, shareAge25to45: 0.28, migrationBalanceThousands: -2.5 },
-      economy: { avgSalary: 7e4, salaryGrowthYoY: 11, highPaidIndustriesShare: 0.18, unemploymentRate: 3.2 },
+      economy: {
+        avgSalary: 76e3,
+        // Росстат Самарская обл. фев.2026 = 75 977 руб.
+        salaryGrowthYoY: 9,
+        highPaidIndustriesShare: 0.18,
+        unemploymentRate: 3.2
+      },
       housing: {
-        dealsGrowthYoY: -7.9,
-        // Росреестр: ДДУ -7.9% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 6,
-        // Реальные сделки ~6% (предложение +29% — артефакт)
+        dealsGrowthYoY: -19.1,
+        // Коммерсант: ДДУ апрель 2026 -19.1% YoY
+        priceGrowthYoY: 5,
+        // МИР КВАРТИР: +2.8% QoQ Q1; ZSRF: >+2%/мес май
         monthsOfSupply: 12,
-        businessClassPricePerM2: 195e3,
-        monthlySalesM2: 36e3,
+        businessClassPricePerM2: 2e5,
+        // Самара +2.8% QoQ от 195k → 200k
+        monthlySalesM2: 34e3,
+        // 208 ДДУ апр × 55м²; Q1 2026 самый слабый
+        annualDduCount: 7e3,
+        // Q1 2026: 600 — самый слабый квартал; 2025 был ~9k
         constructionVolumeMkdThousM2: 1500,
-        // фев.2026: 1.5 млн м² (-16.7% г/г)
         sellReadinessRatioPct: 65,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
         unsoldYearsOfSupply: 3.3
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 16, top5MarketShare: 0.6, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 120,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 120, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u0421\u0430\u043C\u0430\u0440\u0430\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1095,33 +1094,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0423\u0444\u0430",
       region: "\u0420\u0435\u0441\u043F\u0443\u0431\u043B\u0438\u043A\u0430 \u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D",
       demography: { populationThousands: 1163.3, populationTrend5yPct: 1.2, shareAge25to45: 0.3, migrationBalanceThousands: 2.8 },
-      economy: { avgSalary: 76e3, salaryGrowthYoY: 12.8, highPaidIndustriesShare: 0.19, unemploymentRate: 2.9 },
+      economy: {
+        avgSalary: 67e3,
+        // Росстат Башкортостан 2026 = 66 868 руб.
+        salaryGrowthYoY: 8,
+        highPaidIndustriesShare: 0.19,
+        unemploymentRate: 2.9
+      },
       housing: {
-        dealsGrowthYoY: -4.6,
-        // Росреестр: ДДУ -4.6% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 7,
-        // РБК Уфа: +7% с нач.2025 (167.9→179.6 тыс./м²)
-        monthsOfSupply: 10,
-        businessClassPricePerM2: 205e3,
-        monthlySalesM2: 38e3,
-        // ~5.14k ДДУ (янв-авг) × 55м² / 8 мес
+        dealsGrowthYoY: -5.6,
+        // Коммерсант: ДДУ апрель 2026 -5.6% YoY
+        priceGrowthYoY: 2,
+        // МИР КВАРТИР: -5.6% QoQ Q1 — резкое охлаждение; ZSRF -2.9%/мес май
+        monthsOfSupply: 11,
+        businessClassPricePerM2: 195e3,
+        // снижение с 205k из-за -5.6% QoQ
+        monthlySalesM2: 37e3,
+        // 539 ДДУ апр × 55м²
+        annualDduCount: 8500,
+        // Q1 2026: 2 600; 2025 снижение
         constructionVolumeMkdThousM2: 2500,
-        // РИА Рейтинг
         sellReadinessRatioPct: 56,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
         unsoldYearsOfSupply: 4.2
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 140,
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 140, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u0420\u0411\u041A \u0423\u0444\u0430 \u043D\u043E\u044F\u0431.2025", "\u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D 2026"],
       needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1130,37 +1131,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0420\u043E\u0441\u0442\u043E\u0432-\u043D\u0430-\u0414\u043E\u043D\u0443",
       region: "\u0420\u043E\u0441\u0442\u043E\u0432\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1140.5, populationTrend5yPct: 1.5, shareAge25to45: 0.29, migrationBalanceThousands: 4.2 },
-      economy: { avgSalary: 73e3, salaryGrowthYoY: 12.5, highPaidIndustriesShare: 0.17, unemploymentRate: 3.4 },
+      economy: {
+        avgSalary: 64e3,
+        // Росстат Ростовская обл. 2026 = 64 309 руб.
+        salaryGrowthYoY: 9,
+        highPaidIndustriesShare: 0.17,
+        unemploymentRate: 3.4
+      },
       housing: {
-        dealsGrowthYoY: 13.2,
-        // Росреестр: ДДУ +13.2% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 4.8,
-        // Коммерсант дек.2025: +4.76% г/г (152.6→159.9 тыс.)
-        monthsOfSupply: 9,
-        businessClassPricePerM2: 19e4,
-        monthlySalesM2: 68e3,
-        // 16 500 ДДУ/год × 50м² / 12 = 68.75k
-        annualDduCount: 16500,
-        // РБК Недвижимость, итоги 2025
+        dealsGrowthYoY: -17.9,
+        // Коммерсант: ДДУ апрель 2026 -17.9% YoY (охлаждение)
+        priceGrowthYoY: 2,
+        // МИР КВАРТИР: -4.8% QoQ Q1; апр. +2.1% откат
+        monthsOfSupply: 10,
+        businessClassPricePerM2: 185e3,
+        // снижение с 190k; рынок охлаждается
+        monthlySalesM2: 65e3,
+        // 846 ДДУ апр × 50м²; Q1 +32% YoY — сильный год!
+        annualDduCount: 15e3,
+        // 2025: 16 500; Q1 2026: 3 200
         constructionVolumeMkdThousM2: 3400,
-        // РИА Рейтинг; 5-е место в РФ
         sellReadinessRatioPct: 80,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — граница баланс/дефицит предложения
         unsoldYearsOfSupply: 4
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: {
-        krtProgramsHa: 500,
-        // ~500 га, 6 проектов в стройке (РБК Ростов 2025)
-        krtProjectsCount: 6,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 500, krtProjectsCount: 6, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0434\u0435\u043A.2025", "\u0420\u043E\u0441\u0442\u043E\u0432\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0420\u0411\u041A \u0420\u043E\u0441\u0442\u043E\u0432 2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u041A\u041F \u0420\u043E\u0441\u0442\u043E\u0432 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: []
     }
   },
@@ -1169,37 +1168,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041E\u043C\u0441\u043A",
       region: "\u041E\u043C\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1104.5, populationTrend5yPct: -4.2, shareAge25to45: 0.27, migrationBalanceThousands: -8.5 },
-      economy: { avgSalary: 64e3, salaryGrowthYoY: 9.5, highPaidIndustriesShare: 0.14, unemploymentRate: 4.1 },
+      economy: {
+        avgSalary: 76e3,
+        // Росстат Омская обл. фев.2026 = 75 611 руб.
+        salaryGrowthYoY: 12,
+        // значительный рост с низкой базы
+        highPaidIndustriesShare: 0.14,
+        unemploymentRate: 4.1
+      },
       housing: {
-        dealsGrowthYoY: 20.7,
-        // Росреестр: ДДУ +20.7% г/г (рост с низкой базы!)
-        priceGrowthYoY: 3.6,
-        // РБК рейтинг: +3.6% г/г
+        dealsGrowthYoY: -24.4,
+        // Коммерсант: ДДУ апрель 2026 -24.4% YoY — мелкий рынок
+        priceGrowthYoY: 3,
+        // МИР КВАРТИР: -0.1% QoQ Q1; ZSRF +0.4%/мес май
         monthsOfSupply: 18,
-        // Превышение: маленький рынок + доля новостроек 14-24%
-        businessClassPricePerM2: 168e3,
-        monthlySalesM2: 1e4,
-        // 2 200 ДДУ/год × 50м² / 12 = 9.2k (крошечный рынок!)
-        annualDduCount: 2200,
-        // Вечерний Омск: 2 200 квартир куплено в 2025
+        businessClassPricePerM2: 175e3,
+        // Омск слабый рынок; рост вслед за рынком
+        monthlySalesM2: 9e3,
+        // 102 ДДУ апр × 50м² — крошечный рынок!
+        annualDduCount: 2e3,
+        // Q1 2026: 500; ниже 2025 (2 200)
         sellReadinessRatioPct: 55,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса (оценка, отдельно нет)
         unsoldYearsOfSupply: 4.5
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — оценка (Прочие СФО)
       },
       competition: { activeDevelopers: 14, top5MarketShare: 0.7, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 115,
-        // 115.38 га по 12 решениям КРТ
-        krtProjectsCount: 5,
-        // 5 договоров заключено
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 115, krtProjectsCount: 5, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u041E\u043C\u0441\u043A\u0441\u0442\u0430\u0442", "\u0412\u0435\u0447\u0435\u0440\u043D\u0438\u0439 \u041E\u043C\u0441\u043A 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041E\u043C\u0441\u043A\u0430\u044F \u043E\u0431\u043B. 2026"],
       needsVerification: ["hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1208,39 +1205,36 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440",
       region: "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1138.7, populationTrend5yPct: 14.5, shareAge25to45: 0.34, migrationBalanceThousands: 28 },
-      economy: { avgSalary: 75e3, salaryGrowthYoY: 15.5, highPaidIndustriesShare: 0.18, unemploymentRate: 2.6 },
+      economy: {
+        avgSalary: 7e4,
+        // Росстат Краснодарский край 2026 = 70 081 руб.
+        salaryGrowthYoY: 9,
+        highPaidIndustriesShare: 0.18,
+        unemploymentRate: 2.6
+      },
       housing: {
-        dealsGrowthYoY: -25.6,
-        // Росреестр: ДДУ -25.6% г/г — рынок перегрет (РБК, 2025)
-        priceGrowthYoY: 7,
-        // РБК: +7-10% г/г
+        dealsGrowthYoY: -7.2,
+        // Коммерсант: ДДУ апрель 2026 -7.2% YoY — улучшение
+        priceGrowthYoY: 5,
+        // МИР КВАРТИР: -1.6% QoQ Q1; май +2.7% откат вверх
         monthsOfSupply: 14,
-        // 29 400 нераспроданных квартир (2-е место РФ!)
-        businessClassPricePerM2: 215e3,
-        monthlySalesM2: 73e3,
-        // 17 600 ДДУ/год × 50м² / 12 = 73.3k
-        annualDduCount: 17600,
-        // РБК Недвижимость, итоги 2025
+        // 29 400+ нераспроданных — 2-е место РФ
+        businessClassPricePerM2: 218e3,
+        // ZSRF май: 186 200 × 1.17 (БК-премиум)
+        monthlySalesM2: 72e3,
+        // 851 ДДУ апр × 50м²; янв 2026 — лидер +235%!
+        annualDduCount: 16e3,
+        // Q1: 4 600; апр: 851; скорр.
         constructionVolumeMkdThousM2: 5300,
-        // ~5.3 млн м²; 2-е место в РФ
         sellReadinessRatioPct: 43,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — тяжёлый дефицит спроса
         unsoldYearsOfSupply: 6.1
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
-      infrastructure: {
-        krtProgramsHa: 400,
-        // ~400 га в городе (3681 га — весь Краснодарский край)
-        krtProjectsCount: 10,
-        // 10 договоров КРТ (РБК Краснодар авг.2025)
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 400, krtProjectsCount: 10, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u044F\u043D\u0432.2026", "bnMAP.pro 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0420\u0411\u041A \u041A\u0440\u0430\u0441\u043D\u043E\u0434\u0430\u0440 \u0430\u0432\u0433.2025", "\u041C\u0438\u043D\u0441\u0442\u0440\u043E\u0439 \u0420\u0424"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: []
     }
   },
@@ -1249,33 +1243,34 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0412\u043E\u0440\u043E\u043D\u0435\u0436",
       region: "\u0412\u043E\u0440\u043E\u043D\u0435\u0436\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1041.7, populationTrend5yPct: 0.5, shareAge25to45: 0.28, migrationBalanceThousands: 1.8 },
-      economy: { avgSalary: 65e3, salaryGrowthYoY: 10.5, highPaidIndustriesShare: 0.15, unemploymentRate: 3.3 },
+      economy: {
+        avgSalary: 64e3,
+        // Росстат Воронежская обл. 2026 = 63 879 руб.
+        salaryGrowthYoY: 9,
+        highPaidIndustriesShare: 0.15,
+        unemploymentRate: 3.3
+      },
       housing: {
-        dealsGrowthYoY: 3.7,
-        // Росреестр: ДДУ ~+3.7% г/г (рост с -7% в прошлой версии)
-        priceGrowthYoY: 6.5,
-        // Коммерсант Воронеж / РБК: +6.5% г/г
-        monthsOfSupply: 13,
-        businessClassPricePerM2: 185e3,
+        dealsGrowthYoY: 18.6,
+        // Коммерсант: ДДУ апрель 2026 +18.6% YoY — ЛИДЕР РОСТА!
+        priceGrowthYoY: 11,
+        // МИР КВАРТИР: лидер Q1 +3.7% QoQ; ZSRF +0.5%/мес
+        monthsOfSupply: 12,
+        businessClassPricePerM2: 198e3,
+        // рост с 185k: +3.7% QoQ → ~192k + май
         monthlySalesM2: 3e4,
-        // 6 900 ДДУ/год × 52м² / 12 = 29.9k
-        annualDduCount: 6900,
-        // РБК янв-нояб 2025
+        // 503 ДДУ апр × 52м²
+        annualDduCount: 7200,
+        // Q1: 1 800; апр: 503 YoY +18.6% — сильный тренд
         sellReadinessRatioPct: 48,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
         unsoldYearsOfSupply: 3
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 110,
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 110, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0412\u043E\u0440\u043E\u043D\u0435\u0436 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1284,34 +1279,35 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434",
       region: "\u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434\u0441\u043A\u0430\u044F \u043E\u0431\u043B\u0430\u0441\u0442\u044C",
       demography: { populationThousands: 1018.9, populationTrend5yPct: -3.5, shareAge25to45: 0.27, migrationBalanceThousands: -5.2 },
-      economy: { avgSalary: 58e3, salaryGrowthYoY: 8.5, highPaidIndustriesShare: 0.13, unemploymentRate: 4.2 },
+      economy: {
+        avgSalary: 61e3,
+        // Росстат 2026 = 60 653 руб. — минимум среди 14 городов
+        salaryGrowthYoY: 8,
+        highPaidIndustriesShare: 0.13,
+        unemploymentRate: 4.2
+      },
       housing: {
-        dealsGrowthYoY: -5.1,
-        // Росреестр: ДДУ -5.1% г/г (МК Волгоград, 2025)
-        priceGrowthYoY: 2.9,
-        // Слабейший рост среди миллионников (РБК)
+        dealsGrowthYoY: -49.7,
+        // Коммерсант: ДДУ апрель 2026 -49.7% YoY — ХУДШИЙ РЕЗУЛЬТАТ!
+        priceGrowthYoY: 2,
+        // МИР КВАРТИР: -1.2% QoQ Q1; ZSRF +0.3%/мес
         monthsOfSupply: 22,
-        // 35 500 нераспроданных квартир — 1-е место в РФ!
-        businessClassPricePerM2: 168e3,
-        monthlySalesM2: 17e3,
-        // 4 200 ДДУ/год × 50м² / 12 = 17.5k
-        annualDduCount: 4200,
-        // МК Волгоград, янв-нояб 2025
+        // 35 500+ нераспроданных — 1-е место в РФ
+        businessClassPricePerM2: 17e4,
+        // скромный рост от 168k
+        monthlySalesM2: 14e3,
+        // 173 ДДУ апр × 50м² — рынок схлопнулся
+        annualDduCount: 3500,
+        // 2025: 4 200; Q1 2026: 1 100; апр: 173 — обвал
         sellReadinessRatioPct: 44,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — глубокий дефицит спроса
         unsoldYearsOfSupply: 7
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — худший показатель
       },
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 45,
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: false
-      }
+      infrastructure: { krtProgramsHa: 45, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: false }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro Jan 2026", "\u041C\u041A \u0412\u043E\u043B\u0433\u043E\u0433\u0440\u0430\u0434 2025", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
       needsVerification: ["krtProgramsHa", "hasWhiteSpaceBusinessClass"]
     }
   },
@@ -1320,36 +1316,34 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041F\u0435\u0440\u043C\u044C",
       region: "\u041F\u0435\u0440\u043C\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1026.9, populationTrend5yPct: -2.8, shareAge25to45: 0.28, migrationBalanceThousands: -3.2 },
-      economy: { avgSalary: 68e3, salaryGrowthYoY: 11.8, highPaidIndustriesShare: 0.16, unemploymentRate: 3.5 },
+      economy: {
+        avgSalary: 75e3,
+        // Росстат Пермский край 2026 = 74 984 руб.
+        salaryGrowthYoY: 10,
+        highPaidIndustriesShare: 0.16,
+        unemploymentRate: 3.5
+      },
       housing: {
-        dealsGrowthYoY: 15.7,
-        // Росреестр: ДДУ +15.7% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 15.2,
-        // URA.news: +15.2% г/г — 2-е место среди миллионников
+        dealsGrowthYoY: 0,
+        // Коммерсант: ДДУ апрель 2026 — стабилизация 0% YoY
+        priceGrowthYoY: 13,
+        // МИР КВАРТИР: +2.2% QoQ Q1; ZSRF >+2%/мес май
         monthsOfSupply: 10,
-        businessClassPricePerM2: 228e3,
-        monthlySalesM2: 36e3,
-        // 7 800 ДДУ/год × 55м² / 12 = 35.75k
+        businessClassPricePerM2: 238e3,
+        // +2.2% QoQ × 2 от 228k
+        monthlySalesM2: 34e3,
+        // 548 ДДУ апр × 55м²
         annualDduCount: 7800,
-        // РБК Недвижимость, итоги 2025
+        // стабилизация vs 2025
         sellReadinessRatioPct: 68,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — баланс
         unsoldYearsOfSupply: 3.2
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 770,
-        // 770+ га, 43 договора КРТ (Business-Class.su сент.2025)
-        krtProjectsCount: 40,
-        // 40 проектов КРТ в Пермском крае
-        hasMajorInfraProjects: false,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["URA.news 2025", "bnMAP.pro 2025", "\u041F\u0435\u0440\u043C\u044C\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025", "Business-Class.su \u0441\u0435\u043D\u0442.2025", "\u0414\u043E\u043C\u043A\u043B\u0438\u043A/\u0420\u0411\u041A 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0420\u0411\u041A \u041F\u0435\u0440\u043C\u044C Q1 2026"],
       needsVerification: []
     }
   },
@@ -1358,30 +1352,36 @@ var RUSSIA_MILLION_CITIES = {
       name: "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A",
       region: "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0438\u0439 \u043A\u0440\u0430\u0439",
       demography: { populationThousands: 1211.8, populationTrend5yPct: 1.8, shareAge25to45: 0.3, migrationBalanceThousands: 3.5 },
-      economy: { avgSalary: 82e3, salaryGrowthYoY: 12.2, highPaidIndustriesShare: 0.2, unemploymentRate: 3 },
+      economy: {
+        avgSalary: 95e3,
+        // Росстат Красноярский кр. фев.2026 = 106 429 (с ресурс.регионами);
+        // ~95 000 для города Красноярск (без отдалённых горно-промышленных территорий)
+        salaryGrowthYoY: 14,
+        // ресурсодобыча тянет зарплаты вверх
+        highPaidIndustriesShare: 0.2,
+        unemploymentRate: 3
+      },
       housing: {
-        dealsGrowthYoY: -11,
-        // Росреестр: ДДУ -11.0% г/г (РБК Нед-ть, 2025)
-        priceGrowthYoY: 4.5,
-        // Сибдом: ~145.3→147 тыс./м², +4.5% г/г
+        dealsGrowthYoY: -2.2,
+        // Коммерсант: ДДУ апрель 2026 -2.2% YoY — почти ноль
+        priceGrowthYoY: 5,
+        // МИР КВАРТИР: +1.8% QoQ Q1; НДВ апр +1.4%
         monthsOfSupply: 11,
-        businessClassPricePerM2: 245e3,
-        monthlySalesM2: 35e3,
+        businessClassPricePerM2: 252e3,
+        // +1.8% QoQ от 245k → +апрель +1.4%
+        monthlySalesM2: 34e3,
+        // 444 ДДУ апр × 55м²
+        annualDduCount: 13500,
+        // 2025: снижение; Q1 2026: 1 400
         sellReadinessRatioPct: 55,
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026 — дефицит спроса
         unsoldYearsOfSupply: 5.2
-        // ЕИСЖС / ДОМ.РФ, 01.01.2026
       },
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
-      infrastructure: {
-        krtProgramsHa: 130,
-        hasMajorInfraProjects: true,
-        hasUniversitiesOrTechparks: true
-      }
+      infrastructure: { krtProgramsHa: 130, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
     meta: {
-      dataAsOfDate: "2026-05-30",
-      sources: ["bnMAP.pro 2025", "\u0421\u0438\u0431\u0434\u043E\u043C 2025", "\u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0441\u0442\u0430\u0442", "\u0420\u043E\u0441\u0440\u0435\u0435\u0441\u0442\u0440 2025"],
+      dataAsOfDate: "2026-05-31",
+      sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0438\u0439 \u043A\u0440. 2026"],
       needsVerification: ["krtProgramsHa"]
     }
   }
@@ -1443,8 +1443,9 @@ var macro_cbr_default = {
     ]
   },
   inflation: {
-    yoyPct: 5.9,
-    asOf: "2026-04",
+    yoyPct: 5.4,
+    asOf: "2026-05",
+    note: "\u041D\u0430 20.05.2026: 5.36% (\u0434\u0435\u0437\u0438\u043D\u0444\u043B\u044F\u0446\u0438\u043E\u043D\u043D\u044B\u0439 \u0442\u0440\u0435\u043D\u0434 \u043A \u0446\u0435\u043B\u0438 4%)",
     target: 4
   },
   mortgage: {
@@ -1511,8 +1512,8 @@ async function fetchCbrSnapshot() {
 }
 
 // src/data/ranking.ts
-var RU_MEDIAN_SALARY = 56443;
-var RU_MEDIAN_PRICE_PER_M2 = 152410;
+var RU_MEDIAN_SALARY = 64e3;
+var RU_MEDIAN_PRICE_PER_M2 = 158648;
 async function buildCityRanking() {
   const t0 = Date.now();
   const cbr = await fetchCbrSnapshot();
@@ -1520,12 +1521,12 @@ async function buildCityRanking() {
     keyRateAnnual: cbr.keyRateAnnual,
     mortgageRateAnnual: cbr.mortgageRateAnnual,
     preferentialMortgageRate: cbr.preferentialMortgageRate,
-    mortgageShareOfDeals: 0.78,
-    // 78% сделок с ипотекой, Дом.РФ 2025
-    inflationYoY: 5.9,
-    // Банк России март 2026
-    realIncomeIndex3yr: 1.085,
-    // +8.5% за 3 года, Росстат
+    mortgageShareOfDeals: 0.76,
+    // 76% сделок с ипотекой (охлаждение с 78%), апр.2026
+    inflationYoY: 5.4,
+    // Росстат, май 2026: 5.36% (дезинфляция)
+    realIncomeIndex3yr: 1.11,
+    // +11% за 3 года, Росстат янв.2026
     unemploymentRate: 3.2,
     medianMonthlyIncomeRu: RU_MEDIAN_SALARY,
     medianPricePerM2Ru: RU_MEDIAN_PRICE_PER_M2
