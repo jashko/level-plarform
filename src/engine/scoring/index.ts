@@ -38,3 +38,17 @@ export {
   ZONE_THRESHOLDS,
   scoreToZone,
 } from './config';
+
+export {
+  calculateMarketCycle,
+  calculateCityRiskProfile,
+  calculateAffordability,
+} from './marketAnalysis';
+
+export type {
+  MarketCyclePosition,
+  MarketCycleResult,
+  EntrySignal,
+  CityRiskProfile,
+  AffordabilityIndex,
+} from './marketAnalysis';

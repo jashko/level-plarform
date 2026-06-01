@@ -12,7 +12,11 @@
  * при загрузке главного экрана. Скорость: единицы миллисекунд после ЦБ.
  */
 
-import { calculateCityScore, calculateMacroScore, type MacroInputs } from '../engine/scoring';
+import {
+  calculateCityScore, calculateMacroScore, type MacroInputs,
+  calculateMarketCycle, calculateCityRiskProfile, calculateAffordability,
+  type MarketCycleResult, type CityRiskProfile, type AffordabilityIndex,
+} from '../engine/scoring';
 import {
   RUSSIA_MILLION_CITIES,
   ALL_CITY_KEYS,
@@ -41,6 +45,12 @@ export interface CityRankingEntry {
   /** Полный набор inputs для дальнейшего использования (карточка города). */
   inputs: CityDatasetEntry['inputs'];
   needsVerification: string[];
+  /** Позиция рынка в цикле и сигнал входа. */
+  marketCycle: MarketCycleResult;
+  /** Профиль рисков по 5 измерениям. */
+  riskProfile: CityRiskProfile;
+  /** Индекс доступности бизнес-класса. */
+  affordability: AffordabilityIndex;
 }
 
 export interface RankingResult {
@@ -105,6 +115,9 @@ export async function buildCityRanking(): Promise<RankingResult> {
       sources: entry.meta.sources,
       inputs: entry.inputs,
       needsVerification: entry.meta.needsVerification,
+      marketCycle:  calculateMarketCycle(entry.inputs),
+      riskProfile:  calculateCityRiskProfile(entry.inputs),
+      affordability: calculateAffordability(entry.inputs),
     };
   });
 

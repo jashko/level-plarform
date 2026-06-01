@@ -865,6 +865,199 @@ function calculateSiteScore(inputs, weights = DEFAULT_SCORING_WEIGHTS) {
   };
 }
 
+// src/engine/scoring/marketAnalysis.ts
+function calculateMarketCycle(inputs) {
+  const { housing: h, demography: d } = inputs;
+  const deals = h.dealsGrowthYoY;
+  const prices = h.priceGrowthYoY;
+  const readiness = h.sellReadinessRatioPct ?? 65;
+  const unsold = h.unsoldYearsOfSupply ?? 4;
+  if (unsold > 5.5 || readiness < 50) {
+    return {
+      position: "oversupply",
+      labelRu: "\u041F\u0435\u0440\u0435\u043D\u0430\u0441\u044B\u0449\u0435\u043D\u0438\u0435",
+      entrySignal: "wait",
+      entrySignalRu: "\u0416\u0434\u0430\u0442\u044C",
+      timingScore: Math.max(5, readiness / 2 - 5),
+      reasoning: `\u0420\u044B\u043D\u043E\u043A \u043F\u0435\u0440\u0435\u043D\u0430\u0441\u044B\u0449\u0435\u043D: ${unsold.toFixed(1)} \u043B\u0435\u0442 \u043D\u0435\u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0433\u043E \u0436\u0438\u043B\u044C\u044F, \u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0441\u0442\u044C \u0432\u0441\u0435\u0433\u043E ${readiness}%. \u0412\u0445\u043E\u0434 \u0441\u0435\u0439\u0447\u0430\u0441 \u2014 \u0440\u0438\u0441\u043A \u0437\u0430\u0439\u0442\u0438 \u0432 \u0437\u0430\u0442\u044F\u0436\u043D\u043E\u0435 \u043F\u0430\u0434\u0435\u043D\u0438\u0435.`
+    };
+  }
+  if (deals < -25 && prices < 5) {
+    return {
+      position: "slowdown",
+      labelRu: "\u041A\u043E\u0440\u0440\u0435\u043A\u0446\u0438\u044F",
+      entrySignal: "wait",
+      entrySignalRu: "\u0416\u0434\u0430\u0442\u044C",
+      timingScore: 22,
+      reasoning: `\u0421\u0434\u0435\u043B\u043A\u0438 \u0443\u043F\u0430\u043B\u0438 \u043D\u0430 ${Math.abs(deals).toFixed(0)}% YoY, \u0446\u0435\u043D\u043E\u0432\u043E\u0439 \u0440\u043E\u0441\u0442 \u043C\u0438\u043D\u0438\u043C\u0430\u043B\u0435\u043D (+${prices.toFixed(1)}%). \u0414\u043E\u0436\u0434\u0438\u0442\u0435\u0441\u044C \u0441\u0442\u0430\u0431\u0438\u043B\u0438\u0437\u0430\u0446\u0438\u0438 \u0441\u043F\u0440\u043E\u0441\u0430.`
+    };
+  }
+  if (deals < -10 && prices < 8) {
+    return {
+      position: "slowdown",
+      labelRu: "\u041E\u0445\u043B\u0430\u0436\u0434\u0435\u043D\u0438\u0435",
+      entrySignal: "watch",
+      entrySignalRu: "\u041D\u0430\u0431\u043B\u044E\u0434\u0430\u0442\u044C",
+      timingScore: 38,
+      reasoning: `\u0420\u044B\u043D\u043E\u043A \u043E\u0445\u043B\u0430\u0436\u0434\u0430\u0435\u0442\u0441\u044F: \u0441\u0434\u0435\u043B\u043A\u0438 ${deals.toFixed(0)}% YoY. \u041A\u043E\u043D\u043A\u0443\u0440\u0435\u043D\u0446\u0438\u044F \u0441\u043D\u0438\u0436\u0430\u0435\u0442\u0441\u044F \u2014 \u0432\u043E\u0437\u043C\u043E\u0436\u0435\u043D \u0432\u0445\u043E\u0434 \u0441 \u0434\u0438\u0441\u043A\u043E\u043D\u0442\u043E\u043C \u043D\u0430 \u0437\u0435\u043C\u043B\u044E, \u043D\u043E \u0444\u0430\u0437\u0430 \u0441\u0436\u0430\u0442\u0438\u044F \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430.`
+    };
+  }
+  if (deals > 8 && prices > 14 && readiness > 78) {
+    return {
+      position: "peak",
+      labelRu: "\u041F\u0435\u0440\u0435\u0433\u0440\u0435\u0432",
+      entrySignal: "watch",
+      entrySignalRu: "\u041D\u0430\u0431\u043B\u044E\u0434\u0430\u0442\u044C",
+      timingScore: 50,
+      reasoning: `\u0420\u044B\u043D\u043E\u043A \u043F\u0435\u0440\u0435\u0433\u0440\u0435\u0442: \u0441\u0434\u0435\u043B\u043A\u0438 +${deals.toFixed(0)}%, \u0446\u0435\u043D\u044B +${prices.toFixed(1)}%, \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0441\u0442\u044C (${readiness}%). \u0414\u043E\u0440\u043E\u0433\u0430\u044F \u0437\u0435\u043C\u043B\u044F, \u0441\u043B\u043E\u0436\u043D\u043E \u043D\u0430\u0439\u0442\u0438 \u043C\u0430\u0440\u0436\u0443. \u0418\u0449\u0438\u0442\u0435 \u043D\u0438\u0448\u0443.`
+    };
+  }
+  if (deals > -5 && prices > 7 && readiness > 65) {
+    const score = 65 + Math.min(15, (prices - 7) * 2) + Math.min(10, (readiness - 65) * 0.3);
+    return {
+      position: "expansion",
+      labelRu: "\u0420\u043E\u0441\u0442",
+      entrySignal: "enter",
+      entrySignalRu: "\u0412\u0445\u043E\u0434\u0438\u0442\u044C",
+      timingScore: Math.round(clamp2(score, 60, 85)),
+      reasoning: `\u0420\u044B\u043D\u043E\u043A \u0432 \u0444\u0430\u0437\u0435 \u0440\u043E\u0441\u0442\u0430: \u0446\u0435\u043D\u044B +${prices.toFixed(1)}% YoY, \u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0441\u0442\u044C ${readiness}%. \u0425\u043E\u0440\u043E\u0448\u0435\u0435 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435 \u0441\u043F\u0440\u043E\u0441\u0430 \u0438 \u0446\u0435\u043D\u043E\u0432\u043E\u0433\u043E \u043F\u043E\u0442\u0435\u043D\u0446\u0438\u0430\u043B\u0430 \u0434\u043B\u044F \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043D\u043E\u0432\u043E\u0433\u043E \u043F\u0440\u043E\u0435\u043A\u0442\u0430.`
+    };
+  }
+  if (readiness > 75 && prices > 3) {
+    return {
+      position: "recovery",
+      labelRu: "\u0414\u0435\u0444\u0438\u0446\u0438\u0442",
+      entrySignal: "enter",
+      entrySignalRu: "\u0412\u0445\u043E\u0434\u0438\u0442\u044C",
+      timingScore: 80,
+      reasoning: `\u0414\u0435\u0444\u0438\u0446\u0438\u0442 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F: \u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0441\u0442\u044C ${readiness}%, \u0446\u0435\u043D\u044B \u0440\u0430\u0441\u0442\u0443\u0442 +${prices.toFixed(1)}%. \u041E\u043F\u0442\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0435 \u043E\u043A\u043D\u043E \u2014 \u0441\u043F\u0440\u043E\u0441 \u043F\u0440\u0435\u0432\u044B\u0448\u0430\u0435\u0442 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435, \u043A\u043E\u043D\u043A\u0443\u0440\u0435\u043D\u0446\u0438\u044F \u043D\u0435\u0432\u044B\u0441\u043E\u043A\u0430\u044F.`
+    };
+  }
+  return {
+    position: "expansion",
+    labelRu: "\u0421\u0442\u0430\u0431\u0438\u043B\u044C\u043D\u044B\u0439",
+    entrySignal: "watch",
+    entrySignalRu: "\u041D\u0430\u0431\u043B\u044E\u0434\u0430\u0442\u044C",
+    timingScore: 48,
+    reasoning: `\u041D\u0435\u0439\u0442\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0440\u044B\u043D\u043E\u043A. \u0420\u0435\u043A\u043E\u043C\u0435\u043D\u0434\u0443\u0435\u0442\u0441\u044F \u0434\u0435\u0442\u0430\u043B\u044C\u043D\u044B\u0439 \u0430\u043D\u0430\u043B\u0438\u0437 \u043A\u043E\u043D\u043A\u0440\u0435\u0442\u043D\u044B\u0445 \u043F\u043B\u043E\u0449\u0430\u0434\u043E\u043A.`
+  };
+}
+function calculateCityRiskProfile(inputs) {
+  const { housing: h, demography: d, economy: e, competition: c } = inputs;
+  const hardBlockers = [];
+  const demoRisk = normalizePiecewise(d.populationTrend5yPct, [
+    [-6, 100],
+    [-3, 75],
+    [-1, 50],
+    [0, 40],
+    [3, 20],
+    [8, 5]
+  ]);
+  const migRisk = normalizePiecewise(d.migrationBalanceThousands, [
+    [-15, 80],
+    [-5, 55],
+    [0, 40],
+    [5, 20],
+    [20, 0]
+  ]);
+  const demographicRisk = Math.round(clamp2(0.6 * demoRisk + 0.4 * migRisk, 0, 100));
+  if (d.populationTrend5yPct < -3) {
+    hardBlockers.push(`\u041A\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043E\u0442\u0442\u043E\u043A: \u0443\u0431\u044B\u043B\u044C ${Math.abs(d.populationTrend5yPct).toFixed(1)}% \u0437\u0430 5 \u043B\u0435\u0442`);
+  }
+  const dealRisk = normalizePiecewise(h.dealsGrowthYoY, [
+    [-50, 100],
+    [-30, 80],
+    [-15, 55],
+    [-5, 40],
+    [0, 30],
+    [15, 10]
+  ]);
+  const supplyRisk1 = normalizePiecewise(h.monthsOfSupply, [
+    [6, 0],
+    [12, 30],
+    [18, 60],
+    [24, 100]
+  ]);
+  const liquidityRisk = Math.round(clamp2(0.55 * dealRisk + 0.45 * supplyRisk1, 0, 100));
+  if (h.dealsGrowthYoY < -40) {
+    hardBlockers.push(`\u041E\u0431\u0432\u0430\u043B \u0441\u043F\u0440\u043E\u0441\u0430: \u0441\u0434\u0435\u043B\u043A\u0438 ${h.dealsGrowthYoY.toFixed(0)}% YoY`);
+  }
+  const concRisk = normalizePiecewise(c.top5MarketShare, [
+    [0.25, 5],
+    [0.5, 35],
+    [0.7, 65],
+    [0.85, 90]
+  ]);
+  const competitionRisk = Math.round(clamp2(
+    concRisk + (c.hasFederalPlayers ? 12 : 0) + (c.hasWhiteSpaceBusinessClass ? -15 : 0),
+    0,
+    100
+  ));
+  const affordMonths = h.businessClassPricePerM2 / e.avgSalary;
+  const affordabilityRisk = Math.round(normalizePiecewise(affordMonths, [
+    [1.5, 5],
+    [2.5, 30],
+    [3.2, 55],
+    [4, 78],
+    [5.5, 100]
+  ]));
+  if (affordMonths > 4.5) {
+    hardBlockers.push(`\u041D\u0438\u0437\u043A\u0430\u044F \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C: ${affordMonths.toFixed(1)} \u043C\u0435\u0441. \u0417\u041F \u043D\u0430 \u043C\xB2 \u2014 \u043F\u043E\u043A\u0443\u043F\u0430\u0442\u0435\u043B\u0438 \u0443\u0445\u043E\u0434\u044F\u0442`);
+  }
+  const srRisk = normalizePiecewise(h.sellReadinessRatioPct ?? 65, [
+    [85, 0],
+    [70, 25],
+    [60, 55],
+    [45, 85],
+    [35, 100]
+  ]);
+  const unsoldRisk = normalizePiecewise(h.unsoldYearsOfSupply ?? 4, [
+    [2, 0],
+    [3.5, 20],
+    [5, 55],
+    [6.5, 85],
+    [8, 100]
+  ]);
+  const supplyOverhang = Math.round(clamp2(0.55 * srRisk + 0.45 * unsoldRisk, 0, 100));
+  if ((h.unsoldYearsOfSupply ?? 0) > 5.5) {
+    hardBlockers.push(`\u041F\u0435\u0440\u0435\u043D\u0430\u0441\u044B\u0449\u0435\u043D\u0438\u0435: ${(h.unsoldYearsOfSupply ?? 0).toFixed(1)} \u043B\u0435\u0442 \u043D\u0435\u0440\u0430\u0441\u043F\u0440\u043E\u0434\u0430\u043D\u043D\u043E\u0433\u043E \u0436\u0438\u043B\u044C\u044F`);
+  }
+  const overallRisk = Math.round(clamp2(
+    0.2 * demographicRisk + 0.25 * liquidityRisk + 0.2 * competitionRisk + 0.2 * affordabilityRisk + 0.15 * supplyOverhang,
+    0,
+    100
+  ));
+  return {
+    demographicRisk,
+    liquidityRisk,
+    competitionRisk,
+    affordabilityRisk,
+    supplyOverhang,
+    overallRisk,
+    hardBlockers
+  };
+}
+function calculateAffordability(inputs) {
+  const price = inputs.housing.businessClassPricePerM2;
+  const salary = inputs.economy.avgSalary;
+  const monthsPerM2 = price / salary;
+  const tier = monthsPerM2 < 2.2 ? "high" : monthsPerM2 < 3.2 ? "moderate" : monthsPerM2 < 4.2 ? "premium" : "elite";
+  const tierRu = tier === "high" ? "\u0414\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0439" : tier === "moderate" ? "\u0423\u043C\u0435\u0440\u0435\u043D\u043D\u044B\u0439" : tier === "premium" ? "\u041F\u0440\u0435\u043C\u0438\u0443\u043C" : "\u042D\u043B\u0438\u0442\u043D\u044B\u0439";
+  const loanAmount = price * 65 * 0.8;
+  const monthlyRate = 0.145 / 12;
+  const months = 360;
+  const payment = loanAmount * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
+  const mortgagePaymentSharePct = Math.round(payment / salary * 100);
+  const recommendedMonthlyIncome = Math.round(payment / 0.4);
+  return {
+    monthsPerM2: Math.round(monthsPerM2 * 10) / 10,
+    tier,
+    tierRu,
+    mortgagePaymentSharePct,
+    recommendedMonthlyIncome
+  };
+}
+
 // src/data/cities.ts
 var RUSSIA_MILLION_CITIES = {
   novosibirsk: {
@@ -1550,7 +1743,10 @@ async function buildCityRanking() {
       dataAsOfDate: entry.meta.dataAsOfDate,
       sources: entry.meta.sources,
       inputs: entry.inputs,
-      needsVerification: entry.meta.needsVerification
+      needsVerification: entry.meta.needsVerification,
+      marketCycle: calculateMarketCycle(entry.inputs),
+      riskProfile: calculateCityRiskProfile(entry.inputs),
+      affordability: calculateAffordability(entry.inputs)
     };
   });
   cities.sort((a, b) => b.cityScore - a.cityScore);
@@ -1584,10 +1780,13 @@ export {
   SUCCESS_PROB_WEIGHTS,
   ZONE_THRESHOLDS,
   buildCityRanking,
+  calculateAffordability,
+  calculateCityRiskProfile,
   calculateCityScore,
   calculateDistrictScore,
   calculateIRR,
   calculateMacroScore,
+  calculateMarketCycle,
   calculateNPV,
   calculateSiteScore,
   calculateSuccessProb,

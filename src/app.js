@@ -46,6 +46,20 @@ const ZONE = {
 const SCENARIO_LABELS = { base: 'BASE', optimistic: 'OPT', stress: 'STRESS' };
 const SCENARIO_COLORS = { base: T.gold, optimistic: T.green, stress: T.red };
 
+const CYCLE_CONFIG = {
+  recovery:   { color: T.green,  bg: T.greenDim,  icon: '↗', label: 'Дефицит предложения' },
+  expansion:  { color: '#5BA0BF', bg: 'rgba(91,160,191,0.09)', icon: '→', label: 'Рост' },
+  peak:       { color: T.yellow, bg: T.yellowDim, icon: '⚠', label: 'Перегрев' },
+  slowdown:   { color: T.orange, bg: T.orangeDim, icon: '↘', label: 'Охлаждение / Коррекция' },
+  oversupply: { color: T.red,    bg: T.redDim,    icon: '↓', label: 'Перенасыщение' },
+};
+
+const ENTRY_SIGNAL_CONFIG = {
+  enter: { color: T.green,  bg: T.greenDim,  label: 'Входить' },
+  watch: { color: T.yellow, bg: T.yellowDim, label: 'Наблюдать' },
+  wait:  { color: T.red,    bg: T.redDim,    label: 'Ждать' },
+};
+
 // ── Recharts dark theme defaults ──────────────────────────────────
 const CHART_GRID  = { stroke: 'rgba(255,255,255,0.05)', strokeDasharray: '4 4' };
 const CHART_TICK  = { fontSize: 11, fill: T.textSub, fontFamily: 'Inter, sans-serif' };
@@ -895,6 +909,24 @@ function CityRow({ rank, city, onClick, compareMode, selected, onToggle, onTrend
       }, fmtRub(city.inputs.housing.businessClassPricePerM2)),
       React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 2 } }, '₽/м² БК'),
     ),
+    // entry signal badge
+    (() => {
+      const mc = city.marketCycle;
+      const sig = mc ? ENTRY_SIGNAL_CONFIG[mc.entrySignal] : null;
+      return mc ? React.createElement('td', { style: { padding: '14px 8px', textAlign: 'center' } },
+        React.createElement('div', {
+          style: {
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '3px 9px', borderRadius: 20,
+            background: sig.bg, border: `1px solid ${sig.color}44`,
+            fontSize: 10, fontWeight: 700, color: sig.color,
+            letterSpacing: '0.06em', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif',
+          },
+        },
+          CYCLE_CONFIG[mc.position].icon, ' ', mc.entrySignalRu,
+        ),
+      ) : React.createElement('td', null);
+    })(),
     // actions
     React.createElement(
       'td',
@@ -1365,6 +1397,7 @@ function MainScreen({ ranking, onCityClick }) {
               React.createElement('th', { style: { ...thCell('right'), paddingRight: 16 } },
                 'Цена м² БК', React.createElement(HintIcon, { id: 'businessClassPrice' }),
               ),
+              React.createElement('th', { style: thCell() }, 'Вход'),
               React.createElement('th', { style: thCell() }),
             ),
           ),
@@ -1390,6 +1423,192 @@ function MainScreen({ ranking, onCityClick }) {
   );
 }
 
+
+// ═════════════════════════════════════════════════════════════════
+// КОМПОНЕНТЫ АНАЛИЗА (используются в карточке города)
+// ═════════════════════════════════════════════════════════════════
+
+/** Карточка позиции рынка в цикле */
+function MarketCycleCard({ city }) {
+  const mc = city.marketCycle;
+  if (!mc) return null;
+  const cyc  = CYCLE_CONFIG[mc.position];
+  const sig  = ENTRY_SIGNAL_CONFIG[mc.entrySignal];
+  const segments = [
+    { label: 'Восстановление', pos: 'recovery' },
+    { label: 'Рост',           pos: 'expansion' },
+    { label: 'Перегрев',       pos: 'peak' },
+    { label: 'Охлаждение',     pos: 'slowdown' },
+    { label: 'Перенасыщение',  pos: 'oversupply' },
+  ];
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 } },
+      React.createElement('div', null,
+        React.createElement(Label, { style: { marginBottom: 6 } }, 'Позиция рынка · Рыночный цикл'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+          React.createElement('span', { style: { fontSize: 26, color: cyc.color } }, cyc.icon),
+          React.createElement('div', {
+            style: { fontSize: 20, fontWeight: 700, color: cyc.color, fontFamily: 'Inter, sans-serif' },
+          }, cyc.label),
+        ),
+      ),
+      React.createElement('div', {
+        style: {
+          padding: '8px 20px', borderRadius: 20,
+          background: sig.bg, border: `1px solid ${sig.color}55`,
+          textAlign: 'center',
+        },
+      },
+        React.createElement('div', { style: { fontSize: 9, color: sig.color, letterSpacing: '0.12em', marginBottom: 3 } }, 'СИГНАЛ ВХОДА'),
+        React.createElement('div', { style: { fontSize: 16, fontWeight: 800, color: sig.color, letterSpacing: '0.08em' } }, sig.label),
+        React.createElement('div', { style: { fontSize: 9, color: sig.color, opacity: 0.6, marginTop: 2 } }, `Тайминг: ${mc.timingScore}/100`),
+      ),
+    ),
+
+    // Progress bar показывает где мы в цикле
+    React.createElement('div', { style: { display: 'flex', gap: 3, marginBottom: 14 } },
+      segments.map(seg => {
+        const active = seg.pos === mc.position;
+        const cfg = CYCLE_CONFIG[seg.pos];
+        return React.createElement('div', { key: seg.pos, style: { flex: 1 } },
+          React.createElement('div', {
+            style: {
+              height: active ? 6 : 3,
+              borderRadius: 3,
+              background: active ? cfg.color : 'rgba(255,255,255,0.07)',
+              transition: 'all 0.3s ease',
+              marginBottom: 5,
+            },
+          }),
+          React.createElement('div', {
+            style: {
+              fontSize: 8.5, textAlign: 'center', lineHeight: 1.3,
+              color: active ? cfg.color : T.textMuted,
+              fontWeight: active ? 700 : 400,
+              fontFamily: 'Inter, sans-serif',
+            },
+          }, seg.label),
+        );
+      }),
+    ),
+
+    // Reasoning
+    React.createElement('div', {
+      style: {
+        fontSize: 12, color: T.textSub, lineHeight: 1.65,
+        padding: '10px 14px',
+        background: `${cyc.color}0A`,
+        borderLeft: `2px solid ${cyc.color}50`,
+        borderRadius: '0 6px 6px 0',
+      },
+    }, mc.reasoning),
+  );
+}
+
+/** Профиль рисков по 5 измерениям */
+function RiskProfileCard({ city }) {
+  const rp = city.riskProfile;
+  if (!rp) return null;
+  const m = useIsMobile();
+  const riskColor = (v) => v >= 70 ? T.red : v >= 45 ? T.yellow : T.green;
+  const dims = [
+    { label: 'Демографический', value: rp.demographicRisk },
+    { label: 'Ликвидность', value: rp.liquidityRisk },
+    { label: 'Конкуренция', value: rp.competitionRisk },
+    { label: 'Доступность', value: rp.affordabilityRisk },
+    { label: 'Навес предложения', value: rp.supplyOverhang },
+  ];
+  const riskLabel = rp.overallRisk >= 70 ? 'Высокий' : rp.overallRisk >= 45 ? 'Умеренный' : 'Низкий';
+  const riskFg = riskColor(rp.overallRisk);
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
+      React.createElement(Label, null, 'Профиль рисков'),
+      React.createElement('div', {
+        style: {
+          padding: '4px 14px', borderRadius: 20,
+          background: `${riskFg}14`, border: `1px solid ${riskFg}44`,
+          fontSize: 11, fontWeight: 700, color: riskFg,
+          fontFamily: 'Inter, sans-serif',
+        },
+      }, `${riskLabel} риск · ${rp.overallRisk}/100`),
+    ),
+
+    // Risk bars
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: rp.hardBlockers.length > 0 ? 16 : 0 } },
+      dims.map(({ label, value }) => {
+        const color = riskColor(value);
+        return React.createElement('div', { key: label },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+            React.createElement('span', { style: { fontSize: 11, color: T.textSub } }, label),
+            React.createElement('span', { style: { fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' } }, value),
+          ),
+          React.createElement('div', { style: { height: 3, borderRadius: 2, background: T.surfaceRaise } },
+            React.createElement('div', {
+              style: { height: '100%', borderRadius: 2, width: `${value}%`, background: color, transition: 'width 0.4s ease' },
+            }),
+          ),
+        );
+      }),
+    ),
+
+    // Hard blockers
+    rp.hardBlockers.length > 0 && React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+      React.createElement(Label, { style: { marginBottom: 8 } }, '⛔ Жёсткие блокеры'),
+      rp.hardBlockers.map((b, i) =>
+        React.createElement('div', { key: i, style: {
+          fontSize: 11, color: T.red, padding: '7px 12px',
+          background: T.redDim, borderRadius: 6,
+          border: `1px solid rgba(212,91,91,0.2)`, lineHeight: 1.5,
+        }}, `• ${b}`),
+      ),
+    ),
+  );
+}
+
+/** Доступность бизнес-класса */
+function AffordabilityCard({ city }) {
+  const af = city.affordability;
+  if (!af) return null;
+  const tierColor = { high: T.green, moderate: T.yellow, premium: T.orange, elite: T.red };
+  const color = tierColor[af.tier];
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement(Label, { style: { marginBottom: 14 } }, 'Индекс доступности бизнес-класса'),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 } },
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 } }, 'Месяцев ЗП на м²'),
+        React.createElement('div', { style: { fontSize: 32, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', lineHeight: 1, fontFamily: 'Inter, sans-serif' } },
+          af.monthsPerM2,
+        ),
+        React.createElement('div', {
+          style: {
+            display: 'inline-block', marginTop: 6, padding: '3px 12px', borderRadius: 20,
+            background: `${color}14`, border: `1px solid ${color}44`,
+            fontSize: 10, color, fontWeight: 700, letterSpacing: '0.06em',
+          },
+        }, af.tierRu),
+      ),
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 } }, 'Ипотека 30 лет, 14.5%'),
+        React.createElement('div', { style: { fontSize: 11, color: T.textSub, marginBottom: 6 } },
+          `Платёж: `, React.createElement('span', { style: { color: T.text, fontWeight: 600 } }, fmtRub(city.inputs.housing.businessClassPricePerM2 * 65 * 0.8 * (0.145 / 12) / (1 - Math.pow(1 + 0.145 / 12, -360)))),
+        ),
+        React.createElement('div', { style: { fontSize: 11, color: T.textSub, marginBottom: 6 } },
+          `${af.mortgagePaymentSharePct}% от ср. ЗП`,
+          af.mortgagePaymentSharePct > 80 && React.createElement('span', { style: { color: T.red, marginLeft: 5 } }, '⚠'),
+        ),
+        React.createElement('div', { style: { fontSize: 11, color: T.textSub } },
+          `Нужен доход: `, React.createElement('span', { style: { color: T.text, fontWeight: 600 } }, fmtRub(af.recommendedMonthlyIncome) + '/мес'),
+        ),
+      ),
+    ),
+  );
+}
 
 // ═════════════════════════════════════════════════════════════════
 // ЭКРАН 2 — КАРТОЧКА ГОРОДА
@@ -1627,6 +1846,15 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
         }),
       ),
     ),
+
+    // ── Market Cycle + Risk + Affordability ────────────────────
+    React.createElement(
+      'div',
+      { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20 } },
+      React.createElement(MarketCycleCard, { city }),
+      React.createElement(RiskProfileCard, { city }),
+    ),
+    React.createElement(AffordabilityCard, { city }),
 
     // ── District CTA ────────────────────────────────────────────
     React.createElement(
@@ -2345,18 +2573,49 @@ function WarningsPanel({ warnings }) {
   );
 }
 
-// ── Deal Verdict Card ─────────────────────────────────────────────
+// ── Deal Verdict Card v2 ────────────────────────────────────────────
 function DealVerdictCard({ city, districtResult, siteResult, model }) {
   const m = useIsMobile();
-  const cityScore     = city            ? city.cityScore                  : 70;
-  const districtScore = districtResult  ? districtResult.districtScore    : 65;
-  const siteScore     = siteResult      ? siteResult.siteScore            : 70;
+  const cityScore     = city           ? city.cityScore               : 70;
+  const districtScore = districtResult ? districtResult.districtScore : 65;
+  const siteScore     = siteResult     ? siteResult.siteScore         : 70;
   const baseIrr       = model.scenarios.base.irr ?? 0;
   const finScore      = baseIrr >= 30 ? 90 : baseIrr >= 25 ? 78 : baseIrr >= 20 ? 65 : baseIrr >= 15 ? 48 : 30;
-  const overall       = Math.round(cityScore * 0.25 + districtScore * 0.25 + siteScore * 0.20 + finScore * 0.30);
-  const verdict       = overall >= 75 ? { label: 'INVEST', color: T.green,  bg: T.greenDim  }
-                      : overall >= 58 ? { label: 'WATCH',  color: T.yellow, bg: T.yellowDim }
-                      :                 { label: 'PASS',   color: T.red,    bg: T.redDim    };
+
+  // Risk & timing from city object
+  const rp = city?.riskProfile;
+  const mc = city?.marketCycle;
+
+  // ── Hard blockers: auto-PASS ────────────────────────────────────
+  const blockers = rp?.hardBlockers ?? [];
+  const hasBlockers = blockers.length > 0;
+
+  // ── Risk-adjusted composite ────────────────────────────────────
+  const rawComposite = cityScore * 0.25 + districtScore * 0.25 + siteScore * 0.20 + finScore * 0.30;
+  const riskDiscount = rp ? Math.max(0, (rp.overallRisk - 40) / 100 * 0.18) : 0;
+  const timingBonus  = mc ? (mc.entrySignal === 'enter' ? 0.04 : mc.entrySignal === 'wait' ? -0.07 : 0) : 0;
+  const adjustedScore = hasBlockers ? 25 : Math.round(rawComposite * (1 - riskDiscount + timingBonus));
+  const overall       = Math.min(100, Math.max(0, adjustedScore));
+
+  // ── Verdict ────────────────────────────────────────────────────
+  const verdict = hasBlockers
+    ? { label: 'PASS',   color: T.red,    bg: T.redDim,    sub: 'Блокеры' }
+    : overall >= 75
+      ? { label: 'INVEST', color: T.green,  bg: T.greenDim,  sub: 'К финансированию' }
+      : overall >= 58
+        ? { label: 'WATCH',  color: T.yellow, bg: T.yellowDim, sub: 'Под наблюдением' }
+        : { label: 'PASS',   color: T.red,    bg: T.redDim,    sub: 'Не рекомендован' };
+
+  // ── Reasoning: weakest link ────────────────────────────────────
+  const scores = { 'Город': cityScore, 'Район': districtScore, 'Участок': siteScore, 'Финансы': finScore };
+  const weakLink = Object.entries(scores).sort(([,a],[,b]) => a - b)[0];
+  const reasonText = hasBlockers
+    ? `Автоматический PASS: ${blockers[0]}`
+    : overall >= 75
+      ? `Все ключевые параметры в норме. Рекомендован к детальной проработке.`
+      : overall >= 58
+        ? `Слабое место: ${weakLink[0]} (${Math.round(weakLink[1])}/100). Усильте эту позицию для перехода в INVEST.`
+        : `Слабое место: ${weakLink[0]} (${Math.round(weakLink[1])}/100). ${hasBlockers ? '' : 'Требует существенной доработки.'}`;
 
   const levels = [
     { label: 'Город',   score: Math.round(cityScore),     hint: 'cityScore' },
@@ -2371,83 +2630,81 @@ function DealVerdictCard({ city, districtResult, siteResult, model }) {
       border: `1px solid ${verdict.color}55`,
       borderRadius: 12,
       padding: m ? '20px 16px' : '28px 32px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: m ? 'center' : undefined,
-      gap: m ? 20 : 44,
-      flexWrap: 'wrap',
+      display: 'flex', flexDirection: 'column', gap: 20,
     },
   },
-    // Verdict badge
+    // ── Row 1: Verdict + Gauges + Score ───────────────────────────
     React.createElement('div', {
-      style: {
-        background: verdict.bg,
-        border: `2px solid ${verdict.color}66`,
-        borderRadius: 14,
-        padding: '20px 48px',
-        textAlign: 'center',
-        flexShrink: 0,
-      },
+      style: { display: 'flex', alignItems: 'center', gap: m ? 16 : 36, flexWrap: 'wrap', justifyContent: m ? 'center' : undefined },
     },
+      // Verdict badge
       React.createElement('div', {
-        style: { fontSize: 9, color: verdict.color, letterSpacing: '0.22em', marginBottom: 8, fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
-      }, 'Решение комитета'),
-      React.createElement('div', {
-        style: { fontSize: m ? 28 : 40, fontWeight: 800, color: verdict.color, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', lineHeight: 1 },
-      }, verdict.label),
-    ),
-
-    // Level circular gauges
-    React.createElement('div', { style: { display: 'flex', gap: 32, flex: 1, justifyContent: 'center' } },
-      levels.map(({ label, score, hint }) => {
-        const color = score >= 70 ? T.green : score >= 50 ? T.yellow : T.red;
-        const R = 27, C = 2 * Math.PI * R;
-        const dash = (score / 100) * C;
-        return React.createElement('div', { key: label, style: { textAlign: 'center' } },
-          React.createElement('svg', { width: 70, height: 70, viewBox: '0 0 70 70' },
-            React.createElement('circle', { cx: 35, cy: 35, r: R, fill: 'none', stroke: 'rgba(255,255,255,0.06)', strokeWidth: 5 }),
-            React.createElement('circle', {
-              cx: 35, cy: 35, r: R, fill: 'none',
-              stroke: color, strokeWidth: 5,
-              strokeDasharray: `${dash} ${C}`,
-              strokeLinecap: 'round',
-              transform: 'rotate(-90 35 35)',
-              style: { transition: 'stroke-dasharray 0.6s ease' },
-            }),
-            React.createElement('text', {
-              x: 35, y: 40,
-              textAnchor: 'middle',
-              fontSize: 15,
-              fontWeight: 700,
-              fill: color,
-              fontFamily: 'Inter, sans-serif',
-            }, score),
-          ),
-          React.createElement('div', {
-            style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontSize: 9, color: T.textMuted, marginTop: 5, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' },
-          }, label, React.createElement(HintIcon, { id: hint })),
-        );
-      }),
-    ),
-
-    // Composite score
-    React.createElement('div', { style: { textAlign: 'center', flexShrink: 0 } },
-      React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 } },
-        React.createElement(Label, null, 'Composite Score'),
-        React.createElement(HintIcon, { id: 'compositeScore' }),
+        style: { background: verdict.bg, border: `2px solid ${verdict.color}66`, borderRadius: 14, padding: '18px 36px', textAlign: 'center', flexShrink: 0 },
+      },
+        React.createElement('div', { style: { fontSize: 9, color: verdict.color, letterSpacing: '0.22em', marginBottom: 6, fontFamily: 'Inter, sans-serif' } }, 'РЕШЕНИЕ КОМИТЕТА'),
+        React.createElement('div', { style: { fontSize: m ? 26 : 36, fontWeight: 800, color: verdict.color, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', lineHeight: 1 } }, verdict.label),
+        React.createElement('div', { style: { fontSize: 10, color: verdict.color, opacity: 0.65, marginTop: 5, letterSpacing: '0.06em' } }, verdict.sub),
       ),
+
+      // Gauges
+      React.createElement('div', { style: { display: 'flex', gap: m ? 18 : 28, flex: 1, justifyContent: 'center', flexWrap: 'wrap' } },
+        levels.map(({ label, score, hint }) => {
+          const color = score >= 70 ? T.green : score >= 50 ? T.yellow : T.red;
+          const isWeak = !hasBlockers && label === weakLink[0] && overall < 75;
+          const R = 26, C = 2 * Math.PI * R, dash = (score / 100) * C;
+          return React.createElement('div', { key: label, style: { textAlign: 'center' } },
+            React.createElement('svg', { width: 66, height: 66, viewBox: '0 0 66 66' },
+              isWeak && React.createElement('circle', { cx: 33, cy: 33, r: R + 4, fill: 'none', stroke: T.red, strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.5 }),
+              React.createElement('circle', { cx: 33, cy: 33, r: R, fill: 'none', stroke: 'rgba(255,255,255,0.06)', strokeWidth: 5 }),
+              React.createElement('circle', { cx: 33, cy: 33, r: R, fill: 'none', stroke: color, strokeWidth: 5, strokeDasharray: `${dash} ${C}`, strokeLinecap: 'round', transform: 'rotate(-90 33 33)', style: { transition: 'stroke-dasharray 0.6s ease' } }),
+              React.createElement('text', { x: 33, y: 38, textAnchor: 'middle', fontSize: 15, fontWeight: 700, fill: color, fontFamily: 'Inter, sans-serif' }, score),
+            ),
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 8.5, color: isWeak ? T.red : T.textMuted, marginTop: 4, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase' } },
+              isWeak && '▼ ', label, ' ', React.createElement(HintIcon, { id: hint }),
+            ),
+          );
+        }),
+      ),
+
+      // Composite score
+      React.createElement('div', { style: { textAlign: 'center', flexShrink: 0 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 } },
+          React.createElement(Label, null, 'Composite'),
+          React.createElement(HintIcon, { id: 'compositeScore' }),
+        ),
+        React.createElement('div', { style: { fontSize: m ? 42 : 56, fontWeight: 800, color: verdict.color, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', fontFamily: 'Inter, sans-serif', lineHeight: 1 } }, overall),
+        React.createElement('div', { style: { fontSize: 11, color: T.textSub, marginTop: 2 } }, '/ 100'),
+        rp && React.createElement('div', { style: { marginTop: 8, fontSize: 10, padding: '3px 10px', borderRadius: 12, background: `${rp.overallRisk >= 70 ? T.red : rp.overallRisk >= 45 ? T.yellow : T.green}15`, color: rp.overallRisk >= 70 ? T.red : rp.overallRisk >= 45 ? T.yellow : T.green, fontWeight: 600 } },
+          `Риск: ${rp.overallRisk}/100`,
+        ),
+      ),
+    ),
+
+    // ── Row 2: Reasoning + Timing + Blockers ──────────────────────
+    React.createElement('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+      // Reasoning text
       React.createElement('div', {
-        style: {
-          fontSize: m ? 44 : 60,
-          fontWeight: 800,
-          color: verdict.color,
-          letterSpacing: '-0.04em',
-          fontVariantNumeric: 'tabular-nums',
-          fontFamily: 'Inter, sans-serif',
-          lineHeight: 1,
-        },
-      }, overall),
-      React.createElement('div', { style: { fontSize: 13, color: T.textSub, marginTop: 4, fontFamily: 'Inter, sans-serif' } }, '/ 100'),
+        style: { flex: 2, fontSize: 12, color: T.textSub, lineHeight: 1.65, padding: '10px 14px', background: `${verdict.color}09`, borderLeft: `2px solid ${verdict.color}44`, borderRadius: '0 6px 6px 0', minWidth: 200 },
+      }, reasonText),
+
+      // Timing signal
+      mc && React.createElement('div', {
+        style: { flex: 1, padding: '10px 14px', borderRadius: 8, background: ENTRY_SIGNAL_CONFIG[mc.entrySignal].bg, border: `1px solid ${ENTRY_SIGNAL_CONFIG[mc.entrySignal].color}33`, minWidth: 140 },
+      },
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 5 } }, 'ТАЙМИНГ ВХОДА'),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: 800, color: ENTRY_SIGNAL_CONFIG[mc.entrySignal].color, marginBottom: 3 } },
+          CYCLE_CONFIG[mc.position].icon, ' ', mc.entrySignalRu,
+        ),
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted } }, mc.labelRu + ' · ' + mc.timingScore + '/100'),
+      ),
+    ),
+
+    // ── Blockers ───────────────────────────────────────────────────
+    hasBlockers && React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+      React.createElement('div', { style: { fontSize: 10, color: T.red, letterSpacing: '0.1em', fontWeight: 700, marginBottom: 2 } }, '⛔ АВТОМАТИЧЕСКИЕ БЛОКЕРЫ:'),
+      blockers.map((b, i) =>
+        React.createElement('div', { key: i, style: { fontSize: 11, color: T.red, padding: '6px 12px', background: T.redDim, borderRadius: 6, border: `1px solid rgba(212,91,91,0.2)` } }, `• ${b}`),
+      ),
     ),
   );
 }
@@ -2539,6 +2796,117 @@ function TornadoChart({ inputs, baseIrr, successProbContext }) {
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted } },
         React.createElement('div', { style: { width: 14, height: 3, background: T.green, opacity: 0.7, borderRadius: 2 } }),
         'Позитивный эффект',
+      ),
+    ),
+  );
+}
+
+// ── IRR Sensitivity Matrix (Price × Cost heatmap) ──────────────────
+function IrrSensitivityMatrix({ inputs, successProbContext }) {
+  const m = useIsMobile();
+  const PRICE_DELTAS = [-0.20, -0.10, 0, +0.10, +0.20];
+  const COST_DELTAS  = [+0.20, +0.10, 0, -0.10, -0.20]; // reversed: top row = worst case
+
+  const matrix = useMemo(() => {
+    return COST_DELTAS.map(cd =>
+      PRICE_DELTAS.map(pd => {
+        const modInputs = {
+          ...inputs,
+          basePricePerM2: Math.round(inputs.basePricePerM2 * (1 + pd)),
+          constructionCostPerM2: Math.round(inputs.constructionCostPerM2 * (1 + cd)),
+        };
+        const result = runFinancialModel(modInputs, { successProbContext });
+        return result.scenarios.base.irr;
+      })
+    );
+  }, [inputs, successProbContext]);
+
+  const irrColor = (irr) => {
+    if (irr === null) return { bg: 'rgba(212,91,91,0.18)', fg: T.red };
+    if (irr >= 30) return { bg: 'rgba(91,191,138,0.22)', fg: T.green };
+    if (irr >= 20) return { bg: 'rgba(91,191,138,0.11)', fg: '#7EC89A' };
+    if (irr >= 15) return { bg: 'rgba(212,184,74,0.18)', fg: T.yellow };
+    return { bg: 'rgba(212,91,91,0.18)', fg: T.red };
+  };
+
+  const pLabel = (d) => d === 0 ? 'Б/У' : d > 0 ? `+${d*100|0}%` : `${d*100|0}%`;
+  const cLabel = (d) => d === 0 ? 'Б/У' : d > 0 ? `+${d*100|0}%` : `${d*100|0}%`;
+
+  const cellSize = m ? 42 : 56;
+  const fontSize = m ? 9.5 : 11;
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement(Label, { style: { marginBottom: 4 } }, 'Матрица чувствительности · IRR %'),
+    React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginBottom: 16 } },
+      'Влияние изменения цены продажи (по горизонтали) и себестоимости (по вертикали) на IRR',
+    ),
+
+    React.createElement('div', { style: { overflowX: 'auto' } },
+      React.createElement('table', { style: { borderCollapse: 'separate', borderSpacing: 3, margin: '0 auto' } },
+        // Header row: price deltas
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('td', { style: { width: 60 } }),
+            React.createElement('td', {
+              colSpan: 5,
+              style: { textAlign: 'center', fontSize: 9.5, color: T.textMuted, letterSpacing: '0.1em', paddingBottom: 6 },
+            }, '← ЦЕНА ПРОДАЖИ →'),
+          ),
+          React.createElement('tr', null,
+            React.createElement('td', { style: { fontSize: 9, color: T.textMuted, textAlign: 'right', paddingRight: 8, paddingBottom: 4, verticalAlign: 'bottom', whiteSpace: 'nowrap' } }, '↕ СЕБЕСТ.'),
+            ...PRICE_DELTAS.map(pd =>
+              React.createElement('td', { key: pd, style: { textAlign: 'center', fontSize: 9.5, color: pd === 0 ? T.gold : T.textMuted, fontWeight: pd === 0 ? 700 : 400, paddingBottom: 4, width: cellSize } },
+                pLabel(pd),
+              ),
+            ),
+          ),
+        ),
+        // Body rows
+        React.createElement('tbody', null,
+          matrix.map((row, ri) =>
+            React.createElement('tr', { key: ri },
+              React.createElement('td', {
+                style: { textAlign: 'right', paddingRight: 8, fontSize: 9.5, color: COST_DELTAS[ri] === 0 ? T.gold : T.textMuted, fontWeight: COST_DELTAS[ri] === 0 ? 700 : 400, whiteSpace: 'nowrap' },
+              }, cLabel(COST_DELTAS[ri])),
+              ...row.map((irr, ci) => {
+                const { bg, fg } = irrColor(irr);
+                const isBase = PRICE_DELTAS[ci] === 0 && COST_DELTAS[ri] === 0;
+                return React.createElement('td', {
+                  key: ci,
+                  style: {
+                    width: cellSize, height: cellSize,
+                    textAlign: 'center', verticalAlign: 'middle',
+                    background: bg,
+                    borderRadius: 6,
+                    fontSize,
+                    fontWeight: isBase ? 800 : 600,
+                    color: fg,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontFamily: 'Inter, sans-serif',
+                    border: isBase ? `2px solid ${T.gold}66` : 'none',
+                  },
+                }, irr != null ? irr.toFixed(1) + '%' : 'N/A');
+              }),
+            ),
+          ),
+        ),
+      ),
+    ),
+
+    // Legend
+    React.createElement('div', { style: { display: 'flex', gap: 16, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' } },
+      [
+        { color: T.green,  bg: 'rgba(91,191,138,0.22)',  label: '≥ 30% — Отлично' },
+        { color: '#7EC89A',bg: 'rgba(91,191,138,0.11)',  label: '20–30% — Хорошо' },
+        { color: T.yellow, bg: 'rgba(212,184,74,0.18)',  label: '15–20% — Приемлемо' },
+        { color: T.red,    bg: 'rgba(212,91,91,0.18)',   label: '< 15% — Не рентабельно' },
+      ].map(({ color, bg, label }) =>
+        React.createElement('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: T.textMuted } },
+          React.createElement('div', { style: { width: 14, height: 14, background: bg, border: `1px solid ${color}55`, borderRadius: 3 } }),
+          label,
+        ),
       ),
     ),
   );
@@ -3177,6 +3545,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
         netMargin: cur.netMargin,
       }),
     ),
+
+    // IRR Sensitivity Matrix (Price × Cost)
+    React.createElement(IrrSensitivityMatrix, { inputs, successProbContext }),
 
     // History panel (slide-in)
     showHistory && React.createElement(HistoryPanel, {
