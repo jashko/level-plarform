@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 
 import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore } from './engine/index.ts';
+import agentOutputRaw from './data/agent-output.json';
 
 // ── Design tokens ─────────────────────────────────────────────────
 const T = {
@@ -1213,6 +1214,299 @@ function SupplyDemandBalanceChart({ cities, onCityClick }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════
+// ИИ АГЕНТ — ЛЕНТА НОВОСТЕЙ
+// ═════════════════════════════════════════════════════════════════
+
+const AGENT_DATA = agentOutputRaw;
+
+const CAT_CONFIG = {
+  macro:       { label: 'Макро',       color: '#5BA0BF', icon: '📊' },
+  housing:     { label: 'Жильё',       color: T.gold,    icon: '🏢' },
+  mortgage:    { label: 'Ипотека',     color: T.yellow,  icon: '🏦' },
+  city:        { label: 'Города',      color: T.green,   icon: '📍' },
+  regulation:  { label: 'Регуляторика',color: T.orange,  icon: '⚖️' },
+  krt:         { label: 'КРТ',         color: '#8B6FAF', icon: '🏗️' },
+  forecast:    { label: 'Прогноз',     color: '#B06FAF', icon: '🔮' },
+};
+
+const IMPACT_CONFIG = {
+  positive: { color: T.green,  icon: '↑', label: 'Позитивно' },
+  negative: { color: T.red,    icon: '↓', label: 'Негативно' },
+  neutral:  { color: T.textSub,icon: '→', label: 'Нейтрально' },
+};
+
+function timeAgo(isoStr) {
+  const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+  if (diff < 60)   return 'только что';
+  if (diff < 3600) return `${Math.floor(diff/60)} мин назад`;
+  if (diff < 86400)return `${Math.floor(diff/3600)} ч назад`;
+  return `${Math.floor(diff/86400)} дн назад`;
+}
+
+function NewsCard({ item, expanded, onToggle }) {
+  const cat  = CAT_CONFIG[item.category] ?? CAT_CONFIG.macro;
+  const imp  = IMPACT_CONFIG[item.impact];
+  return React.createElement('div', {
+    className: 'l-row',
+    style: {
+      background: T.surfaceRaise,
+      border: `1px solid ${T.border}`,
+      borderLeft: `3px solid ${cat.color}`,
+      borderRadius: 10,
+      overflow: 'hidden',
+      cursor: 'pointer',
+    },
+    onClick: onToggle,
+  },
+    // Header row
+    React.createElement('div', { style: { padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 } },
+      // Category badge
+      React.createElement('div', {
+        style: {
+          fontSize: 10, padding: '2px 8px', borderRadius: 12, whiteSpace: 'nowrap', flexShrink: 0,
+          background: `${cat.color}18`, border: `1px solid ${cat.color}44`, color: cat.color,
+          fontWeight: 700, letterSpacing: '0.05em', marginTop: 1,
+        },
+      }, cat.icon + ' ' + cat.label),
+      // Title + summary
+      React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+        React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: T.text, lineHeight: 1.45, marginBottom: 4 } },
+          item.title,
+        ),
+        !expanded && React.createElement('div', { style: { fontSize: 11, color: T.textMuted, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+          item.summary,
+        ),
+      ),
+      // Impact + time
+      React.createElement('div', { style: { flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' } },
+        React.createElement('div', {
+          style: { fontSize: 11, fontWeight: 700, color: imp.color, display: 'flex', alignItems: 'center', gap: 3 },
+        }, imp.icon, ' ', item.impactLevel === 'high' ? '●●●' : item.impactLevel === 'medium' ? '●●○' : '●○○'),
+        React.createElement('div', { style: { fontSize: 9.5, color: T.textMuted } }, timeAgo(item.timestamp)),
+        React.createElement('div', { style: { fontSize: 9, color: T.textMuted } }, expanded ? '▲' : '▼'),
+      ),
+    ),
+    // Expanded: full summary + AI insight
+    expanded && React.createElement('div', {
+      style: { padding: '0 16px 14px', borderTop: `1px solid ${T.border}` },
+    },
+      React.createElement('div', { style: { paddingTop: 12, fontSize: 12, color: T.textSub, lineHeight: 1.7, marginBottom: 12 } },
+        item.summary,
+      ),
+      // AI Insight box
+      React.createElement('div', {
+        style: {
+          padding: '12px 14px',
+          background: `${cat.color}0A`,
+          borderLeft: `2px solid ${cat.color}60`,
+          borderRadius: '0 8px 8px 0',
+        },
+      },
+        React.createElement('div', { style: { fontSize: 9.5, color: cat.color, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 6 } },
+          '🤖 ИНСАЙТ ИИ-АНАЛИТИКА',
+        ),
+        React.createElement('div', { style: { fontSize: 12, color: T.text, lineHeight: 1.72 } },
+          item.aiInsight,
+        ),
+      ),
+      // Affected cities + sources
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginTop: 10, flexWrap: 'wrap', gap: 8 } },
+        item.affectedCities.length > 0 && React.createElement('div', { style: { display: 'flex', gap: 5, flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, 'Города: '),
+          item.affectedCities.map(c =>
+            React.createElement('span', { key: c, style: { fontSize: 10, padding: '1px 7px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.textSub } }, c),
+          ),
+        ),
+        item.sources.length > 0 && React.createElement('div', { style: { fontSize: 10, color: T.textMuted } },
+          'Источники: ' + item.sources.slice(0, 2).join(', '),
+        ),
+      ),
+    ),
+  );
+}
+
+function NewsFeedPanel() {
+  const m = useIsMobile();
+  const [catFilter, setCatFilter] = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
+  const [collapsed, setCollapsed]   = useState(false);
+
+  const data = AGENT_DATA;
+  const newsItems = data?.newsItems ?? [];
+
+  const filtered = catFilter === 'all'
+    ? newsItems
+    : newsItems.filter(n => n.category === catFilter);
+
+  const lastRun  = data?.generatedAt ? new Date(data.generatedAt) : null;
+  const status   = data?.status ?? 'unknown';
+  const isActive = status === 'completed';
+
+  const categories = ['all', ...Object.keys(CAT_CONFIG).filter(k => newsItems.some(n => n.category === k))];
+
+  return React.createElement('div', {
+    style: {
+      background: T.surface,
+      border: `1px solid ${T.border}`,
+      borderTop: `3px solid ${T.gold}`,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+  },
+    // ── Header ────────────────────────────────────────────────────
+    React.createElement('div', {
+      style: {
+        padding: '16px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        cursor: 'pointer',
+        background: `linear-gradient(90deg, rgba(201,169,110,0.06) 0%, transparent 60%)`,
+      },
+      onClick: () => setCollapsed(c => !c),
+    },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+        // Пульсирующий индикатор агента
+        React.createElement('div', { style: { position: 'relative', width: 10, height: 10 } },
+          React.createElement('div', {
+            style: {
+              width: 10, height: 10, borderRadius: '50%',
+              background: isActive ? T.green : T.textMuted,
+              position: 'absolute',
+            },
+          }),
+          isActive && React.createElement('div', {
+            style: {
+              width: 10, height: 10, borderRadius: '50%',
+              background: T.green,
+              position: 'absolute',
+              animation: 'pulse-ring 2s ease-out infinite',
+              transformBox: 'fill-box',
+              transformOrigin: 'center',
+            },
+          }),
+        ),
+        React.createElement('div', null,
+          React.createElement('div', {
+            style: { fontSize: 13, fontWeight: 700, color: T.text, letterSpacing: '0.04em', fontFamily: 'Inter, sans-serif' },
+          }, '🤖 ИИ-Агент · Лента мониторинга'),
+          React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 2 } },
+            lastRun
+              ? `Обновлено ${timeAgo(data.generatedAt)} · claude-sonnet-4-5 · ${newsItems.length} новостей`
+              : 'Загружается...',
+          ),
+        ),
+      ),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+        React.createElement('div', {
+          style: {
+            fontSize: 10, padding: '3px 10px', borderRadius: 20,
+            background: isActive ? T.greenDim : T.redDim,
+            border: `1px solid ${isActive ? T.green : T.red}44`,
+            color: isActive ? T.green : T.red, fontWeight: 700,
+          },
+        }, isActive ? '● Активен' : '○ Ошибка'),
+        React.createElement('span', { style: { fontSize: 16, color: T.textMuted } }, collapsed ? '▶' : '▼'),
+      ),
+    ),
+
+    // ── Body ──────────────────────────────────────────────────────
+    !collapsed && React.createElement('div', { style: { padding: '0 20px 16px' } },
+      // Macro summary bar
+      data?.macroUpdate && React.createElement('div', {
+        style: {
+          display: 'flex', gap: 20, padding: '10px 14px', marginBottom: 14,
+          background: T.bg, borderRadius: 8, border: `1px solid ${T.border}`,
+          flexWrap: 'wrap',
+        },
+      },
+        [
+          { label: 'КС ЦБ',   value: data.macroUpdate.keyRateAnnual + '%',      color: T.gold  },
+          { label: 'Ипотека', value: data.macroUpdate.mortgageRateAnnual + '%', color: T.orange },
+          { label: 'Инфляция',value: data.macroUpdate.inflationYoY?.toFixed(2) + '%', color: T.yellow },
+          { label: 'Ипотека/сделок', value: Math.round((data.macroUpdate.mortgageShareOfDeals ?? 0.76) * 100) + '%', color: T.textSub },
+        ].map(({ label, value, color }) =>
+          React.createElement('div', { key: label, style: { display: 'flex', gap: 7, alignItems: 'baseline' } },
+            React.createElement('span', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.06em' } }, label),
+            React.createElement('span', { style: { fontSize: 14, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' } }, value),
+          ),
+        ),
+      ),
+
+      // Category filters
+      React.createElement('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 } },
+        categories.map(cat => {
+          const cfg = cat === 'all' ? { label: 'Все', color: T.gold } : CAT_CONFIG[cat];
+          const active = catFilter === cat;
+          return React.createElement('button', {
+            key: cat,
+            onClick: e => { e.stopPropagation(); setCatFilter(cat); },
+            style: {
+              padding: '4px 12px', borderRadius: 20, fontSize: 10, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              border: `1px solid ${active ? cfg.color : T.border}`,
+              background: active ? `${cfg.color}18` : 'transparent',
+              color: active ? cfg.color : T.textMuted,
+              letterSpacing: '0.04em',
+            },
+          },
+            cat === 'all' ? `Все (${newsItems.length})` : `${CAT_CONFIG[cat].icon} ${CAT_CONFIG[cat].label}`,
+          );
+        }),
+      ),
+
+      // News list
+      React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+        filtered.length === 0
+          ? React.createElement('div', { style: { textAlign: 'center', padding: '20px', color: T.textMuted, fontSize: 12 } },
+              'Нет новостей в этой категории',
+            )
+          : filtered.map(item =>
+              React.createElement(NewsCard, {
+                key: item.id,
+                item,
+                expanded: expandedId === item.id,
+                onToggle: () => setExpandedId(expandedId === item.id ? null : item.id),
+              }),
+            ),
+      ),
+
+      // Agent activity log (collapsed by default)
+      data?.agentActivity?.length > 0 && React.createElement('div', { style: { marginTop: 14 } },
+        React.createElement('details', null,
+          React.createElement('summary', {
+            style: { fontSize: 10, color: T.textMuted, cursor: 'pointer', letterSpacing: '0.06em', userSelect: 'none' },
+          }, `ЖУРНАЛ АГЕНТА (${data.agentActivity.length} действий) ▶`),
+          React.createElement('div', {
+            style: { marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflow: 'auto' },
+          },
+            data.agentActivity.map((entry, i) => {
+              const actionIcon = { search: '🔍', fetch: '🌐', analyze: '🧠', update: '📊', insight: '💡' }[entry.action] ?? '•';
+              return React.createElement('div', { key: i, style: { display: 'flex', gap: 8, fontSize: 10.5, color: T.textMuted, lineHeight: 1.5 } },
+                React.createElement('span', { style: { color: T.textMuted, flexShrink: 0 } }, new Date(entry.ts).toTimeString().slice(0,8)),
+                React.createElement('span', { style: { flexShrink: 0 } }, actionIcon),
+                React.createElement('span', null, entry.description),
+              );
+            }),
+          ),
+        ),
+      ),
+
+      // Summary
+      data?.summary && React.createElement('div', {
+        style: {
+          marginTop: 14, padding: '10px 14px',
+          background: 'rgba(201,169,110,0.05)', borderRadius: 8,
+          border: `1px solid rgba(201,169,110,0.15)`,
+          fontSize: 11, color: T.textSub, lineHeight: 1.7,
+        },
+      },
+        React.createElement('span', { style: { color: T.gold, fontWeight: 700, marginRight: 6 } }, '📌 Резюме сессии:'),
+        data.summary,
+      ),
+    ),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter,    setZoneFilter]    = useState('all');
   const [minScore,      setMinScore]      = useState(0);
@@ -1260,6 +1554,7 @@ function MainScreen({ ranking, onCityClick }) {
       React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
 
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
+    React.createElement(NewsFeedPanel),
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
     React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
