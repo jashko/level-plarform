@@ -1,6 +1,6 @@
 {
   "source": "fallback (cbr.ru недоступен) + открытые источники",
-  "fetchedAt": "2026-05-29T14:17:12.553Z",
+  "fetchedAt": "2026-06-01T12:29:35.874Z",
   "keyRate": {
     "currentPct": 14.5,
     "effectiveSince": "2026-04-27",
@@ -36,15 +36,14 @@
     ]
   },
   "inflation": {
-    "yoyPct": 5.4,
-    "asOf": "2026-05",
-    "note": "На 20.05.2026: 5.36% (дезинфляционный тренд к цели 4%)",
+    "yoyPct": 5.9,
+    "asOf": "2026-04",
     "target": 4
   },
   "mortgage": {
     "marketRatePct": 18.5,
     "marketRateSource": "расчётная (КС 14.5% + спред)",
-    "marketRateFetchedAt": "2026-05-29T14:17:12.553Z",
+    "marketRateFetchedAt": "2026-06-01T12:29:35.874Z",
     "preferentialRatePct": 6,
     "note": "Рыночная ставка: расчётная (КС 14.5% + спред). Семейная ипотека: 6%."
   }
