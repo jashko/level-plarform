@@ -1407,7 +1407,7 @@ var CITY_COORDINATES = {
 // src/data/macro-cbr.json
 var macro_cbr_default = {
   source: "fallback (cbr.ru \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D) + \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0438",
-  fetchedAt: "2026-05-29T14:17:12.553Z",
+  fetchedAt: "2026-06-01T12:29:35.874Z",
   keyRate: {
     currentPct: 14.5,
     effectiveSince: "2026-04-27",
@@ -1443,15 +1443,14 @@ var macro_cbr_default = {
     ]
   },
   inflation: {
-    yoyPct: 5.4,
-    asOf: "2026-05",
-    note: "\u041D\u0430 20.05.2026: 5.36% (\u0434\u0435\u0437\u0438\u043D\u0444\u043B\u044F\u0446\u0438\u043E\u043D\u043D\u044B\u0439 \u0442\u0440\u0435\u043D\u0434 \u043A \u0446\u0435\u043B\u0438 4%)",
+    yoyPct: 5.9,
+    asOf: "2026-04",
     target: 4
   },
   mortgage: {
     marketRatePct: 18.5,
     marketRateSource: "\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434)",
-    marketRateFetchedAt: "2026-05-29T14:17:12.553Z",
+    marketRateFetchedAt: "2026-06-01T12:29:35.874Z",
     preferentialRatePct: 6,
     note: "\u0420\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430: \u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434). \u0421\u0435\u043C\u0435\u0439\u043D\u0430\u044F \u0438\u043F\u043E\u0442\u0435\u043A\u0430: 6%."
   }
