@@ -1495,8 +1495,8 @@ function MainScreen({ ranking, onCityClick }) {
     showTrendsFor &&
       React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
 
-    React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
+    React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
     React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
     React.createElement(
