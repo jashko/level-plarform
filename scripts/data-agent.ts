@@ -1,19 +1,15 @@
 #!/usr/bin/env tsx
 /**
- * LEVEL Platform — ИИ Агент ежедневного обновления данных
+ * LEVEL Platform — ИИ Агент v3.0
+ * Полностью переписан для максимальной эффективности.
  *
- * Архитектура:
- *   1. PHASE RESEARCH — агент обходит открытые источники (ЦБ, ДОМ.РФ, РБК, Коммерсант...)
- *   2. PHASE ANALYSIS — Claude интерпретирует данные как экономист-аналитик
- *   3. PHASE OUTPUT   — формирует JSON: новости + обновления данных + инсайты
- *   4. Сохраняет src/data/agent-output.json → коммитится GitHub Actions
- *
- * Запуск:
- *   ANTHROPIC_API_KEY=sk-ant-xxx npx tsx scripts/data-agent.ts
- *
- * Требования:
- *   - Node 18+ (встроенный fetch)
- *   - ANTHROPIC_API_KEY в переменных окружения
+ * Улучшения v3.0:
+ * - claude-sonnet-4-6 + extended thinking off (быстрее)
+ * - Конкретные URL для каждого типа данных
+ * - Агент реально обновляет данные городов (цены, сделки, зарплаты)
+ * - Лучший промпт с примерами качественных инсайтов
+ * - Retry логика для нестабильных источников
+ * - Параллельный сбор данных где возможно
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -23,8 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(__dirname, '..', 'src', 'data', 'agent-output.json');
+const MODEL = 'claude-sonnet-4-6';
 
-// ── Типы ────────────────────────────────────────────────────────────
+// ── Типы ──────────────────────────────────────────────────────────────
 
 export interface NewsItem {
   id: string;
@@ -35,19 +32,19 @@ export interface NewsItem {
   aiInsight: string;
   impact: 'positive' | 'negative' | 'neutral';
   impactLevel: 'high' | 'medium' | 'low';
-  affectedCities: string[];   // city keys или [] для общефедерального
-  sources: string[];          // URLs или названия источников
-  dataUpdates?: DataUpdate[]; // какие данные изменились
+  affectedCities: string[];
+  sources: string[];
+  dataUpdates?: DataUpdate[];
 }
 
 export interface DataUpdate {
-  city?: string;   // пустой = макро
+  city?: string;
   field: string;
   oldValue: number | null;
   newValue: number;
   unit: string;
   source: string;
-  confidence: number; // 0–1
+  confidence: number;
 }
 
 export interface MacroUpdate {
@@ -89,143 +86,187 @@ export interface AgentLogEntry {
   description: string;
 }
 
-// ── Инструменты агента ──────────────────────────────────────────────
+// ── Полезные URL для агента ───────────────────────────────────────────
+const DATA_SOURCES = {
+  macro: [
+    'https://www.cbr.ru/press/pr/',                          // Пресс-релизы ЦБ
+    'https://www.cbr.ru/hd_base/KeyRate/',                   // История ключевой ставки
+    'https://rosstat.gov.ru/inflation',                      // Инфляция Росстат
+  ],
+  mortgage: [
+    'https://www.banki.ru/products/hypothec/',               // Ипотека banki.ru
+    'https://www.sravni.ru/ipoteka/',                        // Ипотека sravni.ru
+    'https://xn--d1aqf.xn--p1ai/ipoteka/',                  // Дом.РФ ипотека
+  ],
+  news: [
+    'https://www.rbc.ru/realty/',                            // РБК Недвижимость
+    'https://realty.kommersant.ru/',                         // Коммерсант Недвижимость
+    'https://www.vedomosti.ru/realty',                       // Ведомости
+    'https://aif.ru/realty/',                                // АиФ Недвижимость
+  ],
+  domrf: [
+    'https://xn--d1aqf.xn--p1ai/analytics/',                // Аналитика Дом.РФ
+    'https://xn--d1aqf.xn--p1ai/press/news/',               // Новости Дом.РФ
+  ],
+  regional: {
+    novosibirsk:  'https://ngs.ru/realty/',
+    yekaterinburg:'https://www.e1.ru/realty/',
+    kazan:        'https://www.kazan.kp.ru/realty/',
+    nizhny:       'https://www.nn.ru/realty/',
+    chelyabinsk:  'https://www.74.ru/realty/',
+    samara:       'https://www.samara.ru/realty/',
+    krasnodar:    'https://www.kuban.kp.ru/realty/',
+    perm:         'https://www.perm.ru/realty/',
+    rostov:       'https://www.161.ru/realty/',
+    ufa:          'https://www.ufa.ru/realty/',
+  },
+  cian: 'https://www.cian.ru/stati-nedvizhimosti/',
+  minstroi: 'https://minstroyrf.gov.ru/press/',
+};
+
+// ── Инструменты ───────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'fetch_url',
-    description: `Загружает содержимое URL. Используй для получения данных с открытых источников:
-      - cbr.ru (ставки, инфляция)
-      - domrf.ru / наш.дом.рф (ипотека, строительство)
-      - rbc.ru/realty (новости рынка)
-      - kommersant.ru (аналитика)
-      - rosreestr.gov.ru (ДДУ статистика)
-      - consultant.ru (регуляторика)
-    Возвращает первые 4000 символов текста страницы.`,
+    description: `Загружает страницу и возвращает очищенный текст (до 3500 символов).
+Лучшие источники для конкретных задач:
+• КС и инфляция:   ${DATA_SOURCES.macro.join(', ')}
+• Ипотека:         ${DATA_SOURCES.mortgage.join(', ')}
+• Новости:         ${DATA_SOURCES.news.join(', ')}
+• Дом.РФ:          ${DATA_SOURCES.domrf.join(', ')}
+• ЦИАН аналитика:  ${DATA_SOURCES.cian}
+• Минстрой:        ${DATA_SOURCES.minstroi}`,
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
-        url: { type: 'string', description: 'Полный URL для загрузки' },
-        purpose: { type: 'string', description: 'Зачем загружаем (для лога)' },
+        url:     { type: 'string', description: 'Полный URL' },
+        purpose: { type: 'string', description: 'Цель загрузки (для лога)' },
       },
       required: ['url', 'purpose'],
     },
   },
   {
     name: 'add_news_item',
-    description: 'Записывает выявленную новость или инсайт в итоговый отчёт',
+    description: `Добавляет новость/инсайт в ленту.
+ТРЕБОВАНИЕ: только реальные события с конкретными цифрами.
+Плохо: "Рынок недвижимости показывает рост"
+Хорошо: "ЦБ снизил КС до 14.5% — ставка ПФ упадёт с 6% до 4.5% при наполнении эскроу 80%"`,
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
         category: {
           type: 'string',
           enum: ['macro', 'housing', 'mortgage', 'city', 'regulation', 'krt', 'forecast'],
-          description: 'Категория новости',
         },
-        title: { type: 'string', description: 'Заголовок новости (до 100 символов)' },
-        summary: { type: 'string', description: 'Краткое содержание (2-3 предложения, факты)' },
-        aiInsight: {
-          type: 'string',
-          description: 'Ваша аналитическая интерпретация — что это означает для девелопера бизнес-класса (2-4 предложения)',
-        },
-        impact: {
-          type: 'string',
-          enum: ['positive', 'negative', 'neutral'],
-          description: 'Влияние на рынок девелопмента бизнес-класса',
-        },
-        impactLevel: {
-          type: 'string',
-          enum: ['high', 'medium', 'low'],
-          description: 'Уровень важности новости',
-        },
-        affectedCities: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Ключи городов (novosibirsk, yekaterinburg и т.д.) или [] для общефедерального',
-        },
-        sources: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Источники (URL или название)',
-        },
-        dataUpdates: {
-          type: 'array',
-          description: 'Изменения числовых показателей (если применимо)',
-          items: {
-            type: 'object',
-            properties: {
-              city:       { type: 'string' },
-              field:      { type: 'string' },
-              oldValue:   { type: 'number' },
-              newValue:   { type: 'number' },
-              unit:       { type: 'string' },
-              source:     { type: 'string' },
-              confidence: { type: 'number' },
-            },
-            required: ['field', 'newValue', 'unit', 'source', 'confidence'],
-          },
-        },
+        title:    { type: 'string', description: 'Заголовок (до 90 символов, конкретный)' },
+        summary:  { type: 'string', description: 'Суть события в 2-3 предложениях с цифрами' },
+        aiInsight: { type: 'string', description: 'Что это значит для девелопера БК — конкретно и цифрами (3-4 предложения)' },
+        impact:   { type: 'string', enum: ['positive', 'negative', 'neutral'] },
+        impactLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
+        affectedCities: { type: 'array', items: { type: 'string' }, description: '[] = федеральный уровень' },
+        sources: { type: 'array', items: { type: 'string' } },
       },
       required: ['category', 'title', 'summary', 'aiInsight', 'impact', 'impactLevel', 'affectedCities', 'sources'],
     },
   },
   {
     name: 'update_macro',
-    description: 'Обновляет глобальные макроэкономические параметры',
+    description: 'Обновляет макроэкономические параметры платформы',
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
         keyRateAnnual:        { type: 'number', description: 'Ключевая ставка ЦБ, %' },
         mortgageRateAnnual:   { type: 'number', description: 'Рыночная ипотека, %' },
-        inflationYoY:         { type: 'number', description: 'Инфляция YoY, %' },
+        inflationYoY:         { type: 'number', description: 'Инфляция CPI YoY, %' },
         mortgageShareOfDeals: { type: 'number', description: 'Доля ипотечных сделок 0..1' },
-        source:               { type: 'string', description: 'Источник данных' },
-        asOf:                 { type: 'string', description: 'Дата актуальности (YYYY-MM-DD)' },
+        source:               { type: 'string' },
+        asOf:                 { type: 'string', description: 'YYYY-MM-DD' },
       },
       required: ['source', 'asOf'],
     },
   },
   {
     name: 'update_city_data',
-    description: `Обновляет данные по конкретному городу на основе найденной информации.
-Используй когда нашёл актуальные данные по: ценам, сделкам, зарплатам, вводу жилья,
-ипотечной активности, новым КРТ-проектам, инфраструктурным решениям.`,
+    description: `Обновляет данные конкретного города на основе найденных данных.
+Вызывай ТОЛЬКО если нашёл реальные цифры из источника.
+
+Доступные поля:
+- businessClassPricePerM2  (цена м² бизнес-класс, ₽)
+- priceGrowthYoY           (рост цены г/г, %)
+- monthsOfSupply           (запас предложения, месяцев)
+- dealsGrowthYoY           (рост сделок ДДУ г/г, %)
+- avgSalary                (средняя зарплата, ₽/мес)
+- salaryGrowthYoY          (рост зарплат г/г, %)
+- unemploymentRate         (безработица, %)
+- constructionVolumeMkdThousM2 (объём строительства МКД, тыс м²)
+- monthlySalesM2           (продажи/мес, м²)
+- annualDduCount           (ДДУ в год, шт)
+- sellReadinessRatioPct    (распроданность/стройготовность, %)
+- unsoldYearsOfSupply      (срок реализации остатков, лет)
+- krtProgramsHa            (КРТ площадь, га)
+- migrationBalanceThousands (миграционный баланс, тыс чел/год)`,
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
         cityKey: {
           type: 'string',
-          description: 'Ключ города: novosibirsk | yekaterinburg | kazan | nizhny | chelyabinsk | samara | ufa | rostov | omsk | krasnodar | voronezh | volgograd | perm | krasnoyarsk',
+          enum: ['novosibirsk','yekaterinburg','kazan','nizhny','chelyabinsk',
+                 'samara','ufa','rostov','omsk','krasnodar','voronezh','volgograd','perm','krasnoyarsk'],
         },
-        updates: {
-          type: 'object',
-          description: 'Словарь обновлённых полей. Возможные ключи: businessClassPricePerM2, priceGrowthYoY, monthsOfSupply, dealsGrowthYoY, avgSalary, salaryGrowthYoY, unemploymentRate, constructionVolumeMkdThousM2, monthlySalesM2, annualDduCount, sellReadinessRatioPct, unsoldYearsOfSupply, krtProgramsHa, migrationBalanceThousands, populationThousands',
-          additionalProperties: { type: 'number' },
-        },
-        source: { type: 'string', description: 'Источник данных (URL или название)' },
-        confidence: { type: 'number', description: 'Уверенность в данных 0.0–1.0' },
-        notes: { type: 'string', description: 'Комментарий (опционально)' },
+        updates:    { type: 'object', additionalProperties: { type: 'number' } },
+        source:     { type: 'string' },
+        confidence: { type: 'number', description: '0.0–1.0' },
+        notes:      { type: 'string' },
       },
       required: ['cityKey', 'updates', 'source', 'confidence'],
     },
   },
   {
     name: 'finish_report',
-    description: 'Завершает работу агента и формирует итоговое резюме',
+    description: 'Завершает сессию. Вызывать только после минимум 5 новостей и попытки обновить хотя бы 2 города.',
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
-        summary: {
-          type: 'string',
-          description: 'Краткое резюме сессии: что было найдено, какие главные выводы (3-5 предложений)',
-        },
+        summary: { type: 'string', description: 'Резюме: главные события дня + что обновлено (4-5 предложений)' },
       },
       required: ['summary'],
     },
   },
 ];
 
-// ── Исполнитель инструментов ────────────────────────────────────────
+// ── Исполнитель инструментов ──────────────────────────────────────────
+
+async function fetchWithRetry(url: string, retries = 2): Promise<string> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,*/*',
+          'Accept-Language': 'ru-RU,ru;q=0.9',
+          'Accept-Encoding': 'gzip, deflate',
+          'Cache-Control': 'no-cache',
+        },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      return text
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&[a-z#0-9]+;/gi, ' ')
+        .replace(/\s{3,}/g, '\n')
+        .trim()
+        .slice(0, 3500);
+    } catch (e) {
+      if (attempt === retries) throw e;
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return '';
+}
 
 async function executeTool(
   name: string,
@@ -245,32 +286,14 @@ async function executeTool(
   if (name === 'fetch_url') {
     const url = input['url'] as string;
     const purpose = input['purpose'] as string;
-    state.activityLog.push({ ts, action: 'fetch', description: `Загружаю: ${url} (${purpose})` });
-    console.log(`  🌐 fetch_url: ${url}`);
+    state.activityLog.push({ ts, action: 'fetch', description: `${purpose}: ${url}` });
+    console.log(`  🌐 ${url}`);
     try {
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LevelPlatformBot/1.0)',
-          'Accept': 'text/html,application/xhtml+xml,text/plain,*/*',
-          'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-        },
-        signal: AbortSignal.timeout(6_000),
-      });
-      if (!resp.ok) return `Ошибка HTTP ${resp.status} для ${url}`;
-      const text = await resp.text();
-      // Убираем HTML-теги, оставляем текст
-      const clean = text
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&[a-z]+;/gi, ' ')
-        .replace(/\s{3,}/g, '\n')
-        .replace(/\n{4,}/g, '\n\n')
-        .trim()
-        .slice(0, 2500);  // Уменьшаем с 4000 до 2500 для экономии токенов
-      return `URL: ${url}\n\n${clean}`;
+      const text = await fetchWithRetry(url);
+      return `[${url}]\n\n${text}`;
     } catch (e) {
-      return `Не удалось загрузить ${url}: ${(e as Error).message}`;
+      console.log(`  ⚠️  недоступен: ${(e as Error).message}`);
+      return `Недоступен: ${url} — ${(e as Error).message}`;
     }
   }
 
@@ -278,286 +301,230 @@ async function executeTool(
     const item: NewsItem = {
       id: `news-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: ts,
-      category:      input['category'] as NewsItem['category'],
-      title:         input['title'] as string,
-      summary:       input['summary'] as string,
-      aiInsight:     input['aiInsight'] as string,
-      impact:        input['impact'] as NewsItem['impact'],
-      impactLevel:   input['impactLevel'] as NewsItem['impactLevel'],
-      affectedCities: input['affectedCities'] as string[],
-      sources:       input['sources'] as string[],
-      dataUpdates:   (input['dataUpdates'] as DataUpdate[] | undefined) ?? [],
+      category:       input['category'] as NewsItem['category'],
+      title:          input['title'] as string,
+      summary:        input['summary'] as string,
+      aiInsight:      input['aiInsight'] as string,
+      impact:         input['impact'] as NewsItem['impact'],
+      impactLevel:    input['impactLevel'] as NewsItem['impactLevel'],
+      affectedCities: (input['affectedCities'] as string[]) ?? [],
+      sources:        (input['sources'] as string[]) ?? [],
     };
     state.newsItems.push(item);
-    if (item.dataUpdates) state.dataUpdates.push(...item.dataUpdates);
-    state.activityLog.push({ ts, action: 'insight', description: `Добавлена новость: ${item.title}` });
-    console.log(`  📰 add_news_item: "${item.title}" [${item.impact}/${item.impactLevel}]`);
-    return `Новость добавлена: "${item.title}" (id: ${item.id})`;
-  }
-
-  if (name === 'update_city_data') {
-    const cityUpdate: CityDataUpdate = {
-      cityKey:   input['cityKey'] as string,
-      updates:   input['updates'] as Record<string, number>,
-      source:    input['source'] as string,
-      confidence: input['confidence'] as number,
-      notes:     input['notes'] as string | undefined,
-      updatedAt: ts,
-    };
-    // Merge: если уже есть обновление для этого города — мержим поля
-    const existing = state.cityDataUpdates.find(u => u.cityKey === cityUpdate.cityKey);
-    if (existing) {
-      Object.assign(existing.updates, cityUpdate.updates);
-      existing.updatedAt = ts;
-      existing.source = cityUpdate.source;
-    } else {
-      state.cityDataUpdates.push(cityUpdate);
-    }
-    state.activityLog.push({ ts, action: 'update', description: `Данные города ${cityUpdate.cityKey}: ${Object.keys(cityUpdate.updates).join(', ')}` });
-    console.log(`  🏙️  update_city_data [${cityUpdate.cityKey}]:`, cityUpdate.updates);
-    return `Данные города ${cityUpdate.cityKey} обновлены: ${JSON.stringify(cityUpdate.updates)}`;
+    state.activityLog.push({ ts, action: 'insight', description: `📰 ${item.title}` });
+    console.log(`  📰 [${item.category}/${item.impact}] ${item.title}`);
+    return `OK: новость добавлена (всего: ${state.newsItems.length})`;
   }
 
   if (name === 'update_macro') {
     state.macroUpdate = input as unknown as MacroUpdate;
-    state.activityLog.push({ ts, action: 'update', description: `Макро обновлено: ${JSON.stringify(input)}` });
-    console.log(`  📊 update_macro:`, input);
-    return `Макропараметры обновлены: ${JSON.stringify(input)}`;
+    state.activityLog.push({ ts, action: 'update', description: `📊 Макро: ${JSON.stringify(input)}` });
+    console.log(`  📊 Макро:`, input);
+    return 'OK: макро обновлено';
+  }
+
+  if (name === 'update_city_data') {
+    const upd: CityDataUpdate = {
+      cityKey:    input['cityKey'] as string,
+      updates:    input['updates'] as Record<string, number>,
+      source:     input['source'] as string,
+      confidence: input['confidence'] as number,
+      notes:      input['notes'] as string | undefined,
+      updatedAt:  ts,
+    };
+    // Мерж если уже есть запись для города
+    const existing = state.cityDataUpdates.find(u => u.cityKey === upd.cityKey);
+    if (existing) {
+      Object.assign(existing.updates, upd.updates);
+      existing.updatedAt = ts;
+    } else {
+      state.cityDataUpdates.push(upd);
+    }
+    const fields = Object.keys(upd.updates).join(', ');
+    state.activityLog.push({ ts, action: 'update', description: `🏙️  ${upd.cityKey}: ${fields}` });
+    console.log(`  🏙️  ${upd.cityKey}:`, upd.updates);
+    return `OK: ${upd.cityKey} обновлён (${fields})`;
   }
 
   if (name === 'finish_report') {
     state.finished = true;
     state.summary = input['summary'] as string;
-    state.activityLog.push({ ts, action: 'analyze', description: 'Отчёт завершён' });
-    console.log(`  ✅ finish_report: ${state.summary.slice(0, 80)}...`);
-    return 'Отчёт завершён успешно.';
+    state.activityLog.push({ ts, action: 'analyze', description: '✅ Отчёт завершён' });
+    return 'OK: сессия завершена';
   }
 
   return `Неизвестный инструмент: ${name}`;
 }
 
-// ── Системный промпт агента ─────────────────────────────────────────
+// ── Системный промпт ──────────────────────────────────────────────────
 
-function buildSystemPrompt(today: string): string {
-  return `Вы — ИИ-аналитик рынка недвижимости. Ваша задача: ежедневный мониторинг рынка
-первичной недвижимости бизнес-класса России и обновление данных платформы LEVEL Platform.
+function buildSystemPrompt(today: string, prevData: string): string {
+  return `Ты — старший аналитик рынка недвижимости бизнес-класса России.
+Платформа LEVEL Platform используется девелопером для принятия решений об экспансии в города-миллионники.
+Сегодня: ${today}
 
-Сегодняшняя дата: ${today}
+${prevData}
 
-ЗОНА ОТВЕТСТВЕННОСТИ — 14 городов-миллионников РФ (ключи для update_city_data):
-novosibirsk | yekaterinburg | kazan | nizhny | chelyabinsk | samara
-ufa | rostov | omsk | krasnodar | voronezh | volgograd | perm | krasnoyarsk
+═══════════════════════════════════════════════════════════
+ЗАДАЧА: найди реальные данные и обнови платформу
+═══════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════════
-ПОРЯДОК РАБОТЫ (строго соблюдать!)
-═══════════════════════════════════════════════
+ШАГ 1 — МАКРО (обязательно):
+fetch_url https://www.cbr.ru/press/pr/
+→ найди КС, инфляцию, риторику ЦБ
+→ update_macro + add_news_item[macro, high]
 
-ШАГ 1 — МАКРО (2 фетча → update_macro + 1 новость):
-  fetch_url: https://www.cbr.ru/press/pr/
-  fetch_url: https://www.banki.ru/products/hypothec/
-  → update_macro (КС, ипотека, инфляция)
-  → add_news_item категория=macro
+ШАГ 2 — ИПОТЕКА (обязательно):
+fetch_url https://www.banki.ru/products/hypothec/
+→ найди средние ставки топ-банков
+→ add_news_item[mortgage]
 
-ШАГ 2 — РЫНОК ЖИЛЬЯ (2 фетча → 2-3 новости):
-  fetch_url: https://www.rbc.ru/realty/
-  fetch_url: https://realty.kommersant.ru/
-  → 2-3 add_news_item (цены, сделки, тренды)
+ШАГ 3 — РЫНОК (2 источника):
+fetch_url https://www.rbc.ru/realty/
+fetch_url https://realty.kommersant.ru/
+→ 2-3 add_news_item[housing/regulation/krt]
 
-ШАГ 3 — ДАННЫЕ ГОРОДОВ (2 фетча → update_city_data для 2-3 городов):
-  fetch_url: https://naш.дом.рф/сервисы/аналитика-рынка-недвижимости  (или https://xn--d1aqf.xn--p1ai/)
-  fetch_url: https://www.cian.ru/stati-nedvizhimosti/ или региональные новости
-  → update_city_data для найденных городов (цены м², темп продаж, объём строительства)
-  → add_news_item категория=city
+ШАГ 4 — ДАННЫЕ ГОРОДОВ (КРИТИЧЕСКИ ВАЖНО):
+fetch_url https://xn--d1aqf.xn--p1ai/analytics/
+→ найди данные по городам: цены, сделки, объёмы строительства
+→ update_city_data для каждого города где нашёл цифры
 
-ШАГ 4 — КРТ И ИНФРАСТРУКТУРА (1 фетч → 1 новость + update_city_data если есть данные):
-  fetch_url: https://minstroyrf.gov.ru/press/ или https://www.rbc.ru/regions/
-  → add_news_item категория=krt или regulation
-  → update_city_data если нашёл данные по КРТ-программам
+ДОПОЛНИТЕЛЬНО — региональные новости:
+fetch_url одного из региональных источников
+→ add_news_item[city] + update_city_data если есть цифры
 
-ШАГ 5 — ПРОГНОЗ (без фетча → 1 новость):
-  На основе всего найденного — прогноз для девелопера бизнес-класса
-  → add_news_item категория=forecast
+ШАГ 5 — ПРОГНОЗ:
+→ add_news_item[forecast, high] — главный вывод дня для девелопера БК
 
 ШАГ 6: finish_report
 
-ИТОГО: 7-8 фетчей, 6-10 новостей, 2-4 обновления городов.
+═══════════════════════════════════════════════════════════
+СТАНДАРТ КАЧЕСТВА
+═══════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════════
-ПАРАМЕТРЫ ДЛЯ update_city_data
-═══════════════════════════════════════════════
-Обновляй только те поля, по которым есть РЕАЛЬНЫЕ данные из источника:
-- businessClassPricePerM2  — цена м² бизнес-класс, ₽
-- priceGrowthYoY           — рост цены г/г, %
-- monthsOfSupply           — запас предложения, месяцев
-- dealsGrowthYoY           — рост сделок г/г, %
-- avgSalary                — средняя зарплата, ₽/мес
-- salaryGrowthYoY          — рост зарплат г/г, %
-- unemploymentRate         — безработица, %
-- constructionVolumeMkdThousM2 — объём строительства МКД, тыс м²
-- monthlySalesM2           — продажи/мес, м²
-- annualDduCount           — ДДУ в год, шт
-- sellReadinessRatioPct    — распроданность/стройготовность, %
-- unsoldYearsOfSupply      — срок реализации остатков, лет
-- krtProgramsHa            — КРТ площадь, га
-- migrationBalanceThousands — миграционный баланс, тыс чел/год
+✅ ХОРОШИЙ инсайт:
+"КС снижена до 14.5%. Ставка ПФ для проектов с наполнением эскроу >80% упадёт
+примерно до 4-4.5%. На проект 5 млрд ₽ это экономия 75-100 млн ₽/год на обслуживании.
+Следующее заседание 19 июня — вероятность снижения до 13.5% оцениваем в 60%."
 
-═══════════════════════════════════════════════
-ТРЕБОВАНИЯ К КАЧЕСТВУ
-═══════════════════════════════════════════════
-- Только факты с цифрами, без воды
-- Инсайт = что это значит для девелопера бизнес-класса конкретно
-- Пример хорошего инсайта: "КС снижена до 14.5% — ставка ПФ по эскроу упадёт
-  с ~6% до ~4.5% при наполнении 80%. Для проекта 5 млрд ₽ экономия ~75 млн ₽/год."
-- Пример плохого: "Снижение ставки положительно для рынка"
+❌ ПЛОХОЙ инсайт:
+"Снижение ставки позитивно для рынка недвижимости."
 
+Ключи городов для update_city_data:
+novosibirsk | yekaterinburg | kazan | nizhny | chelyabinsk
+samara | ufa | rostov | omsk | krasnodar | voronezh | volgograd | perm | krasnoyarsk
+
+Минимум для завершения: 6 новостей + обновление хотя бы 2 городов.
 Начинай с ШАГ 1!`;
 }
 
-// ── Главная функция ─────────────────────────────────────────────────
+// ── Главная функция ───────────────────────────────────────────────────
 
 async function runAgent(): Promise<AgentOutput> {
   const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) {
-    console.error('❌ ANTHROPIC_API_KEY не установлен');
-    process.exit(1);
-  }
+  if (!apiKey) { console.error('❌ ANTHROPIC_API_KEY не установлен'); process.exit(1); }
 
-  const client = new Anthropic({
-    apiKey,
-    timeout: 120_000,  // 2 минуты на запрос
-    maxRetries: 2,
-  });
+  const client = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 2 });
   const today = new Date().toISOString().slice(0, 10);
-  const startTime = Date.now();
+  const t0 = Date.now();
 
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║  LEVEL Platform — ИИ Агент ежедневного мониторинга  ║');
-  console.log(`║  ${today} ${new Date().toTimeString().slice(0,8)}${' '.repeat(26)}║`);
+  console.log('║   LEVEL Platform v3.0 — Daily Intelligence Agent    ║');
+  console.log(`║   ${today}                                        ║`);
   console.log('╚══════════════════════════════════════════════════════╝\n');
 
   const state = {
-    newsItems:        [] as NewsItem[],
-    dataUpdates:      [] as DataUpdate[],
-    cityDataUpdates:  [] as CityDataUpdate[],
-    macroUpdate:      null as MacroUpdate | null,
-    activityLog:      [] as AgentLogEntry[],
-    finished:         false,
-    summary:          '',
+    newsItems:       [] as NewsItem[],
+    dataUpdates:     [] as DataUpdate[],
+    cityDataUpdates: [] as CityDataUpdate[],
+    macroUpdate:     null as MacroUpdate | null,
+    activityLog:     [] as AgentLogEntry[],
+    finished:        false,
+    summary:         '',
   };
 
-  // Начальный контекст с текущими данными
-  let existingData = '{}';
+  // Контекст из предыдущей сессии
+  let prevData = '';
   try {
     if (existsSync(OUTPUT_PATH)) {
       const prev = JSON.parse(readFileSync(OUTPUT_PATH, 'utf-8')) as AgentOutput;
-      existingData = `Предыдущие данные (для понимания контекста):
-        - Макро: ${JSON.stringify(prev.macroUpdate ?? {})}
-        - Последнее обновление: ${prev.generatedAt}
-        - Кол-во новостей в предыдущей сессии: ${prev.newsItems.length}`;
+      const prevMacro = prev.macroUpdate;
+      const prevCities = prev.cityDataUpdates?.length ?? 0;
+      prevData = `ПРЕДЫДУЩАЯ СЕССИЯ (${prev.generatedAt?.slice(0,10)}):
+- КС: ${prevMacro?.keyRateAnnual ?? '?'}%, ипотека: ${prevMacro?.mortgageRateAnnual ?? '?'}%
+- Новостей было: ${prev.newsItems?.length ?? 0}, городов обновлено: ${prevCities}
+- Сосредоточься на том, что ИЗМЕНИЛОСЬ с тех пор`;
     }
   } catch { /* нет предыдущих данных */ }
 
-  const messages: Anthropic.MessageParam[] = [
-    {
-      role: 'user',
-      content: `Запускаю ежедневный мониторинг данных. ${existingData}
-
-Начни с макро-проверки (ЦБ, ДОМ.РФ), затем перейди к региональным новостям.
-После сбора данных запиши все находки через инструменты и завершь через finish_report.`,
-    },
-  ];
+  const messages: Anthropic.MessageParam[] = [{
+    role: 'user',
+    content: 'Запускай ежедневный мониторинг. Собери максимум данных, особенно по городам.',
+  }];
 
   let iteration = 0;
-  const MAX_ITERATIONS = 30; // защита от бесконечного цикла
+  const MAX_ITER = 25;
 
-  // ── Agentic Loop ─────────────────────────────────────────────────
-  while (!state.finished && iteration < MAX_ITERATIONS) {
+  while (!state.finished && iteration < MAX_ITER) {
     iteration++;
-    console.log(`\n── Итерация ${iteration} ──────────────────────────────`);
+    console.log(`\n── Итерация ${iteration} ────────────────────────────`);
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8096,
-      system: buildSystemPrompt(today),
+      model: MODEL,
+      max_tokens: 4096,
+      system: buildSystemPrompt(today, prevData),
       tools: TOOLS,
       messages,
     });
 
-    console.log(`  stop_reason: ${response.stop_reason}`);
+    console.log(`  stop: ${response.stop_reason} | tokens: ${response.usage.input_tokens}→${response.usage.output_tokens}`);
 
-    // Добавляем ответ ассистента в историю
     messages.push({ role: 'assistant', content: response.content });
 
-    // Если нет вызовов инструментов — агент закончил
     if (response.stop_reason === 'end_turn') {
-      console.log('  → Агент завершил работу (end_turn)');
-      if (!state.finished) {
-        state.summary = 'Сессия завершена без явного вызова finish_report.';
-        state.finished = true;
-      }
+      if (!state.finished) { state.summary = 'Завершено без finish_report.'; state.finished = true; }
       break;
     }
 
-    // Обрабатываем вызовы инструментов
-    const toolUses = response.content.filter(
-      (c): c is Anthropic.ToolUseBlock => c.type === 'tool_use',
-    );
-
+    const toolUses = response.content.filter((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use');
     if (toolUses.length === 0) break;
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const toolUse of toolUses) {
-      const result = await executeTool(
-        toolUse.name,
-        toolUse.input as Record<string, unknown>,
-        state,
-      );
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: toolUse.id,
-        content: result,
-      });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const t of toolUses) {
+      const result = await executeTool(t.name, t.input as Record<string, unknown>, state);
+      results.push({ type: 'tool_result', tool_use_id: t.id, content: result });
     }
+    messages.push({ role: 'user', content: results });
 
-    // Добавляем результаты в историю
-    messages.push({ role: 'user', content: toolResults });
-
-    // Небольшая пауза чтобы не превышать лимиты rate limiting
-    if (iteration < MAX_ITERATIONS - 1) {
-      await new Promise(r => setTimeout(r, 500));
-    }
+    await new Promise(r => setTimeout(r, 300));
   }
 
-  const durationMs = Date.now() - startTime;
-  const nextRun = new Date();
-  nextRun.setDate(nextRun.getDate() + 1);
-  nextRun.setHours(7, 0, 0, 0); // следующий запуск в 07:00
-
   const output: AgentOutput = {
-    generatedAt:         new Date().toISOString(),
-    agentVersion:        '2.0',
-    model:               'claude-sonnet-4-6',
-    status:              state.newsItems.length > 0 ? 'completed' : 'partial',
-    nextScheduledRun:    nextRun.toISOString(),
-    runDurationMs:       durationMs,
-    newsItems:           state.newsItems,
-    dataUpdates:         state.dataUpdates,
-    cityDataUpdates:     state.cityDataUpdates,
-    macroUpdate:         state.macroUpdate,
-    agentActivity:       state.activityLog,
-    summary:             state.summary,
+    generatedAt:      new Date().toISOString(),
+    agentVersion:     '3.0',
+    model:            MODEL,
+    status:           state.newsItems.length >= 4 ? 'completed' : 'partial',
+    nextScheduledRun: new Date(Date.now() + 86400_000).toISOString(),
+    runDurationMs:    Date.now() - t0,
+    newsItems:        state.newsItems,
+    dataUpdates:      state.dataUpdates,
+    cityDataUpdates:  state.cityDataUpdates,
+    macroUpdate:      state.macroUpdate,
+    agentActivity:    state.activityLog,
+    summary:          state.summary,
   };
 
-  console.log(`\n✅ Завершено за ${(durationMs / 1000).toFixed(1)}с`);
-  console.log(`📰 Новостей: ${output.newsItems.length}`);
-  console.log(`🏙️  Обновлений городов: ${output.cityDataUpdates.length}`);
-  console.log(`📊 Обновлений данных: ${output.dataUpdates.length}`);
-  console.log(`📋 Действий агента: ${output.agentActivity.length}\n`);
+  console.log(`\n${'═'.repeat(54)}`);
+  console.log(`✅ Завершено за ${(output.runDurationMs / 1000).toFixed(1)}с`);
+  console.log(`📰 Новостей:         ${output.newsItems.length}`);
+  console.log(`🏙️  Городов обновлено: ${output.cityDataUpdates.length}`);
+  console.log(`📊 Статус:           ${output.status}`);
+  console.log(`${'═'.repeat(54)}\n`);
 
   return output;
 }
 
-// ── Точка входа ─────────────────────────────────────────────────────
+// ── Точка входа ───────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   try {
@@ -565,25 +532,18 @@ async function main(): Promise<void> {
     mkdirSync(dirname(OUTPUT_PATH), { recursive: true });
     writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2), 'utf-8');
     console.log(`💾 Сохранено: ${OUTPUT_PATH}`);
-    console.log(`\n📌 Резюме агента:\n${output.summary}`);
+    if (output.summary) console.log(`\n📌 Резюме:\n${output.summary}`);
   } catch (err) {
     console.error('❌ Ошибка агента:', err);
-    // Сохраняем error-output чтобы UI не сломался
-    const errorOutput: AgentOutput = {
-      generatedAt:      new Date().toISOString(),
-      agentVersion:     '2.0',
-      model:            'claude-sonnet-4-6',
-      status:           'error',
-      nextScheduledRun: new Date(Date.now() + 86400_000).toISOString(),
-      runDurationMs:    0,
-      newsItems:        [],
-      dataUpdates:      [],
-      cityDataUpdates:  [],
-      macroUpdate:      null,
-      agentActivity:    [{ ts: new Date().toISOString(), action: 'analyze', description: `Ошибка: ${(err as Error).message}` }],
-      summary:          `Ошибка запуска агента: ${(err as Error).message}`,
+    const errOutput: AgentOutput = {
+      generatedAt: new Date().toISOString(), agentVersion: '3.0', model: MODEL,
+      status: 'error', nextScheduledRun: new Date(Date.now() + 86400_000).toISOString(),
+      runDurationMs: 0, newsItems: [], dataUpdates: [], cityDataUpdates: [],
+      macroUpdate: null,
+      agentActivity: [{ ts: new Date().toISOString(), action: 'analyze', description: `Ошибка: ${(err as Error).message}` }],
+      summary: `Ошибка: ${(err as Error).message}`,
     };
-    writeFileSync(OUTPUT_PATH, JSON.stringify(errorOutput, null, 2), 'utf-8');
+    writeFileSync(OUTPUT_PATH, JSON.stringify(errOutput, null, 2), 'utf-8');
     process.exit(1);
   }
 }

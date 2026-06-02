@@ -1,23 +1,19 @@
-name: LEVEL Platform — Daily AI Agent
+name: Daily Intelligence Agent
 
 on:
   schedule:
-    # 07:00 МСК = 04:00 UTC каждый день
-    - cron: '0 4 * * *'
+    - cron: '0 4 * * *'   # 07:00 МСК
   workflow_dispatch:
 
 jobs:
-  run-agent:
-    name: Запуск ИИ-агента мониторинга
+  agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
@@ -26,24 +22,32 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: Run AI Agent
+      - name: 📊 Обновить ставки
+        run: npm run fetch-cbr
+
+      - name: 🤖 Запустить агента
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npx tsx scripts/data-agent.ts
 
-      - name: Fetch latest rates
-        run: npm run fetch-cbr
-
-      - name: Rebuild bundle
+      - name: 📦 Собрать бандл
         run: npm run bundle
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: Commit & push
+      - name: 💾 Коммит и пуш
         run: |
           git config user.name  "LEVEL AI Agent"
           git config user.email "agent@level-platform.ai"
-          git add src/data/agent-output.json src/data/macro-cbr.json ui/app.js ui/engine.js
-          git diff --cached --quiet && echo "no changes" && exit 0
-          DATE=$(date '+%Y-%m-%d')
+          git add src/data/ ui/app.js ui/engine.js
+          git diff --cached --quiet && echo "⏭ Нет изменений" && exit 0
           NEWS=$(node -e "const d=require('./src/data/agent-output.json');process.stdout.write(String(d.newsItems?.length??0))")
-          git commit -m "🤖 AI Agent ${DATE} — ${NEWS} новостей"
+          CITIES=$(node -e "const d=require('./src/data/agent-output.json');process.stdout.write(String(d.cityDataUpdates?.length??0))")
+          git commit -m "🤖 $(date '+%Y-%m-%d') — ${NEWS} новостей, ${CITIES} городов"
           git push origin main
+
+      - name: 🚀 Деплой на Vercel
+        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
