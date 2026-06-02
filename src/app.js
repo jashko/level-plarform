@@ -3015,6 +3015,7 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
       React.createElement(RiskProfileCard, { city }),
     ),
     React.createElement(AffordabilityCard, { city }),
+    React.createElement(PriceForecastChart, { city, macroSnapshot: null }),
 
     // ── District CTA ────────────────────────────────────────────
     React.createElement(
@@ -4800,6 +4801,235 @@ const LOAD_STEPS = [
   { text: 'Построение инвестиционного рейтинга', src: 'ai' },
 ];
 
+// ═════════════════════════════════════════════════════════════════
+// ⌘K КОМАНДНАЯ ПАЛИТРА
+// ═════════════════════════════════════════════════════════════════
+
+function CommandPalette({ cities, onSelect, onClose }) {
+  const [query, setQuery] = React.useState('');
+  const inputRef = React.useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const results = query.trim() === ''
+    ? cities.slice(0, 8)
+    : cities.filter(c =>
+        c.name.toLowerCase().includes(query.toLowerCase()) ||
+        c.region.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8);
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', inset: 0, zIndex: 99999,
+      background: 'rgba(7,8,11,0.85)',
+      backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      paddingTop: '12vh',
+    },
+    onClick: onClose,
+  },
+    React.createElement('div', {
+      onClick: e => e.stopPropagation(),
+      style: {
+        width: '100%', maxWidth: 560,
+        background: T.surface,
+        border: `1px solid ${T.borderGold}`,
+        borderRadius: 14,
+        overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,169,110,0.08)',
+      },
+    },
+      // Input
+      React.createElement('div', {
+        style: {
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '14px 18px',
+          borderBottom: `1px solid ${T.border}`,
+        },
+      },
+        React.createElement('span', { style: { fontSize: 16, color: T.textMuted } }, '⌕'),
+        React.createElement('input', {
+          ref: inputRef,
+          value: query,
+          onChange: e => setQuery(e.target.value),
+          onKeyDown: e => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'Enter' && results.length > 0) { onSelect(results[0].key); onClose(); }
+          },
+          placeholder: 'Найти город…',
+          style: {
+            flex: 1, background: 'none', border: 'none', outline: 'none',
+            fontSize: 16, color: T.text, fontFamily: 'Inter, sans-serif',
+          },
+        }),
+        React.createElement('span', { style: { fontSize: 10, color: T.textMuted, background: T.surfaceRaise, padding: '2px 6px', borderRadius: 4 } }, 'ESC'),
+      ),
+
+      // Results
+      React.createElement('div', { style: { maxHeight: 360, overflowY: 'auto' } },
+        results.length === 0
+          ? React.createElement('div', { style: { padding: '24px', textAlign: 'center', color: T.textMuted, fontSize: 13 } }, 'Не найдено')
+          : results.map((c, i) => {
+              const z = ZONE[c.zone];
+              const sig = c.marketCycle ? ENTRY_SIGNAL_CONFIG[c.marketCycle.entrySignal] : null;
+              return React.createElement('div', {
+                key: c.key,
+                onClick: () => { onSelect(c.key); onClose(); },
+                style: {
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '12px 18px',
+                  cursor: 'pointer',
+                  borderBottom: i < results.length - 1 ? `1px solid ${T.border}` : 'none',
+                  background: i === 0 ? 'rgba(201,169,110,0.04)' : 'transparent',
+                  transition: 'background 0.1s',
+                },
+                onMouseEnter: e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)',
+                onMouseLeave: e => e.currentTarget.style.background = i === 0 ? 'rgba(201,169,110,0.04)' : 'transparent',
+              },
+                React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: z.fg, flexShrink: 0 } }),
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('div', { style: { fontSize: 14, color: T.text, fontWeight: 500 } }, c.name),
+                  React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 1 } }, c.region),
+                ),
+                React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                  React.createElement('span', { style: { fontSize: 11, color: z.fg, fontWeight: 700 } }, c.cityScore.toFixed(1)),
+                  sig && React.createElement('span', {
+                    style: { fontSize: 10, color: sig.color, background: sig.bg, padding: '2px 8px', borderRadius: 20, border: `1px solid ${sig.color}44` },
+                  }, sig.label),
+                  i === 0 && React.createElement('span', { style: { fontSize: 9, color: T.textMuted } }, '↵'),
+                ),
+              );
+            }),
+      ),
+
+      // Footer
+      React.createElement('div', {
+        style: { padding: '8px 18px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 16 },
+      },
+        ['↑↓ навигация', '↵ открыть', 'ESC закрыть'].map(h =>
+          React.createElement('span', { key: h, style: { fontSize: 9, color: T.textMuted } }, h),
+        ),
+      ),
+    ),
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 18-МЕСЯЧНЫЙ ПРОГНОЗ ЦЕН
+// ═════════════════════════════════════════════════════════════════
+
+function PriceForecastChart({ city, macroSnapshot }) {
+  const m = useIsMobile();
+  const basePrice = city.inputs.housing.businessClassPricePerM2;
+  const baseGrowth = city.inputs.housing.priceGrowthYoY / 100;
+  const ks = macroSnapshot?.keyRateAnnual ?? 14.5;
+
+  // Сценарный прогноз на 18 месяцев
+  // Базовый: текущий тренд сохраняется
+  // Оптимистичный: КС падает до 8% → +3-5% к YoY
+  // Стрессовый: КС растёт → тренд замедляется
+
+  const months = Array.from({ length: 19 }, (_, i) => i);
+  const today = new Date();
+
+  const scenarios = {
+    base:       { growth: baseGrowth * 0.9,  color: T.gold,   label: 'Базовый' },
+    optimistic: { growth: baseGrowth + 0.04, color: T.green,  label: 'КС→8%' },
+    stress:     { growth: Math.max(0, baseGrowth - 0.06), color: T.red, label: 'Стресс' },
+  };
+
+  // Рассчитываем цены
+  const series = Object.entries(scenarios).map(([key, s]) => ({
+    key, ...s,
+    prices: months.map(i => Math.round(basePrice * Math.pow(1 + s.growth / 12, i))),
+  }));
+
+  const allPrices = series.flatMap(s => s.prices);
+  const minP = Math.min(...allPrices) * 0.98;
+  const maxP = Math.max(...allPrices) * 1.02;
+  const W = 500, H = 120;
+
+  const toXY = (i, price) => [
+    (i / 18) * W,
+    H - ((price - minP) / (maxP - minP)) * H,
+  ];
+
+  const monthLabel = (i) => {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() + i);
+    return i % 3 === 0 ? `${d.toLocaleString('ru', { month: 'short' })} '${String(d.getFullYear()).slice(2)}` : '';
+  };
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 } },
+      React.createElement('div', null,
+        React.createElement(Label, null, 'Прогноз цены м² · 18 месяцев'),
+        React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 3 } }, 'Три сценария на основе траектории КС ЦБ РФ'),
+      ),
+      React.createElement('div', { style: { display: 'flex', gap: 14 } },
+        series.map(s =>
+          React.createElement('div', { key: s.key, style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: T.textMuted } },
+            React.createElement('div', { style: { width: 20, height: 2, background: s.color, borderRadius: 1 } }),
+            s.label,
+          ),
+        ),
+      ),
+    ),
+
+    React.createElement('svg', { viewBox: `0 0 ${W} ${H + 20}`, style: { width: '100%', overflow: 'visible' } },
+      // Сетка
+      [0, 33, 67, 100].map(pct =>
+        React.createElement('line', {
+          key: pct,
+          x1: 0, y1: (H * (1 - pct / 100)).toFixed(1),
+          x2: W, y2: (H * (1 - pct / 100)).toFixed(1),
+          stroke: 'rgba(255,255,255,0.04)', strokeWidth: 1,
+        }),
+      ),
+
+      // Вертикаль "сейчас"
+      React.createElement('line', { x1: 0, y1: 0, x2: 0, y2: H, stroke: T.gold, strokeWidth: 1.5, strokeDasharray: '4 3', opacity: 0.4 }),
+
+      // Линии сценариев
+      series.map(s =>
+        React.createElement('polyline', {
+          key: s.key,
+          points: months.map(i => toXY(i, s.prices[i]).join(',')).join(' '),
+          fill: 'none', stroke: s.color, strokeWidth: s.key === 'base' ? 2 : 1.5,
+          strokeDasharray: s.key === 'stress' ? '5 3' : s.key === 'optimistic' ? '0' : '0',
+          opacity: s.key === 'base' ? 0.9 : 0.6,
+        }),
+      ),
+
+      // Последние цены (маркеры)
+      series.map(s => {
+        const [x, y] = toXY(18, s.prices[18]);
+        return React.createElement('g', { key: `end-${s.key}` },
+          React.createElement('circle', { cx: x, cy: y, r: 3, fill: s.color }),
+          React.createElement('text', {
+            x: x + 6, y: y + 4,
+            fontSize: 9, fill: s.color, fontFamily: 'Inter',
+            style: { fontVariantNumeric: 'tabular-nums' },
+          }, `${Math.round(s.prices[18] / 1000)}тыс`),
+        );
+      }),
+
+      // Подписи месяцев
+      months.filter(i => i % 3 === 0).map(i => {
+        const [x] = toXY(i, minP);
+        return React.createElement('text', {
+          key: `lbl-${i}`, x, y: H + 16,
+          fontSize: 8.5, fill: T.textMuted, textAnchor: 'middle', fontFamily: 'Inter',
+        }, monthLabel(i));
+      }),
+    ),
+  );
+}
+
 function LoadingScreen() {
   const [doneCount, setDoneCount] = useState(0);
   useEffect(() => {
@@ -4880,9 +5110,23 @@ function App() {
   const [error,    setError]    = useState(null);
   const [screen,   setScreen]   = useState({ name: 'main' });
   const [toast,    setToast]    = useState(null);
+  const [cmdOpen,  setCmdOpen]  = useState(false);
   const m = useIsMobile();
 
   const showToast = (message, type = 'info') => setToast({ message, type, id: Date.now() });
+
+  // ⌘K / Ctrl+K — открыть командную палитру
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdOpen(o => !o);
+      }
+      if (e.key === 'Escape') setCmdOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   useEffect(() => {
     buildCityRanking()
@@ -4971,6 +5215,13 @@ function App() {
     'div',
     { style: { minHeight: '100vh', background: T.bg } },
 
+    // Командная палитра
+    cmdOpen && ranking && React.createElement(CommandPalette, {
+      cities: ranking.cities,
+      onSelect: (key) => setScreen({ name: 'city', cityKey: key }),
+      onClose: () => setCmdOpen(false),
+    }),
+
     // Global Toast notification
     toast && React.createElement(Toast, { key: toast.id, message: toast.message, type: toast.type, onClose: () => setToast(null) }),
 
@@ -5050,6 +5301,22 @@ function App() {
               transition: 'color 0.15s',
             },
           }, 'Мониторинг'),
+          !m && React.createElement('button', {
+            onClick: () => setCmdOpen(true),
+            style: {
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 11, color: T.textMuted, cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif',
+              padding: '5px 12px', borderRadius: 20,
+              background: T.surfaceRaise, border: `1px solid ${T.border}`,
+              transition: 'all 0.15s',
+            },
+          },
+            React.createElement('span', null, 'Поиск'),
+            React.createElement('span', {
+              style: { fontSize: 9, background: T.bg, padding: '1px 5px', borderRadius: 4, color: T.textMuted },
+            }, '⌘K'),
+          ),
           !m && React.createElement('div', {
             style: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 20, background: 'rgba(91,191,138,0.07)', border: '1px solid rgba(91,191,138,0.18)' },
           },
