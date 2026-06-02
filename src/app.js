@@ -554,6 +554,56 @@ function MacroMetric({ label, value, gold, hint, sub }) {
   );
 }
 
+// ── UTC-офсеты городов ────────────────────────────────────────────
+const CITY_UTC_OFFSET = {
+  novosibirsk:   7,
+  yekaterinburg: 5,
+  kazan:         3,
+  nizhny:        3,
+  chelyabinsk:   5,
+  samara:        4,
+  ufa:           5,
+  rostov:        3,
+  omsk:          6,
+  krasnodar:     3,
+  voronezh:      3,
+  volgograd:     3,
+  perm:          5,
+  krasnoyarsk:   7,
+};
+
+// ── Солнечный терминатор ──────────────────────────────────────────
+function getSolarData(now) {
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86_400_000);
+  const decl = -23.45 * Math.cos((2 * Math.PI / 365) * (dayOfYear + 10)) * Math.PI / 180;
+  const utcH = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+  const subSolarLng = (12 - utcH) * 15;
+  return { decl, subSolarLng };
+}
+
+function getSolarElevation(lat, lng, decl, subSolarLng) {
+  const ha = (lng - subSolarLng) * Math.PI / 180;
+  const latR = lat * Math.PI / 180;
+  return Math.sin(latR) * Math.sin(decl) + Math.cos(latR) * Math.cos(decl) * Math.cos(ha);
+}
+
+// hook — текущее время, обновляется каждые 30 сек
+function useNow() {
+  const [now, setNow] = React.useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+function fmtLocalTime(now, utcOffset) {
+  const ms = now.getTime() + (utcOffset * 3600_000) + (now.getTimezoneOffset() * 60_000);
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 // Уральские горы (разделитель Европа/Азия)
 const URAL_LINE = [[60.5,54],[59.5,57],[58.5,60],[58.0,62],[57.5,65],[56.5,67.5],[55.0,68.2]];
 
@@ -561,6 +611,8 @@ function RussiaMap({ cities, onCityClick }) {
   // Загружаем реальные данные Natural Earth 110m через TopoJSON
   const [geoPolys, setGeoPolys] = React.useState(null);
   const [loading,  setLoading]  = React.useState(true);
+  const now = useNow();
+  const { decl, subSolarLng } = getSolarData(now);
 
   useEffect(() => {
     fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -700,37 +752,110 @@ function RussiaMap({ cities, onCityClick }) {
         return React.createElement('text', { x, y, fontSize: 8, fill: 'rgba(255,255,255,0.3)', fontFamily: 'Inter', transform: `rotate(-80,${x},${y})` }, 'УРАЛ');
       })(),
 
+      // ── Ночной оверлей (терминатор) ───────────────────────────
+      React.createElement('defs', null,
+        React.createElement('linearGradient', { id: 'nightGrad', x1: '0%', y1: '0%', x2: '100%', y2: '0%' },
+          React.createElement('stop', { offset: '0%',   stopColor: '#000010', stopOpacity: 0.0 }),
+          React.createElement('stop', { offset: '100%', stopColor: '#000010', stopOpacity: 0.0 }),
+        ),
+        // Маска для ночной части — сетка точек по карте
+        React.createElement('filter', { id: 'nightBlur' },
+          React.createElement('feGaussianBlur', { stdDeviation: '8' }),
+        ),
+      ),
+      // Рисуем ночную затемнённость: для каждой ячейки сетки проверяем день/ночь
+      ...(() => {
+        const nightRects = [];
+        const cellW = 28, cellH = 22;
+        for (let gx = 0; gx < W; gx += cellW) {
+          for (let gy = 0; gy < H; gy += cellH) {
+            // Обратная проекция: пиксель → lng/lat
+            const lng = minLng + (gx / W) * (maxLng - minLng);
+            const lat = minLat + ((H - gy) / H) * (maxLat - minLat);
+            const elev = getSolarElevation(lat, lng, decl, subSolarLng);
+            if (elev < 0.08) {
+              const alpha = elev < -0.1 ? 0.52 : 0.52 * (1 - (elev + 0.1) / 0.18);
+              nightRects.push(React.createElement('rect', {
+                key: `n${gx}-${gy}`,
+                x: gx, y: gy, width: cellW + 1, height: cellH + 1,
+                fill: `rgba(0,2,20,${alpha.toFixed(2)})`,
+              }));
+            }
+          }
+        }
+        return nightRects;
+      })(),
+
+      // Линия терминатора (граница день/ночь)
+      ...(() => {
+        const pts = [];
+        for (let lat = 80; lat >= -80; lat--) {
+          const latR = lat * Math.PI / 180;
+          const cosHA = -Math.tan(latR) * Math.tan(decl);
+          if (Math.abs(cosHA) > 1) continue;
+          const HA = Math.acos(cosHA) * 180 / Math.PI;
+          const [x1, y1] = proj(subSolarLng - HA, lat);
+          const [x2, y2] = proj(subSolarLng + HA, lat);
+          if (x1 > 0 && x1 < W) pts.push([x1, y1]);
+          if (x2 > 0 && x2 < W) pts.push([x2, y2]);
+        }
+        if (pts.length < 2) return [];
+        return [React.createElement('polyline', {
+          key: 'terminator',
+          points: pts.slice(0, 80).map(p => p.join(',')).join(' '),
+          fill: 'none',
+          stroke: 'rgba(255,220,100,0.25)',
+          strokeWidth: 1.5,
+          strokeDasharray: '4 3',
+        })];
+      })(),
+
       // ── Маркеры городов ───────────────────────────────────────
       ...cities.map((c, idx) => {
         const [x, y] = proj(c.coordinates.lng, c.coordinates.lat);
         const z = ZONE[c.zone];
         const r = 4 + (c.cityScore / 100) * 8;
         const delay = `${(idx * 0.18) % 2.5}s`;
+        const utcOffset = CITY_UTC_OFFSET[c.key] ?? 3;
+        const localTime = fmtLocalTime(now, utcOffset);
+        const elev = getSolarElevation(c.coordinates.lat, c.coordinates.lng, decl, subSolarLng);
+        const isNight = elev < -0.05;
+        const isTwilight = !isNight && elev < 0.12;
+        const timeIcon = isNight ? '🌙' : isTwilight ? '🌅' : '☀';
+
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
-          // Пульс 1 — широкое кольцо, расширяется и исчезает
+          // Пульс 1 — широкое кольцо
           React.createElement('circle', {
             cx: x, cy: y, r: r + 16, fill: 'none', stroke: z.fg, strokeWidth: 1.5,
             className: 'city-pulse-ring',
-            style: { animationDelay: delay },
+            style: { animationDelay: delay, opacity: isNight ? 0.5 : 1 },
           }),
-          // Пульс 2 — второе кольцо со смещением фазы
+          // Пульс 2
           React.createElement('circle', {
             cx: x, cy: y, r: r + 10, fill: z.fg,
             className: 'city-pulse-glow',
             style: { animationDelay: `calc(${delay} + 0.4s)` },
           }),
           // Статичный ореол
-          React.createElement('circle', { cx: x, cy: y, r: r + 4, fill: z.fg, opacity: 0.12 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 4, fill: z.fg, opacity: isNight ? 0.06 : 0.12 }),
           // Основная точка
-          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: 0.92 }),
+          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: isNight ? 0.55 : 0.92 }),
           React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 1, opacity: 0.5 }),
+          // Название
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
-            fill: 'rgba(237,236,234,0.85)',
+            fill: isNight ? 'rgba(237,236,234,0.45)' : 'rgba(237,236,234,0.88)',
             style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif' },
           }, c.name),
-          React.createElement('title', null, `${c.name}: ${c.cityScore.toFixed(1)}`),
+          // Местное время
+          React.createElement('text', {
+            x, y: y + r + 25,
+            textAnchor: 'middle', fontSize: 8.5,
+            fill: isNight ? 'rgba(150,170,255,0.7)' : isTwilight ? 'rgba(255,200,100,0.8)' : 'rgba(255,230,100,0.7)',
+            style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif', fontVariantNumeric: 'tabular-nums' },
+          }, `${timeIcon} ${localTime}`),
+          React.createElement('title', null, `${c.name} · ${localTime} (UTC+${utcOffset}) · ${isNight ? 'Ночь' : isTwilight ? 'Сумерки' : 'День'}`),
         );
       }),
     ),
