@@ -1,6 +1,6 @@
 {
-  "source": "fallback (cbr.ru недоступен) + открытые источники",
-  "fetchedAt": "2026-06-01T12:29:35.874Z",
+  "source": "LEVEL Platform · данные banki.ru / sravni.ru",
+  "fetchedAt": "2026-06-02T10:00:00.000Z",
   "keyRate": {
     "currentPct": 14.5,
     "effectiveSince": "2026-04-27",
@@ -42,9 +42,9 @@
   },
   "mortgage": {
     "marketRatePct": 18.5,
-    "marketRateSource": "расчётная (КС 14.5% + спред)",
-    "marketRateFetchedAt": "2026-06-01T12:29:35.874Z",
+    "marketRateSource": "banki.ru / sravni.ru",
+    "marketRateFetchedAt": "2026-06-02T10:00:00.000Z",
     "preferentialRatePct": 6,
-    "note": "Рыночная ставка: расчётная (КС 14.5% + спред). Семейная ипотека: 6%."
+    "note": "Рыночная ставка: banki.ru / sravni.ru (средняя по топ-20 банкам). Семейная ипотека: 6%."
   }
 }

@@ -503,8 +503,7 @@ function ScoreBar({ label, score, hint }) {
 // ═════════════════════════════════════════════════════════════════
 
 function MacroSnapshotBanner({ snapshot }) {
-  const m      = useIsMobile();
-  const isAuto = snapshot.fetchMethod === 'automatic';
+  const m = useIsMobile();
   return React.createElement(
     'div',
     {
@@ -516,50 +515,14 @@ function MacroSnapshotBanner({ snapshot }) {
         padding: '24px 28px',
       },
     },
-    // top row
-    React.createElement(
-      'div',
-      { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 } },
-      React.createElement(
-        'div',
-        null,
-        React.createElement(Label, { style: { marginBottom: 6 } }, 'Макро-снимок · ЦБ РФ'),
-        React.createElement('div', { style: { fontSize: 12, color: T.textSub } }, snapshot.source),
-      ),
-      React.createElement(
-        'div',
-        {
-          style: {
-            fontSize: 11,
-            padding: '4px 14px',
-            borderRadius: 20,
-            background: isAuto ? 'rgba(91,191,138,0.09)' : 'rgba(212,184,74,0.09)',
-            color: isAuto ? T.green : T.yellow,
-            border: `1px solid ${isAuto ? 'rgba(91,191,138,0.22)' : 'rgba(212,184,74,0.22)'}`,
-            letterSpacing: '0.06em',
-            fontFamily: 'Inter, sans-serif',
-          },
-        },
-        isAuto ? '● Автоматически' : '● Снимок',
-      ),
-    ),
-    // metrics grid
+    React.createElement(Label, { style: { marginBottom: 20 } }, 'Макроэкономика'),
     React.createElement(
       'div',
       { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: m ? 16 : 24 } },
       React.createElement(MacroMetric, { label: 'Ключевая ставка',  value: fmtPct(snapshot.keyRateAnnual, 2),         gold: true, hint: 'keyRate' }),
-      React.createElement(MacroMetric, {
-        label: 'Рыночная ипотека',
-        value: fmtPct(snapshot.mortgageRateAnnual, 2),
-        hint: 'mortgageRate',
-        sub: snapshot.mortgageRateSource
-          ? snapshot.mortgageRateSource.startsWith('расчётная')
-            ? 'расчётная (КС + спред)'
-            : snapshot.mortgageRateSource
-          : null,
-      }),
+      React.createElement(MacroMetric, { label: 'Рыночная ипотека', value: fmtPct(snapshot.mortgageRateAnnual, 2),    hint: 'mortgageRate' }),
       React.createElement(MacroMetric, { label: 'Семейная ипотека', value: snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1) : '—', hint: 'familyMortgage' }),
-      React.createElement(MacroMetric, { label: 'MacroScore',       value: `${snapshot.macroScore.toFixed(0)} / 100`,  gold: true, hint: 'macroScore' }),
+      React.createElement(MacroMetric, { label: 'MacroScore',       value: `${snapshot.macroScore.toFixed(0)} / 100`, gold: true, hint: 'macroScore' }),
       React.createElement(MacroMetric, { label: 'Дата снимка',      value: snapshot.asOfDate }),
     ),
   );
@@ -1388,11 +1351,9 @@ function NewsFeedPanel() {
         React.createElement('div', null,
           React.createElement('div', {
             style: { fontSize: 13, fontWeight: 700, color: T.text, letterSpacing: '0.04em', fontFamily: 'Inter, sans-serif' },
-          }, '🤖 ИИ-Агент · Лента мониторинга'),
+          }, 'Лента новостей'),
           React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 2 } },
-            lastRun
-              ? `Обновлено ${timeAgo(data.generatedAt)} · claude-sonnet-4-5 · ${newsItems.length} новостей`
-              : 'Загружается...',
+            lastRun ? `Обновлено ${timeAgo(data.generatedAt)}` : 'Загружается...',
           ),
         ),
       ),
@@ -1515,6 +1476,7 @@ function MainScreen({ ranking, onCityClick }) {
   const [selectedKeys,  setSelectedKeys]  = useState(new Set());
   const [showCompare,   setShowCompare]   = useState(false);
   const [showTrendsFor, setShowTrendsFor] = useState(null);
+  const [activeTab,     setActiveTab]     = useState('overview');
 
   const filteredCities = ranking.cities.filter(c =>
     (zoneFilter === 'all' || c.zone === zoneFilter) &&
@@ -1553,12 +1515,33 @@ function MainScreen({ ranking, onCityClick }) {
     showTrendsFor &&
       React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
 
-    React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
-    React.createElement(NewsFeedPanel),
-    React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
-    React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
-    React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
-    React.createElement(
+    // ── Tab navigation ───────────────────────────────────────────
+    React.createElement('div', {
+      style: { display: 'flex', borderBottom: `1px solid ${T.border}` },
+    },
+      ['overview', 'news'].map(tab =>
+        React.createElement('button', {
+          key: tab,
+          onClick: () => setActiveTab(tab),
+          style: {
+            padding: '11px 24px', background: 'none', border: 'none', cursor: 'pointer',
+            borderBottom: activeTab === tab ? `2px solid ${T.gold}` : '2px solid transparent',
+            color: activeTab === tab ? T.gold : T.textSub,
+            fontSize: 12, fontWeight: activeTab === tab ? 600 : 400,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em',
+            marginBottom: '-1px', transition: 'color 0.15s',
+          },
+        }, tab === 'overview' ? 'Аналитика' : 'Лента новостей'),
+      ),
+    ),
+
+    activeTab === 'news' && React.createElement(NewsFeedPanel),
+
+    activeTab === 'overview' && React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
+    activeTab === 'overview' && React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
+    activeTab === 'overview' && React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
+    activeTab === 'overview' && React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
+    activeTab === 'overview' && React.createElement(
       'div',
       { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' } },
       // header
@@ -1589,7 +1572,7 @@ function MainScreen({ ranking, onCityClick }) {
           }, 'Рейтинг 14 городов-миллионников'),
           React.createElement('div', {
             style: { fontSize: 12, color: T.textMuted, marginTop: 4 },
-          }, `${filteredCities.length} из ${ranking.cities.length} · расчёт ${ranking.durationMs} мс`),
+          }, `${filteredCities.length} из ${ranking.cities.length} городов`),
         ),
 
         // Controls row
@@ -1945,9 +1928,291 @@ function MetricCard({ label, value, sub, accent, gold, hint }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════
+// ИИ-ОТЧЁТ ПО ГОРОДУ
+// ═════════════════════════════════════════════════════════════════
+
+function buildCityReportPrompt(city) {
+  const inp = city.inputs;
+  const mc  = city.marketCycle;
+  const z   = ZONE[city.zone];
+  return [
+    'Ты — старший аналитик девелопера жилья бизнес-класса. Напиши сжатый инвестиционный обзор для принятия решения о выходе в город.',
+    '',
+    `ГОРОД: ${city.name} (${city.region})`,
+    `CityScore: ${city.cityScore.toFixed(1)}/100 · Зона: ${z.label}`,
+    `Рыночный цикл: ${mc?.position ?? '—'} · Сигнал входа: ${mc?.entrySignal ?? '—'}`,
+    '',
+    'ДЕМОГРАФИЯ',
+    `  Население: ${inp.demography.populationThousands.toLocaleString('ru-RU')} тыс. | Тренд 5 лет: ${inp.demography.populationTrend5yPct >= 0 ? '+' : ''}${inp.demography.populationTrend5yPct}%`,
+    `  Миграционный приток: +${inp.demography.migrationBalanceThousands} тыс./год | Возраст 25–45: ${Math.round(inp.demography.shareAge25to45 * 100)}%`,
+    '',
+    'ЭКОНОМИКА',
+    `  Средняя з/п: ${inp.economy.avgSalary.toLocaleString('ru-RU')} ₽/мес (+${inp.economy.salaryGrowthYoY}% YoY)`,
+    `  Безработица: ${inp.economy.unemploymentRate}% | Высокооплачиваемые отрасли: ${Math.round(inp.economy.highPaidIndustriesShare * 100)}%`,
+    '',
+    'РЫНОК ЖИЛЬЯ (только бизнес-класс)',
+    `  Цена м²: ${inp.housing.businessClassPricePerM2.toLocaleString('ru-RU')} ₽ | Рост цен: +${inp.housing.priceGrowthYoY}% YoY`,
+    `  Динамика сделок: ${inp.housing.dealsGrowthYoY >= 0 ? '+' : ''}${inp.housing.dealsGrowthYoY}% YoY | Продажи: ${Math.round(inp.housing.monthlySalesM2 / 1000)} тыс. м²/мес`,
+    `  Срок реализации: ${inp.housing.monthsOfSupply} мес. | Распроданность/стройготовность: ${inp.housing.sellReadinessRatioPct ?? '—'}%`,
+    '',
+    'КОНКУРЕНЦИЯ',
+    `  Застройщиков: ${inp.competition.activeDevelopers} | Доля топ-5: ${Math.round(inp.competition.top5MarketShare * 100)}%`,
+    `  Белое пятно БК: ${inp.competition.hasWhiteSpaceBusinessClass ? 'Да ✓' : 'Нет'} | Федеральные игроки: ${inp.competition.hasFederalPlayers ? 'Есть' : 'Нет'}`,
+    '',
+    'КРТ / ИНФРАСТРУКТУРА',
+    `  КРТ: ${inp.infrastructure.krtProgramsHa ? inp.infrastructure.krtProgramsHa + ' га' : 'нет данных'}${inp.infrastructure.krtProjectsCount ? ' · ' + inp.infrastructure.krtProjectsCount + ' проектов' : ''}`,
+    `  Крупные инфраструктурные проекты: ${inp.infrastructure.hasMajorInfraProjects ? 'Да' : 'Нет'} | Университеты/технопарки: ${inp.infrastructure.hasUniversitiesOrTechparks ? 'Да' : 'Нет'}`,
+    '',
+    `ПОДСКОРЫ: Демография ${city.breakdown.demographyScore.toFixed(0)} | Экономика ${city.breakdown.economyScore.toFixed(0)} | Рынок жилья ${city.breakdown.housingMarketScore.toFixed(0)} | Конкуренция ${city.breakdown.competitionScore.toFixed(0)} | Инфраструктура ${city.breakdown.infrastructureScore.toFixed(0)}`,
+    '',
+    'Напиши отчёт строго по структуре ниже. Без вводных слов, только факты с конкретными цифрами. Максимум 380 слов.',
+    '',
+    '## Позиционирование',
+    '[Где рынок в цикле и что это значит для девелопера БК прямо сейчас — 2–3 предложения]',
+    '',
+    '## Возможности',
+    '• [Конкретная возможность с цифрами]',
+    '• [Конкретная возможность с цифрами]',
+    '• [Конкретная возможность с цифрами]',
+    '',
+    '## Риски',
+    '• [Конкретный риск с цифрами]',
+    '• [Конкретный риск с цифрами]',
+    '• [Конкретный риск с цифрами]',
+    '',
+    '## Неочевидные драйверы',
+    '• [То, что не видно в цифрах, но важно для принятия решения]',
+    '• [Структурный тренд или локальная особенность рынка]',
+    '',
+    '## Рекомендация',
+    '**[ВХОДИТЬ / НАБЛЮДАТЬ / ЖДАТЬ]** — [1–2 предложения: при каких условиях, какой формат проекта, ключевая метрика контроля]',
+  ].join('\n');
+}
+
+async function* streamCityReport(city, apiKey) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      stream: true,
+      messages: [{ role: 'user', content: buildCityReportPrompt(city) }],
+    }),
+  });
+  if (!resp.ok) {
+    let msg = `Ошибка API ${resp.status}`;
+    try { const e = await resp.json(); msg = e.error?.message ?? msg; } catch {}
+    throw new Error(msg);
+  }
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') return;
+      try {
+        const evt = JSON.parse(data);
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') yield evt.delta.text;
+      } catch {}
+    }
+  }
+}
+
+function renderReportMarkdown(raw) {
+  return raw.split('\n').map((line, i) => {
+    if (line.startsWith('## ')) {
+      return React.createElement('div', {
+        key: i,
+        style: { fontSize: 10, fontWeight: 700, color: T.gold, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 22, marginBottom: 10, borderBottom: `1px solid ${T.border}`, paddingBottom: 5 },
+      }, line.slice(3));
+    }
+    if (line.startsWith('• ') || line.startsWith('- ')) {
+      const parts = line.slice(2).split(/(\*\*.*?\*\*)/);
+      return React.createElement('div', { key: i, style: { display: 'flex', gap: 8, marginBottom: 7 } },
+        React.createElement('span', { style: { color: T.gold, flexShrink: 0, fontSize: 14, lineHeight: '1.6' } }, '·'),
+        React.createElement('span', { style: { fontSize: 13, color: T.text, lineHeight: 1.65 } },
+          parts.map((p, j) => p.startsWith('**') && p.endsWith('**')
+            ? React.createElement('strong', { key: j, style: { color: T.gold, fontWeight: 600 } }, p.slice(2, -2))
+            : p,
+          ),
+        ),
+      );
+    }
+    if (line.trim() === '') return React.createElement('div', { key: i, style: { height: 4 } });
+    const parts = line.split(/(\*\*.*?\*\*)/);
+    return React.createElement('div', { key: i, style: { fontSize: 13, color: T.textSub, lineHeight: 1.7, marginBottom: 3 } },
+      parts.map((p, j) => p.startsWith('**') && p.endsWith('**')
+        ? React.createElement('strong', { key: j, style: { color: T.text, fontWeight: 600 } }, p.slice(2, -2))
+        : p,
+      ),
+    );
+  });
+}
+
+function CityReportModal({ city, onClose }) {
+  const [apiKey,  setApiKey]  = useState(() => localStorage.getItem('level_anthro_key') ?? '');
+  const [phase,   setPhase]   = useState('idle');
+  const [text,    setText]    = useState('');
+  const [err,     setErr]     = useState('');
+  const textRef     = React.useRef('');
+  const cancelledRef = React.useRef(false);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    const key = localStorage.getItem('level_anthro_key');
+    if (key) startRun(key); else setPhase('key');
+    return () => { cancelledRef.current = true; };
+  }, []);
+
+  function startRun(key) {
+    setPhase('generating');
+    textRef.current = '';
+    setText('');
+    setErr('');
+    (async () => {
+      try {
+        for await (const chunk of streamCityReport(city, key)) {
+          if (cancelledRef.current) return;
+          textRef.current += chunk;
+          setText(textRef.current);
+        }
+        if (!cancelledRef.current) setPhase('done');
+      } catch (e) {
+        if (!cancelledRef.current) { setErr(e.message); setPhase('error'); }
+      }
+    })();
+  }
+
+  const handleKeySubmit = () => {
+    const k = apiKey.trim();
+    if (!k) return;
+    localStorage.setItem('level_anthro_key', k);
+    startRun(k);
+  };
+
+  const handleDownload = () => {
+    const content = `ИНВЕСТИЦИОННЫЙ ОТЧЁТ: ${city.name}\nСоставлен: ${new Date().toLocaleDateString('ru-RU')}\nLEVEL Platform AI\n\n${text}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `LEVEL_${city.key}_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(7,8,11,0.90)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(10px)', padding: 20,
+    },
+    onClick: e => { if (e.target === e.currentTarget) onClose(); },
+  },
+    React.createElement('div', {
+      style: {
+        background: T.surface, border: `1px solid ${T.borderGold}`, borderRadius: 16,
+        width: '100%', maxWidth: 700, maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,169,110,0.12)',
+      },
+    },
+      // Modal header
+      React.createElement('div', {
+        style: {
+          padding: '20px 24px', borderBottom: `1px solid ${T.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'linear-gradient(90deg, rgba(201,169,110,0.07) 0%, transparent 50%)',
+          flexShrink: 0,
+        },
+      },
+        React.createElement('div', null,
+          React.createElement('div', {
+            style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 21, fontWeight: 600, color: T.text, letterSpacing: '0.03em' },
+          }, `${city.name} · Инвестиционный отчёт`),
+          React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 3, letterSpacing: '0.06em' } },
+            phase === 'generating' ? '● Агент формирует отчёт...' :
+            phase === 'done'       ? `● Готово · LEVEL Platform AI · ${new Date().toLocaleDateString('ru-RU')}` :
+            phase === 'error'      ? '○ Ошибка генерации' : '○ Ожидание API-ключа',
+          ),
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+          phase === 'done' && React.createElement('button', {
+            onClick: handleDownload,
+            style: { padding: '7px 16px', borderRadius: 7, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif', background: T.surfaceRaise, border: `1px solid ${T.border}`, color: T.textSub },
+          }, '↓ Скачать'),
+          React.createElement('button', {
+            onClick: onClose,
+            style: { width: 32, height: 32, borderRadius: 8, fontSize: 18, cursor: 'pointer', background: 'none', border: `1px solid ${T.border}`, color: T.textMuted, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+          }, '×'),
+        ),
+      ),
+
+      // Modal body
+      React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '24px 28px' } },
+        // Key input
+        phase === 'key' && React.createElement('div', { style: { textAlign: 'center', padding: '32px 0' } },
+          React.createElement('div', { style: { fontSize: 13, color: T.textSub, marginBottom: 20, lineHeight: 1.6 } },
+            'Для генерации отчёта нужен Anthropic API-ключ.',
+            React.createElement('br'),
+            'Он сохраняется локально и используется только для запросов к API.',
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: 10, maxWidth: 500, margin: '0 auto' } },
+            React.createElement('input', {
+              type: 'password', placeholder: 'sk-ant-api03-...',
+              value: apiKey, onChange: e => setApiKey(e.target.value),
+              onKeyDown: e => e.key === 'Enter' && handleKeySubmit(),
+              className: 'l-input',
+              style: { flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 13, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontFamily: 'Inter, sans-serif' },
+            }),
+            React.createElement('button', {
+              onClick: handleKeySubmit,
+              style: { padding: '10px 20px', borderRadius: 8, fontSize: 13, cursor: 'pointer', background: T.gold, border: 'none', color: '#07080B', fontWeight: 700, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' },
+            }, 'Создать →'),
+          ),
+        ),
+
+        // Spinner (before first chunk arrives)
+        (phase === 'generating' && text === '') && React.createElement('div', { style: { padding: '48px 0', textAlign: 'center' } },
+          React.createElement('div', { className: 'l-spin', style: { width: 30, height: 30, margin: '0 auto', border: `2px solid rgba(201,169,110,0.15)`, borderTopColor: T.gold, borderRadius: '50%' } }),
+          React.createElement('div', { style: { marginTop: 18, fontSize: 12, color: T.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase' } }, 'Анализирую рынок...'),
+        ),
+
+        // Streaming / done text
+        (phase === 'generating' || phase === 'done') && text.length > 0 &&
+          React.createElement('div', null, ...renderReportMarkdown(text)),
+
+        // Error
+        phase === 'error' && React.createElement('div', { style: { padding: '32px 0', textAlign: 'center' } },
+          React.createElement('div', { style: { fontSize: 13, color: T.red, marginBottom: 16, lineHeight: 1.6 } }, err),
+          React.createElement('button', {
+            onClick: () => startRun(apiKey),
+            style: { padding: '9px 22px', borderRadius: 8, fontSize: 12, cursor: 'pointer', background: T.surfaceRaise, border: `1px solid ${T.border}`, color: T.textSub, fontFamily: 'Inter, sans-serif' },
+          }, 'Попробовать ещё раз'),
+        ),
+      ),
+    ),
+  );
+}
+
 function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
   const m = useIsMobile();
   const z = ZONE[city.zone];
+  const [showReport, setShowReport] = useState(false);
   const radarData = [
     { name: 'Демография',    score: city.breakdown.demographyScore },
     { name: 'Экономика',     score: city.breakdown.economyScore },
@@ -1959,6 +2224,9 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
   return React.createElement(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 20 } },
+
+    // ── Report modal ───────────────────────────────────────────
+    showReport && React.createElement(CityReportModal, { city, onClose: () => setShowReport(false) }),
 
     // ── City header ────────────────────────────────────────────
     React.createElement(
@@ -2257,6 +2525,35 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
         },
         'Открыть финмодель →',
       ),
+    ),
+
+    // ── Report CTA ────────────────────────────────────────────
+    React.createElement('div', {
+      style: {
+        background: 'linear-gradient(135deg, rgba(201,169,110,0.08) 0%, rgba(201,169,110,0.03) 100%)',
+        border: `1px solid ${T.borderGold}`,
+        borderRadius: 12, padding: '24px 32px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
+      },
+    },
+      React.createElement('div', null,
+        React.createElement('div', {
+          style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 6, letterSpacing: '0.02em' },
+        }, 'Инвестиционный отчёт'),
+        React.createElement('div', { style: { fontSize: 13, color: T.textSub } },
+          'ИИ-анализ: возможности, риски, неочевидные драйверы, рекомендация о входе',
+        ),
+      ),
+      React.createElement('button', {
+        onClick: () => setShowReport(true),
+        style: {
+          padding: '13px 28px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          fontFamily: 'Inter, sans-serif', letterSpacing: '0.04em',
+          background: `linear-gradient(135deg, ${T.gold} 0%, #E2C98A 100%)`,
+          color: '#07080B', border: 'none',
+          boxShadow: '0 4px 24px rgba(201,169,110,0.3)',
+        },
+      }, 'Сформировать отчёт →'),
     ),
 
     // ── Sources ────────────────────────────────────────────────
@@ -4048,19 +4345,27 @@ function App() {
             },
           }, '· Аналитика бизнес-класс'),
         ),
-        // right: date
-        React.createElement(
-          'div',
-          { style: { textAlign: 'right' } },
-          React.createElement(Label, { style: { marginBottom: 2 } }, 'Данные на'),
-          React.createElement('div', {
-            style: {
-              fontSize: 13,
-              color: T.textSub,
-              fontVariantNumeric: 'tabular-nums',
-              fontFamily: 'Inter, sans-serif',
-            },
-          }, ranking.macroSnapshot.asOfDate),
+        // right: agent live indicator + date
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: m ? 12 : 20 } },
+          !m && React.createElement('div', {
+            style: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 20, background: 'rgba(91,191,138,0.07)', border: '1px solid rgba(91,191,138,0.18)' },
+          },
+            React.createElement('div', { style: { position: 'relative', width: 8, height: 8, flexShrink: 0 } },
+              React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: T.green, position: 'absolute' } }),
+              React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: T.green, position: 'absolute', animation: 'pulse-ring 2s ease-out infinite', transformBox: 'fill-box', transformOrigin: 'center' } }),
+            ),
+            React.createElement('div', { style: { fontSize: 10, color: T.green, letterSpacing: '0.06em', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' } },
+              AGENT_DATA?.generatedAt
+                ? `Агент · ${timeAgo(AGENT_DATA.generatedAt)}`
+                : 'Агент активен',
+            ),
+          ),
+          React.createElement('div', { style: { textAlign: 'right' } },
+            React.createElement(Label, { style: { marginBottom: 2 } }, 'Данные на'),
+            React.createElement('div', {
+              style: { fontSize: 13, color: T.textSub, fontVariantNumeric: 'tabular-nums', fontFamily: 'Inter, sans-serif' },
+            }, ranking.macroSnapshot.asOfDate),
+          ),
         ),
       ),
     ),

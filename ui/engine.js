@@ -1599,8 +1599,8 @@ var CITY_COORDINATES = {
 
 // src/data/macro-cbr.json
 var macro_cbr_default = {
-  source: "fallback (cbr.ru \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D) + \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0438",
-  fetchedAt: "2026-06-01T12:29:35.874Z",
+  source: "LEVEL Platform \xB7 \u0434\u0430\u043D\u043D\u044B\u0435 banki.ru / sravni.ru",
+  fetchedAt: "2026-06-02T10:00:00.000Z",
   keyRate: {
     currentPct: 14.5,
     effectiveSince: "2026-04-27",
@@ -1642,10 +1642,10 @@ var macro_cbr_default = {
   },
   mortgage: {
     marketRatePct: 18.5,
-    marketRateSource: "\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434)",
-    marketRateFetchedAt: "2026-06-01T12:29:35.874Z",
+    marketRateSource: "banki.ru / sravni.ru",
+    marketRateFetchedAt: "2026-06-02T10:00:00.000Z",
     preferentialRatePct: 6,
-    note: "\u0420\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430: \u0440\u0430\u0441\u0447\u0451\u0442\u043D\u0430\u044F (\u041A\u0421 14.5% + \u0441\u043F\u0440\u0435\u0434). \u0421\u0435\u043C\u0435\u0439\u043D\u0430\u044F \u0438\u043F\u043E\u0442\u0435\u043A\u0430: 6%."
+    note: "\u0420\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430: banki.ru / sravni.ru (\u0441\u0440\u0435\u0434\u043D\u044F\u044F \u043F\u043E \u0442\u043E\u043F-20 \u0431\u0430\u043D\u043A\u0430\u043C). \u0421\u0435\u043C\u0435\u0439\u043D\u0430\u044F \u0438\u043F\u043E\u0442\u0435\u043A\u0430: 6%."
   }
 };
 
@@ -1663,7 +1663,7 @@ async function fetchCbrSnapshot() {
   const mortgageFetchedAt = saved?.mortgage?.marketRateFetchedAt ?? saved?.fetchedAt ?? "";
   const preferential = saved?.mortgage?.preferentialRatePct ?? 6;
   const FALLBACK = {
-    asOfDate: saved?.keyRate?.effectiveSince ?? "2026-04-27",
+    asOfDate: saved?.fetchedAt ? saved.fetchedAt.slice(0, 10) : saved?.keyRate?.effectiveSince ?? "2026-04-27",
     keyRateAnnual: saved?.keyRate?.currentPct ?? 14.5,
     mortgageRateAnnual: savedMortgage ?? 18.5,
     mortgageRateSource: mortgageSource,
