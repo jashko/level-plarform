@@ -1497,6 +1497,7 @@ function MainScreen({ ranking, onCityClick }) {
 
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
+    React.createElement(TopEntryWidget, { cities: ranking.cities, onCityClick }),
     React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
     React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
     React.createElement(
@@ -1662,6 +1663,287 @@ function MainScreen({ ranking, onCityClick }) {
 
 // ═════════════════════════════════════════════════════════════════
 // КОМПОНЕНТЫ АНАЛИЗА (используются в карточке города)
+// ═════════════════════════════════════════════════════════════════
+// ИНВЕСТИЦИОННЫЙ ВЕРДИКТ — главная карточка решения
+// ═════════════════════════════════════════════════════════════════
+
+function buildVerdictReasons(city) {
+  const h = city.inputs.housing;
+  const e = city.inputs.economy;
+  const d = city.inputs.demography;
+  const inf = city.inputs.infrastructure;
+  const comp = city.inputs.competition;
+  const mc = city.marketCycle;
+  const rp = city.riskProfile;
+
+  const pros = [];
+  const cons = [];
+
+  // Демография
+  if (d.migrationBalanceThousands > 5) pros.push(`Приток ${d.migrationBalanceThousands.toFixed(1)} тыс. чел/год — рынок растёт`);
+  if (d.populationTrend5yPct > 3) pros.push(`Население растёт +${d.populationTrend5yPct.toFixed(1)}% за 5 лет`);
+  if (d.migrationBalanceThousands < 0) cons.push(`Отток населения ${d.migrationBalanceThousands.toFixed(1)} тыс. чел/год`);
+
+  // Экономика
+  if (e.avgSalary > 80_000) pros.push(`Высокая ЗП ${fmtRub(e.avgSalary)}/мес — платёжеспособная аудитория`);
+  if (e.highPaidIndustriesShare > 0.2) pros.push(`${Math.round(e.highPaidIndustriesShare*100)}% занятых в ИТ/ОПК/финансах`);
+  if (e.unemploymentRate < 3) pros.push(`Безработица ${e.unemploymentRate.toFixed(1)}% — рынок труда напряжён, доходы растут`);
+  if (e.unemploymentRate > 5) cons.push(`Безработица ${e.unemploymentRate.toFixed(1)}% — давление на доходы`);
+
+  // Рынок жилья
+  if (h.monthsOfSupply <= 8) pros.push(`Запас предложения ${h.monthsOfSupply} мес. — дефицит, цены под давлением роста`);
+  if (h.sellReadinessRatioPct && h.sellReadinessRatioPct > 75) pros.push(`Распроданность ${h.sellReadinessRatioPct}% — спрос опережает стройку`);
+  if (h.priceGrowthYoY > 8) pros.push(`Цены растут +${h.priceGrowthYoY.toFixed(1)}% YoY — рынок в тренде`);
+  if (h.monthsOfSupply > 15) cons.push(`Перегрев предложения: ${h.monthsOfSupply} мес. запаса`);
+  if (h.dealsGrowthYoY < -20) cons.push(`Сделки просели ${h.dealsGrowthYoY.toFixed(1)}% YoY — временное охлаждение`);
+
+  // Конкуренция
+  if (comp.hasWhiteSpaceBusinessClass) pros.push('Незанятые ниши бизнес-класса — окно для входа');
+  if (!comp.hasFederalPlayers) pros.push('Нет федеральных конкурентов — лёгкий старт');
+  if (comp.top5MarketShare > 0.7) cons.push(`Высокая концентрация: топ-5 держат ${Math.round(comp.top5MarketShare*100)}% рынка`);
+
+  // КРТ
+  if (inf.krtProgramsHa > 200) pros.push(`${inf.krtProgramsHa} га КРТ-программ — земля доступна`);
+  if (inf.hasMajorInfraProjects) pros.push('Крупные инфраструктурные проекты повысят цены');
+
+  // Рыночный цикл
+  if (mc?.position === 'recovery') pros.push('Цикл: дефицит предложения — лучший момент для старта');
+  if (mc?.position === 'expansion') pros.push('Цикл: фаза роста — цены и спрос набирают обороты');
+  if (mc?.position === 'peak') cons.push('Цикл: перегрев — риск коррекции цен');
+  if (mc?.position === 'oversupply') cons.push('Цикл: перенасыщение — высокая конкуренция за покупателя');
+
+  return {
+    pros: pros.slice(0, 4),
+    cons: cons.slice(0, 3),
+  };
+}
+
+function InvestmentVerdictCard({ city, onReport }) {
+  const mc = city.marketCycle;
+  const sig = mc ? ENTRY_SIGNAL_CONFIG[mc.entrySignal] : ENTRY_SIGNAL_CONFIG['watch'];
+  const { pros, cons } = buildVerdictReasons(city);
+
+  const BIG_LABEL = {
+    enter: { ru: 'ВХОДИТЬ', en: 'GO', glow: T.green },
+    watch: { ru: 'НАБЛЮДАТЬ', en: 'WATCH', glow: T.yellow },
+    wait:  { ru: 'ЖДАТЬ', en: 'WAIT', glow: T.red },
+  }[mc?.entrySignal ?? 'watch'];
+
+  return React.createElement('div', {
+    style: {
+      background: `linear-gradient(135deg, ${BIG_LABEL.glow}0A 0%, transparent 60%)`,
+      border: `1px solid ${BIG_LABEL.glow}30`,
+      borderLeft: `4px solid ${BIG_LABEL.glow}`,
+      borderRadius: 12,
+      padding: '28px 32px',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+  },
+    // Фоновый текст
+    React.createElement('div', {
+      style: {
+        position: 'absolute', right: -10, top: -20,
+        fontSize: 160, fontWeight: 900, color: `${BIG_LABEL.glow}06`,
+        fontFamily: 'Inter, sans-serif', letterSpacing: '-0.05em',
+        pointerEvents: 'none', userSelect: 'none', lineHeight: 1,
+      },
+    }, BIG_LABEL.en),
+
+    // Заголовок
+    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 } },
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 10, color: BIG_LABEL.glow, letterSpacing: '0.15em', fontWeight: 700, marginBottom: 8, fontFamily: 'Inter, sans-serif' } },
+          'ИНВЕСТИЦИОННОЕ РЕШЕНИЕ'
+        ),
+        React.createElement('div', {
+          style: {
+            fontSize: 48, fontWeight: 900, color: BIG_LABEL.glow,
+            fontFamily: 'Inter, sans-serif', letterSpacing: '-0.02em',
+            lineHeight: 1, textShadow: `0 0 40px ${BIG_LABEL.glow}40`,
+          },
+        }, BIG_LABEL.ru),
+        mc?.timingScore && React.createElement('div', {
+          style: { marginTop: 8, fontSize: 12, color: BIG_LABEL.glow, opacity: 0.7 },
+        }, `Тайминг: ${mc.timingScore}/100 · ${CYCLE_CONFIG[mc.position]?.label ?? ''}`),
+      ),
+
+      // Кнопка отчёта
+      React.createElement('button', {
+        onClick: onReport,
+        style: {
+          padding: '12px 24px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+          fontFamily: 'Inter, sans-serif', fontWeight: 700, letterSpacing: '0.04em',
+          background: `linear-gradient(135deg, ${T.gold} 0%, #E2C98A 100%)`,
+          color: '#07080B', border: 'none',
+          boxShadow: `0 4px 20px ${T.gold}40`,
+          flexShrink: 0,
+        },
+      }, '⚡ ИИ-отчёт'),
+    ),
+
+    // Аргументы
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+      // Плюсы
+      pros.length > 0 && React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 10, color: T.green, letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10, fontFamily: 'Inter, sans-serif' } }, 'ПОЧЕМУ ВХОДИТЬ'),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+          pros.map((p, i) =>
+            React.createElement('div', { key: i, style: { display: 'flex', gap: 8, fontSize: 12, color: T.textSub, lineHeight: 1.5 } },
+              React.createElement('span', { style: { color: T.green, flexShrink: 0, fontWeight: 700 } }, '↑'),
+              React.createElement('span', null, p),
+            )
+          ),
+        ),
+      ),
+
+      // Риски
+      cons.length > 0 && React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 10, color: T.orange, letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10, fontFamily: 'Inter, sans-serif' } }, 'НА ЧТО СМОТРЕТЬ'),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+          cons.map((c, i) =>
+            React.createElement('div', { key: i, style: { display: 'flex', gap: 8, fontSize: 12, color: T.textSub, lineHeight: 1.5 } },
+              React.createElement('span', { style: { color: T.orange, flexShrink: 0, fontWeight: 700 } }, '→'),
+              React.createElement('span', null, c),
+            )
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
+// ТОП ГОРОДОВ ДЛЯ ВХОДА — виджет на главном экране
+// ═════════════════════════════════════════════════════════════════
+
+function TopEntryWidget({ cities, onCityClick }) {
+  const topCities = cities
+    .filter(c => c.marketCycle?.entrySignal === 'enter' || c.marketCycle?.entrySignal === 'watch')
+    .sort((a, b) => {
+      const aScore = (a.marketCycle?.timingScore ?? 0) + a.cityScore;
+      const bScore = (b.marketCycle?.timingScore ?? 0) + b.cityScore;
+      return bScore - aScore;
+    })
+    .slice(0, 3);
+
+  if (topCities.length === 0) return null;
+
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 24px' },
+  },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
+      React.createElement('div', null,
+        React.createElement(Label, null, 'Лучшие города для входа прямо сейчас'),
+        React.createElement('div', { style: { fontSize: 11, color: T.textMuted, marginTop: 3 } }, 'По совокупности сигнала входа и городского скора'),
+      ),
+      React.createElement('div', {
+        style: { fontSize: 10, color: T.green, letterSpacing: '0.08em', fontWeight: 700, padding: '4px 12px', background: T.greenDim, borderRadius: 20, border: `1px solid ${T.green}33` },
+      }, '● LIVE'),
+    ),
+
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${topCities.length}, 1fr)`, gap: 12 } },
+      topCities.map((city, rank) => {
+        const sig = ENTRY_SIGNAL_CONFIG[city.marketCycle?.entrySignal ?? 'watch'];
+        const z = ZONE[city.zone];
+        const isTop = rank === 0;
+        return React.createElement('div', {
+          key: city.key,
+          onClick: () => onCityClick(city.key),
+          style: {
+            background: isTop ? `linear-gradient(135deg, ${T.green}0D 0%, transparent 70%)` : T.surfaceRaise,
+            border: `1px solid ${isTop ? T.green + '33' : T.border}`,
+            borderRadius: 10, padding: '16px 18px', cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            position: 'relative',
+          },
+        },
+          isTop && React.createElement('div', {
+            style: { position: 'absolute', top: 10, right: 12, fontSize: 9, color: T.green, letterSpacing: '0.08em', fontWeight: 700 },
+          }, '★ №1'),
+          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, color: T.text, fontFamily: "'Cormorant Garamond', serif", marginBottom: 4 } }, city.name),
+          React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginBottom: 12 } }, city.region.split(' ')[0]),
+
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+              React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, 'CityScore'),
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 700, color: z.fg } }, city.cityScore.toFixed(1)),
+            ),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+              React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, 'Тайминг'),
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 700, color: sig.color } }, `${city.marketCycle?.timingScore ?? '—'}/100`),
+            ),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+              React.createElement('span', { style: { fontSize: 10, color: T.textMuted } }, 'Цена м²'),
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 700, color: T.gold } }, fmtRub(city.inputs.housing.businessClassPricePerM2)),
+            ),
+          ),
+
+          React.createElement('div', {
+            style: {
+              marginTop: 12, padding: '5px 12px', borderRadius: 20, textAlign: 'center',
+              background: sig.bg, border: `1px solid ${sig.color}44`,
+              fontSize: 11, fontWeight: 700, color: sig.color,
+            },
+          }, sig.label),
+        );
+      }),
+    ),
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
+// ПАНЕЛЬ ДОВЕРИЯ К ДАННЫМ
+// ═════════════════════════════════════════════════════════════════
+
+function DataTrustPanel({ city }) {
+  const daysAgo = city.dataAsOfDate
+    ? Math.floor((Date.now() - new Date(city.dataAsOfDate).getTime()) / 86400_000)
+    : null;
+
+  const freshColor = daysAgo === null ? T.textMuted
+    : daysAgo <= 30 ? T.green
+    : daysAgo <= 90 ? T.yellow
+    : T.orange;
+
+  const freshLabel = daysAgo === null ? 'неизвестно'
+    : daysAgo <= 30 ? `${daysAgo} дн. назад — актуально`
+    : daysAgo <= 90 ? `${daysAgo} дн. назад — умеренно свежие`
+    : `${daysAgo} дн. назад — требует обновления`;
+
+  return React.createElement('div', {
+    style: {
+      background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 20px',
+    },
+  },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: city.sources?.length > 0 ? 10 : 0 } },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+        React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: freshColor, flexShrink: 0 } }),
+        React.createElement(Label, null, 'Данные'),
+        React.createElement('span', { style: { fontSize: 11, color: freshColor } }, freshLabel),
+      ),
+      city.needsVerification?.length > 0 && React.createElement('div', {
+        style: { fontSize: 10, color: T.yellow },
+      }, `⚠ Требует верификации: ${city.needsVerification.join(', ')}`),
+    ),
+
+    city.sources?.length > 0 && React.createElement('div', {
+      style: { display: 'flex', flexWrap: 'wrap', gap: 6 },
+    },
+      city.sources.map((s, i) =>
+        React.createElement('span', {
+          key: i,
+          style: {
+            fontSize: 10, padding: '2px 10px', borderRadius: 20,
+            background: T.surfaceRaise, color: T.textMuted,
+            border: `1px solid ${T.border}`,
+          },
+        }, s),
+      ),
+    ),
+  );
+}
+
 // ═════════════════════════════════════════════════════════════════
 
 /** Карточка позиции рынка в цикле */
@@ -2194,6 +2476,9 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
     // ── Report modal ───────────────────────────────────────────
     showReport && React.createElement(CityReportModal, { city, onClose: () => setShowReport(false) }),
 
+    // ── Investment Verdict ─────────────────────────────────────
+    React.createElement(InvestmentVerdictCard, { city, onReport: () => setShowReport(true) }),
+
     // ── City header ────────────────────────────────────────────
     React.createElement(
       'div',
@@ -2533,47 +2818,9 @@ function CityDetailScreen({ city, onBack, onGotoFinance, onGotoDistrict }) {
       ),
     ),
 
-    // ── Report CTA ────────────────────────────────────────────
-    React.createElement('div', {
-      style: {
-        background: 'linear-gradient(135deg, rgba(201,169,110,0.08) 0%, rgba(201,169,110,0.03) 100%)',
-        border: `1px solid ${T.borderGold}`,
-        borderRadius: 12, padding: '24px 32px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
-      },
-    },
-      React.createElement('div', null,
-        React.createElement('div', {
-          style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 6, letterSpacing: '0.02em' },
-        }, 'Инвестиционный отчёт'),
-        React.createElement('div', { style: { fontSize: 13, color: T.textSub } },
-          'ИИ-анализ: возможности, риски, неочевидные драйверы, рекомендация о входе',
-        ),
-      ),
-      React.createElement('button', {
-        onClick: () => setShowReport(true),
-        style: {
-          padding: '13px 28px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          fontFamily: 'Inter, sans-serif', letterSpacing: '0.04em',
-          background: `linear-gradient(135deg, ${T.gold} 0%, #E2C98A 100%)`,
-          color: '#07080B', border: 'none',
-          boxShadow: '0 4px 24px rgba(201,169,110,0.3)',
-        },
-      }, 'Сформировать отчёт →'),
-    ),
 
-    // ── Sources ────────────────────────────────────────────────
-    React.createElement(
-      'div',
-      { style: { background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 20px' } },
-      React.createElement(Label, { style: { marginBottom: 6 } }, 'Источники данных'),
-      React.createElement('div', {
-        style: { fontSize: 12, color: T.textSub },
-      }, `Актуальность: ${city.dataAsOfDate} · ${city.sources.join(' · ')}`),
-      city.needsVerification.length > 0 && React.createElement('div', {
-        style: { fontSize: 12, color: T.yellow, marginTop: 8 },
-      }, `⚠ Требует верификации: ${city.needsVerification.join(', ')}`),
-    ),
+    // ── Data Trust ─────────────────────────────────────────────
+    React.createElement(DataTrustPanel, { city }),
   );
 }
 
