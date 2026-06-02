@@ -59,6 +59,15 @@ export interface MacroUpdate {
   asOf: string;
 }
 
+export interface CityDataUpdate {
+  cityKey: string;
+  updates: Record<string, number>;
+  source: string;
+  confidence: number;
+  notes?: string;
+  updatedAt: string;
+}
+
 export interface AgentOutput {
   generatedAt: string;
   agentVersion: string;
@@ -68,6 +77,7 @@ export interface AgentOutput {
   runDurationMs: number;
   newsItems: NewsItem[];
   dataUpdates: DataUpdate[];
+  cityDataUpdates: CityDataUpdate[];
   macroUpdate: MacroUpdate | null;
   agentActivity: AgentLogEntry[];
   summary: string;
@@ -176,6 +186,30 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'update_city_data',
+    description: `Обновляет данные по конкретному городу на основе найденной информации.
+Используй когда нашёл актуальные данные по: ценам, сделкам, зарплатам, вводу жилья,
+ипотечной активности, новым КРТ-проектам, инфраструктурным решениям.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        cityKey: {
+          type: 'string',
+          description: 'Ключ города: novosibirsk | yekaterinburg | kazan | nizhny | chelyabinsk | samara | ufa | rostov | omsk | krasnodar | voronezh | volgograd | perm | krasnoyarsk',
+        },
+        updates: {
+          type: 'object',
+          description: 'Словарь обновлённых полей. Возможные ключи: businessClassPricePerM2, priceGrowthYoY, monthsOfSupply, dealsGrowthYoY, avgSalary, salaryGrowthYoY, unemploymentRate, constructionVolumeMkdThousM2, monthlySalesM2, annualDduCount, sellReadinessRatioPct, unsoldYearsOfSupply, krtProgramsHa, migrationBalanceThousands, populationThousands',
+          additionalProperties: { type: 'number' },
+        },
+        source: { type: 'string', description: 'Источник данных (URL или название)' },
+        confidence: { type: 'number', description: 'Уверенность в данных 0.0–1.0' },
+        notes: { type: 'string', description: 'Комментарий (опционально)' },
+      },
+      required: ['cityKey', 'updates', 'source', 'confidence'],
+    },
+  },
+  {
     name: 'finish_report',
     description: 'Завершает работу агента и формирует итоговое резюме',
     input_schema: {
@@ -199,6 +233,7 @@ async function executeTool(
   state: {
     newsItems: NewsItem[];
     dataUpdates: DataUpdate[];
+    cityDataUpdates: CityDataUpdate[];
     macroUpdate: MacroUpdate | null;
     activityLog: AgentLogEntry[];
     finished: boolean;
@@ -260,6 +295,29 @@ async function executeTool(
     return `Новость добавлена: "${item.title}" (id: ${item.id})`;
   }
 
+  if (name === 'update_city_data') {
+    const cityUpdate: CityDataUpdate = {
+      cityKey:   input['cityKey'] as string,
+      updates:   input['updates'] as Record<string, number>,
+      source:    input['source'] as string,
+      confidence: input['confidence'] as number,
+      notes:     input['notes'] as string | undefined,
+      updatedAt: ts,
+    };
+    // Merge: если уже есть обновление для этого города — мержим поля
+    const existing = state.cityDataUpdates.find(u => u.cityKey === cityUpdate.cityKey);
+    if (existing) {
+      Object.assign(existing.updates, cityUpdate.updates);
+      existing.updatedAt = ts;
+      existing.source = cityUpdate.source;
+    } else {
+      state.cityDataUpdates.push(cityUpdate);
+    }
+    state.activityLog.push({ ts, action: 'update', description: `Данные города ${cityUpdate.cityKey}: ${Object.keys(cityUpdate.updates).join(', ')}` });
+    console.log(`  🏙️  update_city_data [${cityUpdate.cityKey}]:`, cityUpdate.updates);
+    return `Данные города ${cityUpdate.cityKey} обновлены: ${JSON.stringify(cityUpdate.updates)}`;
+  }
+
   if (name === 'update_macro') {
     state.macroUpdate = input as unknown as MacroUpdate;
     state.activityLog.push({ ts, action: 'update', description: `Макро обновлено: ${JSON.stringify(input)}` });
@@ -281,60 +339,76 @@ async function executeTool(
 // ── Системный промпт агента ─────────────────────────────────────────
 
 function buildSystemPrompt(today: string): string {
-  return `Вы — ИИ-аналитик рынка недвижимости уровня Эльвиры Набиуллиной и Германа Грефа.
-Ваша задача: провести ежедневный мониторинг рынка первичной недвижимости России (бизнес-класс и выше)
-и обновить данные аналитической платформы LEVEL Platform девелопера бизнес-класса.
+  return `Вы — ИИ-аналитик рынка недвижимости. Ваша задача: ежедневный мониторинг рынка
+первичной недвижимости бизнес-класса России и обновление данных платформы LEVEL Platform.
 
 Сегодняшняя дата: ${today}
 
-ЗОНА ОТВЕТСТВЕННОСТИ: 14 городов-миллионников РФ (кроме Москвы и Санкт-Петербурга):
-- novosibirsk (Новосибирск)
-- yekaterinburg (Екатеринбург)
-- kazan (Казань)
-- nizhny (Нижний Новгород)
-- chelyabinsk (Челябинск)
-- samara (Самара)
-- ufa (Уфа)
-- rostov (Ростов-на-Дону)
-- omsk (Омск)
-- krasnodar (Краснодар)
-- voronezh (Воронеж)
-- volgograd (Волгоград)
-- perm (Пермь)
-- krasnoyarsk (Красноярск)
+ЗОНА ОТВЕТСТВЕННОСТИ — 14 городов-миллионников РФ (ключи для update_city_data):
+novosibirsk | yekaterinburg | kazan | nizhny | chelyabinsk | samara
+ufa | rostov | omsk | krasnodar | voronezh | volgograd | perm | krasnoyarsk
 
-СТРОГИЙ ПОРЯДОК РАБОТЫ (КРИТИЧЕСКИ ВАЖНО):
+═══════════════════════════════════════════════
+ПОРЯДОК РАБОТЫ (строго соблюдать!)
+═══════════════════════════════════════════════
 
-⚡ ПРАВИЛО: После каждых 1-2 фетчей СРАЗУ вызывай add_news_item или update_macro.
-НЕ делай 5+ фетчей подряд без записи — это приведёт к таймауту!
+ШАГ 1 — МАКРО (2 фетча → update_macro + 1 новость):
+  fetch_url: https://www.cbr.ru/press/pr/
+  fetch_url: https://www.banki.ru/products/hypothec/
+  → update_macro (КС, ипотека, инфляция)
+  → add_news_item категория=macro
 
-ШАГ 1 (макро — 2 фетча → сразу 2 новости):
-  a) fetch_url: https://cbr.ru/press/pr → найди последнее решение по КС
-  b) fetch_url: https://domrf.ru → найди данные по ипотеке
-  c) СРАЗУ: update_macro + add_news_item про КС/инфляцию
+ШАГ 2 — РЫНОК ЖИЛЬЯ (2 фетча → 2-3 новости):
+  fetch_url: https://www.rbc.ru/realty/
+  fetch_url: https://realty.kommersant.ru/
+  → 2-3 add_news_item (цены, сделки, тренды)
 
-ШАГ 2 (рынок жилья — 2 фетча → сразу 2-3 новости):
-  a) fetch_url: https://www.rbc.ru/realty → новости недвижимости
-  b) fetch_url: https://www.kommersant.ru/realty → аналитика
-  c) СРАЗУ: 2-3 add_news_item про сделки, цены, города
+ШАГ 3 — ДАННЫЕ ГОРОДОВ (2 фетча → update_city_data для 2-3 городов):
+  fetch_url: https://naш.дом.рф/сервисы/аналитика-рынка-недвижимости  (или https://xn--d1aqf.xn--p1ai/)
+  fetch_url: https://www.cian.ru/stati-nedvizhimosti/ или региональные новости
+  → update_city_data для найденных городов (цены м², темп продаж, объём строительства)
+  → add_news_item категория=city
 
-ШАГ 3 (регионы и КРТ — 1-2 фетча → 1-2 новости):
-  a) Один конкретный город или тема из контекста
-  b) СРАЗУ: add_news_item
+ШАГ 4 — КРТ И ИНФРАСТРУКТУРА (1 фетч → 1 новость + update_city_data если есть данные):
+  fetch_url: https://minstroyrf.gov.ru/press/ или https://www.rbc.ru/regions/
+  → add_news_item категория=krt или regulation
+  → update_city_data если нашёл данные по КРТ-программам
 
-ШАГ 4 (прогнозы — без фетча):
-  На основе собранных данных сформулируй 1-2 прогноза.
-  СРАЗУ: add_news_item
+ШАГ 5 — ПРОГНОЗ (без фетча → 1 новость):
+  На основе всего найденного — прогноз для девелопера бизнес-класса
+  → add_news_item категория=forecast
 
-ШАГ 5: finish_report с резюме 3-5 предложений.
+ШАГ 6: finish_report
 
-ИТОГО: максимум 6-7 фетчей и 5-8 новостей за всю сессию.
+ИТОГО: 7-8 фетчей, 6-10 новостей, 2-4 обновления городов.
 
-ТРЕБОВАНИЯ К ИНСАЙТАМ:
-- Конкретные цифры, не общие слова
-- Влияние именно на девелопера бизнес-класса
-- Пример: "КС 14.5% при инфляции 5.4% → вероятность снижения до 13.5% в июне ~65%.
-  Для ПФ (проектное финансирование) — ставки заморожены минимум до августа."
+═══════════════════════════════════════════════
+ПАРАМЕТРЫ ДЛЯ update_city_data
+═══════════════════════════════════════════════
+Обновляй только те поля, по которым есть РЕАЛЬНЫЕ данные из источника:
+- businessClassPricePerM2  — цена м² бизнес-класс, ₽
+- priceGrowthYoY           — рост цены г/г, %
+- monthsOfSupply           — запас предложения, месяцев
+- dealsGrowthYoY           — рост сделок г/г, %
+- avgSalary                — средняя зарплата, ₽/мес
+- salaryGrowthYoY          — рост зарплат г/г, %
+- unemploymentRate         — безработица, %
+- constructionVolumeMkdThousM2 — объём строительства МКД, тыс м²
+- monthlySalesM2           — продажи/мес, м²
+- annualDduCount           — ДДУ в год, шт
+- sellReadinessRatioPct    — распроданность/стройготовность, %
+- unsoldYearsOfSupply      — срок реализации остатков, лет
+- krtProgramsHa            — КРТ площадь, га
+- migrationBalanceThousands — миграционный баланс, тыс чел/год
+
+═══════════════════════════════════════════════
+ТРЕБОВАНИЯ К КАЧЕСТВУ
+═══════════════════════════════════════════════
+- Только факты с цифрами, без воды
+- Инсайт = что это значит для девелопера бизнес-класса конкретно
+- Пример хорошего инсайта: "КС снижена до 14.5% — ставка ПФ по эскроу упадёт
+  с ~6% до ~4.5% при наполнении 80%. Для проекта 5 млрд ₽ экономия ~75 млн ₽/год."
+- Пример плохого: "Снижение ставки положительно для рынка"
 
 Начинай с ШАГ 1!`;
 }
@@ -362,12 +436,13 @@ async function runAgent(): Promise<AgentOutput> {
   console.log('╚══════════════════════════════════════════════════════╝\n');
 
   const state = {
-    newsItems:   [] as NewsItem[],
-    dataUpdates: [] as DataUpdate[],
-    macroUpdate: null as MacroUpdate | null,
-    activityLog: [] as AgentLogEntry[],
-    finished:    false,
-    summary:     '',
+    newsItems:        [] as NewsItem[],
+    dataUpdates:      [] as DataUpdate[],
+    cityDataUpdates:  [] as CityDataUpdate[],
+    macroUpdate:      null as MacroUpdate | null,
+    activityLog:      [] as AgentLogEntry[],
+    finished:         false,
+    summary:          '',
   };
 
   // Начальный контекст с текущими данными
@@ -401,7 +476,7 @@ async function runAgent(): Promise<AgentOutput> {
     console.log(`\n── Итерация ${iteration} ──────────────────────────────`);
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8096,
       system: buildSystemPrompt(today),
       tools: TOOLS,
@@ -461,12 +536,13 @@ async function runAgent(): Promise<AgentOutput> {
   const output: AgentOutput = {
     generatedAt:         new Date().toISOString(),
     agentVersion:        '2.0',
-    model:               'claude-sonnet-4-5',
+    model:               'claude-sonnet-4-6',
     status:              state.newsItems.length > 0 ? 'completed' : 'partial',
     nextScheduledRun:    nextRun.toISOString(),
     runDurationMs:       durationMs,
     newsItems:           state.newsItems,
     dataUpdates:         state.dataUpdates,
+    cityDataUpdates:     state.cityDataUpdates,
     macroUpdate:         state.macroUpdate,
     agentActivity:       state.activityLog,
     summary:             state.summary,
@@ -474,6 +550,7 @@ async function runAgent(): Promise<AgentOutput> {
 
   console.log(`\n✅ Завершено за ${(durationMs / 1000).toFixed(1)}с`);
   console.log(`📰 Новостей: ${output.newsItems.length}`);
+  console.log(`🏙️  Обновлений городов: ${output.cityDataUpdates.length}`);
   console.log(`📊 Обновлений данных: ${output.dataUpdates.length}`);
   console.log(`📋 Действий агента: ${output.agentActivity.length}\n`);
 
@@ -495,12 +572,13 @@ async function main(): Promise<void> {
     const errorOutput: AgentOutput = {
       generatedAt:      new Date().toISOString(),
       agentVersion:     '2.0',
-      model:            'claude-sonnet-4-5',
+      model:            'claude-sonnet-4-6',
       status:           'error',
       nextScheduledRun: new Date(Date.now() + 86400_000).toISOString(),
       runDurationMs:    0,
       newsItems:        [],
       dataUpdates:      [],
+      cityDataUpdates:  [],
       macroUpdate:      null,
       agentActivity:    [{ ts: new Date().toISOString(), action: 'analyze', description: `Ошибка: ${(err as Error).message}` }],
       summary:          `Ошибка запуска агента: ${(err as Error).message}`,

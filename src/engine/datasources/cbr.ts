@@ -40,6 +40,8 @@ export interface CbrSnapshot {
   mortgageRateFetchedAt: string;
   /** Льготная ипотечная программа: ставка или null если не действует. */
   preferentialMortgageRate: number | null;
+  /** Дата следующего заседания Совета директоров ЦБ РФ. */
+  nextMeetingDate: string;
   /** Источник данных. */
   source: string;
   /** Метод получения. */
@@ -69,6 +71,8 @@ export async function fetchCbrSnapshot(): Promise<CbrSnapshot> {
   const mortgageFetchedAt = saved?.mortgage?.marketRateFetchedAt ?? saved?.fetchedAt ?? '';
   const preferential   = saved?.mortgage?.preferentialRatePct ?? 6.0;
 
+  const nextMeeting = (saved as any)?.keyRate?.nextMeetingDate ?? '2026-06-19';
+
   const FALLBACK: CbrSnapshot = {
     asOfDate: saved?.fetchedAt ? saved.fetchedAt.slice(0, 10) : (saved?.keyRate?.effectiveSince ?? '2026-04-27'),
     keyRateAnnual: saved?.keyRate?.currentPct ?? 14.5,
@@ -76,7 +80,8 @@ export async function fetchCbrSnapshot(): Promise<CbrSnapshot> {
     mortgageRateSource: mortgageSource,
     mortgageRateFetchedAt: mortgageFetchedAt,
     preferentialMortgageRate: preferential,
-    source: 'Банк России / macro-cbr.json (статический снимок)',
+    nextMeetingDate: nextMeeting,
+    source: 'macro-cbr.json',
     fetchMethod: 'manual',
   };
 
@@ -114,7 +119,8 @@ export async function fetchCbrSnapshot(): Promise<CbrSnapshot> {
       mortgageRateSource: mortgageSrc,
       mortgageRateFetchedAt: mortgageFetchedAt,
       preferentialMortgageRate: preferential,
-      source: 'cbr.ru (live КС) + macro-cbr.json (ипотека)',
+      nextMeetingDate: nextMeeting,
+      source: 'cbr.ru (live) + banki.ru / sravni.ru',
       fetchMethod: 'automatic',
     };
   } catch (e) {

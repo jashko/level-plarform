@@ -58,7 +58,10 @@ export interface RankingResult {
   macroSnapshot: {
     keyRateAnnual: number;
     mortgageRateAnnual: number;
+    mortgageRateSource: string;
+    mortgageRateFetchedAt: string;
     preferentialMortgageRate: number | null;
+    nextMeetingDate: string;
     asOfDate: string;
     source: string;
     fetchMethod: 'automatic' | 'manual';
@@ -132,6 +135,7 @@ export async function buildCityRanking(): Promise<RankingResult> {
       mortgageRateSource: cbr.mortgageRateSource,
       mortgageRateFetchedAt: cbr.mortgageRateFetchedAt,
       preferentialMortgageRate: cbr.preferentialMortgageRate,
+      nextMeetingDate: cbr.nextMeetingDate,
       asOfDate: cbr.asOfDate,
       source: cbr.source,
       fetchMethod: cbr.fetchMethod,
