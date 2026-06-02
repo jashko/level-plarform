@@ -89,6 +89,11 @@
       animation: pulse-glow 2s ease-in-out infinite;
     }
 
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
     /* ── Mobile / touch ──────────────────────────── */
     * { -webkit-tap-highlight-color: transparent; }
     input[type=range] { height: 22px; cursor: pointer; }
