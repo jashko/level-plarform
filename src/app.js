@@ -12,7 +12,8 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
-import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore } from './engine/index.ts';
+import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore, calculateCityScore, calculateMacroScore, calculateMarketCycle, calculateCityRiskProfile, calculateAffordability } from './engine/index.ts';
+import { RUSSIA_MILLION_CITIES, ALL_CITY_KEYS, CITY_COORDINATES } from './data/cities.ts';
 import agentOutputRaw from './data/agent-output.json';
 
 // Вшитый при сборке Anthropic API-ключ (esbuild --define:process.env.ANTHROPIC_API_KEY)
@@ -995,14 +996,24 @@ function CityRow({ rank, city, onClick, compareMode, selected, onToggle, onTrend
         },
       }, s.toFixed(0)),
     ),
-    // price
+    // price + sparkline
     React.createElement(
       'td',
       { style: { padding: '14px 16px', textAlign: 'right' } },
-      React.createElement('div', {
-        style: { fontSize: 14, fontVariantNumeric: 'tabular-nums', color: T.gold, fontWeight: 500 },
-      }, fmtRub(city.inputs.housing.businessClassPricePerM2)),
-      React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 2 } }, '₽/м² БК'),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' } },
+        React.createElement(PriceSparkline, {
+          currentPrice: city.inputs.housing.businessClassPricePerM2,
+          growthYoY:    city.inputs.housing.priceGrowthYoY,
+        }),
+        React.createElement('div', null,
+          React.createElement('div', {
+            style: { fontSize: 14, fontVariantNumeric: 'tabular-nums', color: T.gold, fontWeight: 500 },
+          }, fmtRub(city.inputs.housing.businessClassPricePerM2)),
+          React.createElement('div', {
+            style: { fontSize: 10, color: city.inputs.housing.priceGrowthYoY >= 0 ? T.green : T.red, marginTop: 2 },
+          }, `${city.inputs.housing.priceGrowthYoY >= 0 ? '+' : ''}${city.inputs.housing.priceGrowthYoY.toFixed(1)}% YoY`),
+        ),
+      ),
     ),
     // entry signal badge
     (() => {
@@ -1579,6 +1590,116 @@ function NewsFeedPanel() {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════
+// КС-СИМУЛЯТОР — пересчёт рейтинга при изменении ставки
+// ═════════════════════════════════════════════════════════════════
+
+const RU_MEDIAN_SALARY_SIM   = 64_000;
+const RU_MEDIAN_PRICE_SIM    = 158_648;
+
+function simulateRanking(baseRanking, simKS) {
+  const macro = calculateMacroScore({
+    keyRateAnnual:         simKS,
+    mortgageRateAnnual:    simKS + 3.8,
+    preferentialMortgageRate: 6,
+    mortgageShareOfDeals:  0.72,
+    inflationYoY:          4.8,
+    realIncomeIndex3yr:    1.11,
+    unemploymentRate:      3.2,
+    medianMonthlyIncomeRu: RU_MEDIAN_SALARY_SIM,
+    medianPricePerM2Ru:    RU_MEDIAN_PRICE_SIM,
+  });
+
+  return baseRanking.cities.map(c => {
+    const entry = RUSSIA_MILLION_CITIES[c.key];
+    if (!entry) return c;
+    const score = calculateCityScore(entry.inputs, {
+      macroMultiplier: macro.macroMultiplier,
+      ruMedianSalary: RU_MEDIAN_SALARY_SIM,
+    });
+    return {
+      ...c,
+      cityScore: score.cityScore,
+      zone:      score.zone,
+      breakdown: score.breakdown,
+      summary:   score.summary,
+    };
+  }).sort((a, b) => b.cityScore - a.cityScore);
+}
+
+// ── Мини-спарклайн цен ────────────────────────────────────────────
+function PriceSparkline({ currentPrice, growthYoY, width = 60, height = 22 }) {
+  const monthly = Math.pow(1 + (growthYoY || 0) / 100, 1 / 12) - 1;
+  // 7 точек: -6 месяцев назад → сейчас
+  const pts = Array.from({ length: 7 }, (_, i) => {
+    const mAgo = 6 - i;
+    return currentPrice / Math.pow(1 + monthly, mAgo);
+  });
+  const min = Math.min(...pts);
+  const max = Math.max(...pts);
+  const range = max - min || 1;
+  const coords = pts.map((v, i) => {
+    const x = (i / 6) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const isUp = growthYoY >= 0;
+  const color = isUp ? T.green : T.red;
+  return React.createElement('svg', { width, height, style: { overflow: 'visible', display: 'block' } },
+    React.createElement('polyline', {
+      points: coords,
+      fill: 'none', stroke: color, strokeWidth: 1.5,
+      strokeLinecap: 'round', strokeLinejoin: 'round',
+      opacity: 0.8,
+    }),
+    // Последняя точка
+    React.createElement('circle', {
+      cx: width, cy: parseFloat((coords.split(' ').pop() || '0,0').split(',')[1] || '0'),
+      r: 2.5, fill: color,
+    }),
+  );
+}
+
+// ── Intelligence Feed ─────────────────────────────────────────────
+function IntelligenceFeed({ items }) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!items?.length) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % items.length), 4000);
+    return () => clearInterval(t);
+  }, [items?.length]);
+
+  if (!items?.length) return null;
+  const item = items[idx];
+  const impactColor = item.impact === 'positive' ? T.green : item.impact === 'negative' ? T.red : T.textMuted;
+
+  return React.createElement('div', {
+    style: {
+      background: 'rgba(201,169,110,0.04)',
+      borderBottom: `1px solid rgba(201,169,110,0.1)`,
+      padding: '7px 36px',
+      display: 'flex', alignItems: 'center', gap: 14,
+      overflow: 'hidden',
+    },
+  },
+    React.createElement('div', {
+      style: { fontSize: 9, color: T.gold, letterSpacing: '0.12em', fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap' },
+    }, 'INTEL'),
+    React.createElement('div', {
+      style: { width: 1, height: 10, background: 'rgba(201,169,110,0.3)', flexShrink: 0 },
+    }),
+    React.createElement('div', {
+      style: { fontSize: 9, color: impactColor, width: 6, height: 6, borderRadius: '50%', background: impactColor, flexShrink: 0 },
+    }),
+    React.createElement('div', {
+      style: { fontSize: 11, color: T.textSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 },
+    }, item.title),
+    React.createElement('div', {
+      style: { fontSize: 9, color: T.textMuted, flexShrink: 0 },
+    }, `${idx + 1} / ${items.length}`),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter,    setZoneFilter]    = useState('all');
   const [minScore,      setMinScore]      = useState(0);
@@ -1587,8 +1708,15 @@ function MainScreen({ ranking, onCityClick }) {
   const [selectedKeys,  setSelectedKeys]  = useState(new Set());
   const [showCompare,   setShowCompare]   = useState(false);
   const [showTrendsFor, setShowTrendsFor] = useState(null);
+  const [simKS,         setSimKS]         = useState(null); // null = реальные данные
 
-  const filteredCities = ranking.cities.filter(c =>
+  // Активные города — реальные или симулированные
+  const activeCities = useMemo(() => {
+    if (simKS === null) return ranking.cities;
+    return simulateRanking(ranking, simKS);
+  }, [simKS, ranking]);
+
+  const filteredCities = activeCities.filter(c =>
     (zoneFilter === 'all' || c.zone === zoneFilter) &&
     c.cityScore >= minScore &&
     c.inputs.housing.businessClassPricePerM2 <= maxPrice,
@@ -1601,7 +1729,7 @@ function MainScreen({ ranking, onCityClick }) {
       return next;
     });
   };
-  const selectedCities = ranking.cities.filter(c => selectedKeys.has(c.key));
+  const selectedCities = activeCities.filter(c => selectedKeys.has(c.key));
 
   const thCell = (align = 'center') => ({
     padding: '12px 8px',
@@ -1626,10 +1754,58 @@ function MainScreen({ ranking, onCityClick }) {
       React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
 
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
-    React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
-    React.createElement(TopEntryWidget, { cities: ranking.cities, onCityClick }),
-    React.createElement(SupplyDemandBalanceChart, { cities: ranking.cities, onCityClick }),
-    React.createElement(CityQuadrant, { cities: ranking.cities, onCityClick }),
+
+    // ── КС-Симулятор ──────────────────────────────────────────────
+    React.createElement('div', {
+      style: {
+        background: simKS !== null
+          ? 'linear-gradient(135deg, rgba(91,191,138,0.07) 0%, rgba(91,191,138,0.02) 100%)'
+          : T.surface,
+        border: `1px solid ${simKS !== null ? T.green + '44' : T.border}`,
+        borderRadius: 12, padding: '18px 24px',
+        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+      },
+    },
+      React.createElement('div', { style: { flexShrink: 0 } },
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 4 } }, 'СЦЕНАРИЙ: КЛЮЧЕВАЯ СТАВКА'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6 } },
+          React.createElement('span', {
+            style: { fontSize: 28, fontWeight: 800, color: simKS !== null ? T.green : T.gold, fontFamily: 'Inter', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' },
+          }, `${(simKS ?? ranking.macroSnapshot.keyRateAnnual).toFixed(1)}%`),
+          simKS !== null && React.createElement('span', {
+            style: { fontSize: 11, color: T.textMuted },
+          }, `← было ${ranking.macroSnapshot.keyRateAnnual.toFixed(1)}%`),
+        ),
+      ),
+      React.createElement('div', { style: { flex: 1, minWidth: 200 } },
+        React.createElement('input', {
+          type: 'range', min: 6, max: 21, step: 0.5,
+          value: simKS ?? ranking.macroSnapshot.keyRateAnnual,
+          onChange: e => {
+            const v = parseFloat(e.target.value);
+            setSimKS(Math.abs(v - ranking.macroSnapshot.keyRateAnnual) < 0.01 ? null : v);
+          },
+          style: { width: '100%', accentColor: T.green, cursor: 'pointer', height: 4 },
+        }),
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 9, color: T.textMuted, marginTop: 4 } },
+          React.createElement('span', null, '6% — нейтраль'),
+          React.createElement('span', null, '14.5% — сейчас'),
+          React.createElement('span', null, '21% — пик'),
+        ),
+      ),
+      simKS !== null && React.createElement('button', {
+        onClick: () => setSimKS(null),
+        style: { padding: '7px 16px', borderRadius: 8, fontSize: 11, cursor: 'pointer', background: T.surfaceRaise, border: `1px solid ${T.border}`, color: T.textSub, fontFamily: 'Inter', flexShrink: 0 },
+      }, '↩ Сбросить'),
+      simKS !== null && React.createElement('div', {
+        style: { padding: '6px 14px', borderRadius: 20, background: T.greenDim, border: `1px solid ${T.green}44`, fontSize: 10, fontWeight: 700, color: T.green, flexShrink: 0 },
+      }, '● СИМ-РЕЖИМ'),
+    ),
+
+    React.createElement(RussiaMap, { cities: simKS !== null ? activeCities : ranking.cities, onCityClick }),
+    React.createElement(TopEntryWidget, { cities: activeCities, onCityClick }),
+    React.createElement(SupplyDemandBalanceChart, { cities: activeCities, onCityClick }),
+    React.createElement(CityQuadrant, { cities: activeCities, onCityClick }),
     React.createElement(
       'div',
       { style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' } },
@@ -1661,7 +1837,7 @@ function MainScreen({ ranking, onCityClick }) {
           }, 'Рейтинг 14 городов-миллионников'),
           React.createElement('div', {
             style: { fontSize: 12, color: T.textMuted, marginTop: 4 },
-          }, `${filteredCities.length} из ${ranking.cities.length} городов`),
+          }, `${filteredCities.length} из ${activeCities.length} городов${simKS !== null ? ' · СИМ' : ''}`),
         ),
 
         // Controls row
@@ -4896,6 +5072,10 @@ function App() {
         ),
       ),
     ),
+
+    // ── Intelligence Feed ─────────────────────────────────────
+    AGENT_DATA?.newsItems?.length > 0 &&
+      React.createElement(IntelligenceFeed, { items: AGENT_DATA.newsItems }),
 
     // ── Content ──────────────────────────────────────────────
     React.createElement(
