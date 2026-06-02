@@ -752,61 +752,61 @@ function RussiaMap({ cities, onCityClick }) {
         return React.createElement('text', { x, y, fontSize: 8, fill: 'rgba(255,255,255,0.3)', fontFamily: 'Inter', transform: `rotate(-80,${x},${y})` }, 'УРАЛ');
       })(),
 
-      // ── Ночной оверлей (терминатор) ───────────────────────────
-      React.createElement('defs', null,
-        React.createElement('linearGradient', { id: 'nightGrad', x1: '0%', y1: '0%', x2: '100%', y2: '0%' },
-          React.createElement('stop', { offset: '0%',   stopColor: '#000010', stopOpacity: 0.0 }),
-          React.createElement('stop', { offset: '100%', stopColor: '#000010', stopOpacity: 0.0 }),
-        ),
-        // Маска для ночной части — сетка точек по карте
-        React.createElement('filter', { id: 'nightBlur' },
-          React.createElement('feGaussianBlur', { stdDeviation: '8' }),
-        ),
-      ),
-      // Рисуем ночную затемнённость: для каждой ячейки сетки проверяем день/ночь
-      ...(() => {
-        const nightRects = [];
-        const cellW = 28, cellH = 22;
-        for (let gx = 0; gx < W; gx += cellW) {
-          for (let gy = 0; gy < H; gy += cellH) {
-            // Обратная проекция: пиксель → lng/lat
-            const lng = minLng + (gx / W) * (maxLng - minLng);
-            const lat = minLat + ((H - gy) / H) * (maxLat - minLat);
-            const elev = getSolarElevation(lat, lng, decl, subSolarLng);
-            if (elev < 0.08) {
-              const alpha = elev < -0.1 ? 0.52 : 0.52 * (1 - (elev + 0.1) / 0.18);
-              nightRects.push(React.createElement('rect', {
-                key: `n${gx}-${gy}`,
-                x: gx, y: gy, width: cellW + 1, height: cellH + 1,
-                fill: `rgba(0,2,20,${alpha.toFixed(2)})`,
-              }));
-            }
-          }
+      // ── Плавный ночной оверлей ────────────────────────────────
+      (() => {
+        // Строим горизонтальный градиент: для каждой долготы считаем
+        // среднюю высоту солнца на широте 55°N (средняя широта России)
+        const STEPS = 50;
+        const stops = [];
+        for (let i = 0; i <= STEPS; i++) {
+          const lng = minLng + (i / STEPS) * (maxLng - minLng);
+          const elev = getSolarElevation(55, lng, decl, subSolarLng);
+          // Плавный переход: сумерки от elev=0.15 до полной ночи elev<-0.1
+          const alpha = elev > 0.15 ? 0
+            : elev < -0.12 ? 0.48
+            : 0.48 * (0.15 - elev) / 0.27;
+          stops.push({ pct: `${(i / STEPS * 100).toFixed(1)}%`, alpha: alpha.toFixed(3) });
         }
-        return nightRects;
-      })(),
+        const gradId = 'nightGradH';
+        return [
+          React.createElement('defs', { key: 'ndefs' },
+            React.createElement('linearGradient', { id: gradId, x1: '0%', y1: '0%', x2: '100%', y2: '0%' },
+              stops.map((s, i) =>
+                React.createElement('stop', { key: i, offset: s.pct, stopColor: '#000818', stopOpacity: s.alpha })
+              ),
+            ),
+          ),
+          React.createElement('rect', {
+            key: 'nightRect',
+            x: 0, y: 0, width: W, height: H,
+            fill: `url(#${gradId})`,
+          }),
+        ];
+      })().flat(),
 
-      // Линия терминатора (граница день/ночь)
-      ...(() => {
+      // ── Линия терминатора ─────────────────────────────────────
+      (() => {
+        // Для каждой долготы находим широту нулевой высоты солнца аналитически:
+        // tan(lat) = -cos(decl)*cos(ha) / sin(decl)
+        if (Math.abs(decl) < 0.001) return [];
         const pts = [];
-        for (let lat = 80; lat >= -80; lat--) {
-          const latR = lat * Math.PI / 180;
-          const cosHA = -Math.tan(latR) * Math.tan(decl);
-          if (Math.abs(cosHA) > 1) continue;
-          const HA = Math.acos(cosHA) * 180 / Math.PI;
-          const [x1, y1] = proj(subSolarLng - HA, lat);
-          const [x2, y2] = proj(subSolarLng + HA, lat);
-          if (x1 > 0 && x1 < W) pts.push([x1, y1]);
-          if (x2 > 0 && x2 < W) pts.push([x2, y2]);
+        for (let lng = minLng; lng <= maxLng; lng += 0.8) {
+          const ha = (lng - subSolarLng) * Math.PI / 180;
+          const tanLat = -(Math.cos(decl) * Math.cos(ha)) / Math.sin(decl);
+          const lat = Math.atan(tanLat) * 180 / Math.PI;
+          if (lat < minLat || lat > maxLat) continue;
+          const [x, y] = proj(lng, lat);
+          pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
         }
-        if (pts.length < 2) return [];
+        if (pts.length < 3) return [];
         return [React.createElement('polyline', {
           key: 'terminator',
-          points: pts.slice(0, 80).map(p => p.join(',')).join(' '),
+          points: pts.join(' '),
           fill: 'none',
-          stroke: 'rgba(255,220,100,0.25)',
+          stroke: 'rgba(255,215,80,0.35)',
           strokeWidth: 1.5,
-          strokeDasharray: '4 3',
+          strokeDasharray: '5 3',
+          strokeLinecap: 'round',
         })];
       })(),
 
@@ -819,16 +819,19 @@ function RussiaMap({ cities, onCityClick }) {
         const utcOffset = CITY_UTC_OFFSET[c.key] ?? 3;
         const localTime = fmtLocalTime(now, utcOffset);
         const elev = getSolarElevation(c.coordinates.lat, c.coordinates.lng, decl, subSolarLng);
-        const isNight = elev < -0.05;
-        const isTwilight = !isNight && elev < 0.12;
-        const timeIcon = isNight ? '🌙' : isTwilight ? '🌅' : '☀';
+        const isNight    = elev < -0.05;
+        const isTwilight = !isNight && elev < 0.14;
+        // Unicode-символы (надёжно в SVG, в отличие от эмодзи)
+        const dotColor = isNight ? '#8899FF' : isTwilight ? '#FFB84D' : '#FFE566';
+        const timeLabel = `UTC+${utcOffset}  ${localTime}`;
+        const phaseLabel = isNight ? 'Ночь' : isTwilight ? 'Сумерки' : 'День';
 
         return React.createElement('g', { key: c.key, onClick: () => onCityClick(c.key), style: { cursor: 'pointer' } },
           // Пульс 1 — широкое кольцо
           React.createElement('circle', {
             cx: x, cy: y, r: r + 16, fill: 'none', stroke: z.fg, strokeWidth: 1.5,
             className: 'city-pulse-ring',
-            style: { animationDelay: delay, opacity: isNight ? 0.5 : 1 },
+            style: { animationDelay: delay, opacity: isNight ? 0.45 : 1 },
           }),
           // Пульс 2
           React.createElement('circle', {
@@ -837,25 +840,27 @@ function RussiaMap({ cities, onCityClick }) {
             style: { animationDelay: `calc(${delay} + 0.4s)` },
           }),
           // Статичный ореол
-          React.createElement('circle', { cx: x, cy: y, r: r + 4, fill: z.fg, opacity: isNight ? 0.06 : 0.12 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 4, fill: z.fg, opacity: isNight ? 0.05 : 0.12 }),
           // Основная точка
-          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: isNight ? 0.55 : 0.92 }),
-          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 1, opacity: 0.5 }),
-          // Название
+          React.createElement('circle', { cx: x, cy: y, r, fill: z.fg, opacity: isNight ? 0.50 : 0.92 }),
+          React.createElement('circle', { cx: x, cy: y, r: r + 1.5, fill: 'none', stroke: z.fg, strokeWidth: 1, opacity: 0.45 }),
+          // Название города
           React.createElement('text', {
             x, y: y + r + 13,
             textAnchor: 'middle', fontSize: 10, fontWeight: 500,
-            fill: isNight ? 'rgba(237,236,234,0.45)' : 'rgba(237,236,234,0.88)',
+            fill: isNight ? 'rgba(180,190,230,0.55)' : 'rgba(237,236,234,0.90)',
             style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif' },
           }, c.name),
-          // Местное время
+          // Время — маленький цветной кружок + цифры
+          React.createElement('circle', { cx: x - 14, cy: y + r + 21, r: 2.5, fill: dotColor, opacity: 0.85 }),
           React.createElement('text', {
-            x, y: y + r + 25,
-            textAnchor: 'middle', fontSize: 8.5,
-            fill: isNight ? 'rgba(150,170,255,0.7)' : isTwilight ? 'rgba(255,200,100,0.8)' : 'rgba(255,230,100,0.7)',
+            x: x - 9, y: y + r + 24,
+            textAnchor: 'start', fontSize: 8,
+            fill: dotColor,
             style: { pointerEvents: 'none', fontFamily: 'Inter, sans-serif', fontVariantNumeric: 'tabular-nums' },
-          }, `${timeIcon} ${localTime}`),
-          React.createElement('title', null, `${c.name} · ${localTime} (UTC+${utcOffset}) · ${isNight ? 'Ночь' : isTwilight ? 'Сумерки' : 'День'}`),
+          }, localTime),
+          // Тултип при наведении
+          React.createElement('title', null, `${c.name} · ${localTime} (UTC+${utcOffset}) · ${phaseLabel}`),
         );
       }),
     ),
