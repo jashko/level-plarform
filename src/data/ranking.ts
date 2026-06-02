@@ -24,6 +24,53 @@ import {
   type CityDatasetEntry,
 } from './cities';
 import { fetchCbrSnapshot, type CbrSnapshot } from '../engine/datasources/cbr';
+import agentOutputRaw from './agent-output.json';
+
+// Поля из cityDataUpdates агента, которые маппятся на inputs города
+const AGENT_FIELD_MAP: Record<string, string[]> = {
+  businessClassPricePerM2:      ['housing', 'businessClassPricePerM2'],
+  priceGrowthYoY:               ['housing', 'priceGrowthYoY'],
+  monthsOfSupply:                ['housing', 'monthsOfSupply'],
+  dealsGrowthYoY:               ['housing', 'dealsGrowthYoY'],
+  constructionVolumeMkdThousM2: ['housing', 'constructionVolumeMkdThousM2'],
+  monthlySalesM2:               ['housing', 'monthlySalesM2'],
+  annualDduCount:               ['housing', 'annualDduCount'],
+  sellReadinessRatioPct:        ['housing', 'sellReadinessRatioPct'],
+  unsoldYearsOfSupply:          ['housing', 'unsoldYearsOfSupply'],
+  avgSalary:                    ['economy', 'avgSalary'],
+  salaryGrowthYoY:              ['economy', 'salaryGrowthYoY'],
+  unemploymentRate:             ['economy', 'unemploymentRate'],
+  krtProgramsHa:                ['infrastructure', 'krtProgramsHa'],
+  migrationBalanceThousands:    ['demography', 'migrationBalanceThousands'],
+  populationThousands:          ['demography', 'populationThousands'],
+};
+
+function applyAgentCityUpdates(entries: typeof RUSSIA_MILLION_CITIES): typeof RUSSIA_MILLION_CITIES {
+  const agentData = agentOutputRaw as { cityDataUpdates?: Array<{ cityKey: string; updates: Record<string, number>; confidence: number }> };
+  const updates = agentData?.cityDataUpdates;
+  if (!updates || updates.length === 0) return entries;
+
+  // Глубокая копия чтобы не мутировать импортированные данные
+  const merged: typeof RUSSIA_MILLION_CITIES = JSON.parse(JSON.stringify(entries));
+
+  for (const upd of updates) {
+    const entry = merged[upd.cityKey as keyof typeof merged];
+    if (!entry) continue;
+    if (upd.confidence < 0.5) continue; // игнорируем низкую уверенность
+
+    for (const [field, value] of Object.entries(upd.updates)) {
+      const path = AGENT_FIELD_MAP[field];
+      if (!path) continue;
+      const [section, key] = path;
+      const inputs = entry.inputs as Record<string, Record<string, number>>;
+      if (inputs[section!]) {
+        inputs[section!]![key!] = value;
+      }
+    }
+  }
+
+  return merged;
+}
 
 export interface CityRankingEntry {
   key: string;
@@ -98,9 +145,11 @@ export async function buildCityRanking(): Promise<RankingResult> {
   };
   const macro = calculateMacroScore(macroInputs);
 
-  // 3. Все города
+  // 3. Все города — мержим обновления от агента поверх базовых данных
+  const CITIES_WITH_UPDATES = applyAgentCityUpdates(RUSSIA_MILLION_CITIES);
+
   const cities: CityRankingEntry[] = ALL_CITY_KEYS.map((key) => {
-    const entry = RUSSIA_MILLION_CITIES[key]!;
+    const entry = CITIES_WITH_UPDATES[key]!;
     const score = calculateCityScore(entry.inputs, {
       macroMultiplier: macro.macroMultiplier,
       ruMedianSalary: RU_MEDIAN_SALARY,
