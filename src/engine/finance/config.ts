@@ -55,17 +55,35 @@ export const SUCCESS_PROB_PENALTIES = {
 };
 
 /**
- * Дефолтные параметры проектного финансирования для крупного российского
- * девелопера (Сбер / ВТБ / ДОМ.РФ) при текущем уровне ставок.
- * Калиброваны для реалистичного IRR 22–28% в комфорт-классе.
+ * Возвращает параметры ПФ, откалиброванные под текущую ключевую ставку ЦБ.
+ *
+ * Реальная практика (Сбер/ВТБ/ДОМ.РФ, 2024–2026):
+ *  - Базовая ставка ПФ ≈ КС + 2.0–2.5 п.п. (без эскроу-покрытия)
+ *  - Льготная ставка ПФ при покрытии эскроу ≈ КС × 0.01% (символическая, по 214-ФЗ)
+ *    На практике от 0.01% до 4% в зависимости от банка и условий
+ *  - Equity share: бизнес-класс обычно 20–25% (банки требуют "кожу в игре")
  */
-export const DEFAULT_FINANCING_PARAMS: ProjectFinanceParams = {
-  equityShare: 0.20,
-  pfBaseRateAnnual: 17,
-  pfEscrowCoveredRateAnnual: 9,
-  escrowReleaseLagMonths: 2,
-  escrowCoverageDiscount: 0.70,
-  escrowDiscountActivationProgress: 0.30,
-  pfCommitmentFeeAnnual: 1.5,
-  pfCommittedLineMultiplier: 1.0,
-};
+export function getDefaultFinancingParams(ks: number = 14.5): ProjectFinanceParams {
+  // Базовая ставка ПФ = КС + маржа банка (~2.2 п.п. в нормальных условиях)
+  const pfBaseRate = Math.round((ks + 2.2) * 10) / 10;
+  // Льготная ставка при 100% покрытии эскроу: практика Сбер/ВТБ ≈ 0.1–5%
+  // При высокой КС банки держат её чуть выше, при низкой — символическая
+  const pfEscrowRate = ks > 16 ? 4.0 : ks > 12 ? 3.0 : 2.0;
+
+  return {
+    equityShare:                       0.20,
+    pfBaseRateAnnual:                  pfBaseRate,
+    pfEscrowCoveredRateAnnual:         pfEscrowRate,
+    escrowReleaseLagMonths:            2,
+    escrowCoverageDiscount:            0.70,
+    escrowDiscountActivationProgress:  0.30,
+    pfCommitmentFeeAnnual:             1.5,
+    pfCommittedLineMultiplier:         1.0,
+  };
+}
+
+/**
+ * Дефолтные параметры при КС = 14.5% (актуально на июнь 2026).
+ * Используется как начальное значение в UI до подгрузки актуальных данных.
+ */
+export const DEFAULT_FINANCING_PARAMS: ProjectFinanceParams = getDefaultFinancingParams(14.5);

@@ -165,9 +165,14 @@ export interface ScenarioResult {
   monthlyCashFlow: MonthlyCashFlow[];
   npv: number;
   irr: number | null;
+  /** Валовая маржа: (Выручка − все прямые затраты) / Выручка × 100%. Без процентов по ПФ. */
   grossMargin: number;
-  /** Чистая маржа с учётом процентов по ПФ. */
+  /** Чистая маржа: (Выручка − CAPEX − проценты ПФ) / Выручка × 100%. */
   netMargin: number;
+  /** ROE: чистая прибыль / вложенный equity × 100%. Ключевая метрика для девелопера. */
+  roe: number;
+  /** DSCR: чистая прибыль / пиковый ПФ. >1.2 = норма, <1.0 = риск ковенанта. */
+  dscr: number | null;
   /** Совокупный капитализированный процент по ПФ, ₽. */
   totalPfInterest: number;
   /** Пиковый долг по ПФ, ₽ (нужен для DSCR/LTV-ковенант). */

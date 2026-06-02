@@ -38,16 +38,21 @@ var SUCCESS_PROB_PENALTIES = {
   stressIrrNegative: 20,
   confidenceDivisor: 2
 };
-var DEFAULT_FINANCING_PARAMS = {
-  equityShare: 0.2,
-  pfBaseRateAnnual: 17,
-  pfEscrowCoveredRateAnnual: 9,
-  escrowReleaseLagMonths: 2,
-  escrowCoverageDiscount: 0.7,
-  escrowDiscountActivationProgress: 0.3,
-  pfCommitmentFeeAnnual: 1.5,
-  pfCommittedLineMultiplier: 1
-};
+function getDefaultFinancingParams(ks = 14.5) {
+  const pfBaseRate = Math.round((ks + 2.2) * 10) / 10;
+  const pfEscrowRate = ks > 16 ? 4 : ks > 12 ? 3 : 2;
+  return {
+    equityShare: 0.2,
+    pfBaseRateAnnual: pfBaseRate,
+    pfEscrowCoveredRateAnnual: pfEscrowRate,
+    escrowReleaseLagMonths: 2,
+    escrowCoverageDiscount: 0.7,
+    escrowDiscountActivationProgress: 0.3,
+    pfCommitmentFeeAnnual: 1.5,
+    pfCommittedLineMultiplier: 1
+  };
+}
+var DEFAULT_FINANCING_PARAMS = getDefaultFinancingParams(14.5);
 
 // src/engine/finance/calculations.ts
 function calculateVolumes(inputs) {
@@ -324,8 +329,14 @@ function runScenario(inputs, scenario) {
     0
   );
   const totalEquityDeployed = monthlyCashFlow[monthlyCashFlow.length - 1]?.cumulativeEquityDrawn ?? 0;
-  const grossMargin = revenue.totalRevenue > 0 ? (revenue.totalRevenue - capex.construction - capex.infrastructure) / revenue.totalRevenue * 100 : 0;
+  const grossMargin = revenue.totalRevenue > 0 ? (revenue.totalRevenue - capex.total) / revenue.totalRevenue * 100 : 0;
   const netMargin = revenue.totalRevenue > 0 ? (revenue.totalRevenue - capex.total - totalPfInterest) / revenue.totalRevenue * 100 : 0;
+  const netProfit = revenue.totalRevenue - capex.total - totalPfInterest;
+  const roe = totalEquityDeployed > 0 ? netProfit / totalEquityDeployed * 100 : 0;
+  const maxMonthlyInflow = Math.max(
+    ...monthlyCashFlow.map((f) => f.directInflow + f.escrowReleased)
+  );
+  const dscr = peakPfBalance > 0 ? netProfit / peakPfBalance : null;
   const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
   const sellOutMonths = volumes.sellableM2 / Math.max(salesVelocity, 1);
   const totalProjectMonths = monthlyCashFlow.length - 1;
@@ -339,6 +350,8 @@ function runScenario(inputs, scenario) {
     irr,
     grossMargin,
     netMargin,
+    roe,
+    dscr,
     totalPfInterest,
     peakPfBalance,
     totalEquityDeployed,
@@ -357,30 +370,44 @@ function runFinancialModel(inputs, options = {}) {
     return { irr: r.irr, npv: r.npv };
   });
   const warnings = [];
+  const base = scenarios.base;
+  if (base.irr !== null && base.irr < 0) {
+    warnings.push("IRR \u043E\u0442\u0440\u0438\u0446\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u2014 \u043F\u0440\u043E\u0435\u043A\u0442 \u0443\u0431\u044B\u0442\u043E\u0447\u0435\u043D \u0432 \u0431\u0430\u0437\u043E\u0432\u043E\u043C \u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0438");
+  } else if (base.irr !== null && base.irr < 20) {
+    warnings.push(`IRR ${base.irr.toFixed(1)}% < 20% \u2014 \u043D\u0438\u0436\u0435 \u043F\u043E\u0440\u043E\u0433\u0430 \u0434\u043B\u044F \u0431\u0438\u0437\u043D\u0435\u0441-\u043A\u043B\u0430\u0441\u0441\u0430. \u041D\u043E\u0440\u043C\u0430: \u226520\u201325%`);
+  }
   if (scenarios.stress.irr !== null && scenarios.stress.irr < 0) {
-    warnings.push(
-      "IRR \u0432 \u0441\u0442\u0440\u0435\u0441\u0441-\u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0438 \u043E\u0442\u0440\u0438\u0446\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u2014 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0438\u0442\u0435 Real Option: Abandon / Delay"
-    );
+    warnings.push("IRR \u0432 \u0441\u0442\u0440\u0435\u0441\u0441-\u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0438 \u043E\u0442\u0440\u0438\u0446\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u2014 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0438\u0442\u0435 Real Option: Delay/Abandon");
   }
-  if (scenarios.base.irr !== null && scenarios.base.irr < 15) {
-    warnings.push("\u0411\u0430\u0437\u043E\u0432\u044B\u0439 IRR < 15% \u2014 \u043F\u0440\u043E\u0435\u043A\u0442 \u043D\u0435 \u043F\u0440\u043E\u0439\u0434\u0451\u0442 Stage 2 (Pre-Feasibility)");
+  if (base.grossMargin < 20) {
+    warnings.push(`\u0412\u0430\u043B\u043E\u0432\u0430\u044F \u043C\u0430\u0440\u0436\u0430 ${base.grossMargin.toFixed(1)}% < 20% \u2014 \u043A\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043D\u0438\u0437\u043A\u0430\u044F. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0446\u0435\u043D\u0443 \u0438\u043B\u0438 \u0441\u0435\u0431\u0435\u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C`);
+  } else if (base.grossMargin < 30) {
+    warnings.push(`\u0412\u0430\u043B\u043E\u0432\u0430\u044F \u043C\u0430\u0440\u0436\u0430 ${base.grossMargin.toFixed(1)}% \u2014 \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E, \u043D\u043E \u0431\u0435\u0437 \u0440\u0435\u0437\u0435\u0440\u0432\u0430 \u043D\u0430 \u0440\u0438\u0441\u043A\u0438`);
   }
-  if (scenarios.base.netMargin < 10) {
-    warnings.push(
-      "\u0427\u0438\u0441\u0442\u0430\u044F \u043C\u0430\u0440\u0436\u0430 \u0431\u0430\u0437\u043E\u0432\u043E\u0433\u043E \u0441\u0446\u0435\u043D\u0430\u0440\u0438\u044F < 10% \u2014 \u043D\u0438\u0437\u043A\u0430\u044F \u0431\u0443\u0444\u0435\u0440\u043D\u0430\u044F \u0437\u043E\u043D\u0430 \u043F\u043E \u0441\u0435\u0431\u0435\u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u0438"
-    );
+  if (base.netMargin < 10) {
+    warnings.push(`\u0427\u0438\u0441\u0442\u0430\u044F \u043C\u0430\u0440\u0436\u0430 ${base.netMargin.toFixed(1)}% < 10% \u2014 \u043D\u0438\u0437\u043A\u0430\u044F \u0431\u0443\u0444\u0435\u0440\u043D\u0430\u044F \u0437\u043E\u043D\u0430`);
   }
-  const coverRatio = scenarios.base.totalEquityDeployed > 0 ? scenarios.base.peakPfBalance / scenarios.base.totalEquityDeployed : Infinity;
-  if (coverRatio > 5) {
-    warnings.push(
-      `\u041F\u0438\u043A\u043E\u0432\u044B\u0439 \u041F\u0424 / equity = ${coverRatio.toFixed(1)}\xD7 \u2014 \u0443\u0432\u0435\u043B\u0438\u0447\u044C\u0442\u0435 \u0434\u043E\u043B\u044E equity \u0438\u043B\u0438 \u043F\u043E\u044D\u0442\u0430\u043F\u043D\u044B\u0439 \u0437\u0430\u043F\u0443\u0441\u043A`
-    );
+  if (base.roe < 40) {
+    warnings.push(`ROE ${base.roe.toFixed(1)}% < 40% \u2014 \u043D\u0438\u0436\u0435 \u043E\u0442\u0440\u0430\u0441\u043B\u0435\u0432\u043E\u0433\u043E \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442\u0430 \u0434\u043B\u044F \u0431\u0438\u0437\u043D\u0435\u0441-\u043A\u043B\u0430\u0441\u0441\u0430 (\u043D\u043E\u0440\u043C\u0430: 40\u201380%)`);
   }
-  const months = scenarios.base.totalProjectMonths;
-  if (months > 72) {
-    warnings.push(
-      `\u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043F\u0440\u043E\u0435\u043A\u0442\u0430 ${months} \u043C\u0435\u0441. \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u0447\u0443\u0432\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043A \u0441\u0442\u0430\u0432\u043A\u0435 \u0426\u0411`
-    );
+  const ltvRatio = base.revenue.totalRevenue > 0 ? base.peakPfBalance / (base.revenue.totalRevenue * 0.7) : Infinity;
+  if (ltvRatio > 0.85) {
+    warnings.push(`\u041F\u0438\u043A\u043E\u0432\u044B\u0439 LTV ${(ltvRatio * 100).toFixed(0)}% > 85% \u2014 \u0440\u0438\u0441\u043A \u043A\u043E\u0432\u0435\u043D\u0430\u043D\u0442\u043D\u043E\u0433\u043E \u043D\u0430\u0440\u0443\u0448\u0435\u043D\u0438\u044F. \u0423\u0432\u0435\u043B\u0438\u0447\u044C\u0442\u0435 equity \u0438\u043B\u0438 \u0443\u0441\u043A\u043E\u0440\u044C\u0442\u0435 \u043F\u0440\u043E\u0434\u0430\u0436\u0438`);
+  }
+  const coverRatio = base.totalEquityDeployed > 0 ? base.peakPfBalance / base.totalEquityDeployed : Infinity;
+  if (coverRatio > 6) {
+    warnings.push(`\u041F\u0438\u043A\u043E\u0432\u044B\u0439 \u041F\u0424 / equity = ${coverRatio.toFixed(1)}\xD7 > 6 \u2014 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0432\u044B\u0441\u043E\u043A\u0438\u0439 \u043B\u0435\u0432\u0435\u0440\u0435\u0434\u0436`);
+  }
+  if (base.dscr !== null && base.dscr < 1.2) {
+    warnings.push(`DSCR ${base.dscr.toFixed(2)} < 1.2 \u2014 \u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E\u0435 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435 \u0434\u043E\u043B\u0433\u0430. \u0411\u0430\u043D\u043A \u043C\u043E\u0436\u0435\u0442 \u043F\u043E\u0442\u0440\u0435\u0431\u043E\u0432\u0430\u0442\u044C \u0434\u043E\u043F. \u043E\u0431\u0435\u0441\u043F\u0435\u0447\u0435\u043D\u0438\u0435`);
+  }
+  const months = base.totalProjectMonths;
+  if (months > 60) {
+    warnings.push(`\u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043F\u0440\u043E\u0435\u043A\u0442\u0430 ${months} \u043C\u0435\u0441. > 5 \u043B\u0435\u0442 \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u0447\u0443\u0432\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043A \u0441\u0442\u0430\u0432\u043A\u0435 \u0426\u0411`);
+  }
+  const landToRevenue = base.revenue.totalRevenue > 0 ? base.capex.land / base.revenue.totalRevenue : 0;
+  if (landToRevenue > 0.25) {
+    warnings.push(`\u0421\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0437\u0435\u043C\u043B\u0438 ${(landToRevenue * 100).toFixed(0)}% \u043E\u0442 \u0432\u044B\u0440\u0443\u0447\u043A\u0438 > 25% \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F. \u041D\u043E\u0440\u043C\u0430 \u0434\u043B\u044F \u0431\u0438\u0437\u043D\u0435\u0441-\u043A\u043B\u0430\u0441\u0441\u0430: \u226415\u201320%`);
   }
   let successProb = 0;
   if (options.successProbContext) {
@@ -2413,6 +2440,7 @@ export {
   calculateNPV,
   calculateSiteScore,
   calculateSuccessProb,
+  getDefaultFinancingParams,
   normalizeIrrToScore,
   runFinancialModel,
   runScenario,

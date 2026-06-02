@@ -33,4 +33,5 @@ export {
   SUCCESS_PROB_WEIGHTS,
   SUCCESS_PROB_PENALTIES,
   DEFAULT_FINANCING_PARAMS,
+  getDefaultFinancingParams,
 } from './config';

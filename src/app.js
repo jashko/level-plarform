@@ -12,9 +12,10 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
-import { runFinancialModel, DEFAULT_FINANCING_PARAMS, buildCityRanking, calculateDistrictScore, calculateSiteScore, calculateCityScore, calculateMacroScore, calculateMarketCycle, calculateCityRiskProfile, calculateAffordability } from './engine/index.ts';
+import { runFinancialModel, DEFAULT_FINANCING_PARAMS, getDefaultFinancingParams, buildCityRanking, calculateDistrictScore, calculateSiteScore, calculateCityScore, calculateMacroScore, calculateMarketCycle, calculateCityRiskProfile, calculateAffordability } from './engine/index.ts';
 import { RUSSIA_MILLION_CITIES, ALL_CITY_KEYS, CITY_COORDINATES } from './data/cities.ts';
 import agentOutputRaw from './data/agent-output.json';
+import macroCbrRaw from './data/macro-cbr.json';
 
 // Вшитый при сборке Anthropic API-ключ (esbuild --define:process.env.ANTHROPIC_API_KEY)
 const BUILD_API_KEY = process.env.ANTHROPIC_API_KEY || '';
@@ -4502,23 +4503,35 @@ function SmartHintsPanel({ inputs }) {
 }
 
 function FinanceScreen({ city, districtResult, siteResult, onBack }) {
-  const initialInputs = useMemo(() => ({
-    landAreaHa: 2.5,
-    allowedDensityM2PerHa: 20000,
-    sellableRatio: 0.80,
-    averageUnitSizeM2: 50,
-    housingClass: 'comfort',
-    basePricePerM2:          city ? city.inputs.housing.businessClassPricePerM2 : 220000,
-    landCost:                450_000_000,
-    constructionCostPerM2:   105000,
-    infrastructureCost:      300_000_000,
-    marketingShare:          0.04,
-    constructionMonths:      30,
-    discountRateAnnual:      20,
-    salesVelocityM2PerMonth: city ? Math.round(city.inputs.housing.monthlySalesM2 * 0.025) : 1500,
-    salesStartMonth:         3,
-    financing: { ...DEFAULT_FINANCING_PARAMS },
-  }), [city]);
+  // Актуальная КС из данных ЦБ — для корректной ставки ПФ
+  const currentKS = (macroCbrRaw?.keyRate?.currentPct) ?? 14.5;
+
+  const initialInputs = useMemo(() => {
+    const price = city ? city.inputs.housing.businessClassPricePerM2 : 250_000;
+    // Себестоимость бизнес-класса: ~50–55% от цены продажи (рыночный ориентир 2026)
+    const constCost = Math.round(price * 0.50 / 1000) * 1000;
+    // Земля бизнес-класс: ~10–15% от выручки. Выручка = 2.5га × 20000 × 0.80 × цена
+    const sellableM2 = 2.5 * 20_000 * 0.80;
+    const landBudget = Math.round(sellableM2 * price * 0.12 / 50_000_000) * 50_000_000;
+
+    return {
+      landAreaHa:              2.5,
+      allowedDensityM2PerHa:   20_000,
+      sellableRatio:           0.78,      // бизнес-класс: 78% (выше КОП, паркинг, МОП)
+      averageUnitSizeM2:       62,        // бизнес-класс: средняя квартира 62 м²
+      housingClass:            'business',
+      basePricePerM2:          price,
+      landCost:                Math.max(300_000_000, landBudget),
+      constructionCostPerM2:   constCost,
+      infrastructureCost:      350_000_000,
+      marketingShare:          0.035,     // бизнес-класс: 3.5% (ниже, чем комфорт)
+      constructionMonths:      32,        // бизнес-класс строится дольше
+      discountRateAnnual:      22,        // ставка дисконтирования с учётом риска
+      salesVelocityM2PerMonth: city ? Math.round(city.inputs.housing.monthlySalesM2 * 0.025) : 1_200,
+      salesStartMonth:         4,         // продажи открываются через 4 мес. после старта
+      financing: getDefaultFinancingParams(currentKS),
+    };
+  }, [city, currentKS]);
 
   const [inputs,      setInputs]      = useState(initialInputs);
   const [scenario,    setScenario]    = useState('base');
@@ -4650,13 +4663,25 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     // KPIs
     React.createElement(
       'div',
-      { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)', gap: 12 } },
-      React.createElement(KpiCard, { label: 'Выручка',   value: fmtRub(cur.revenue.totalRevenue),                              hint: 'revenue' }),
-      React.createElement(KpiCard, { label: 'CAPEX',     value: fmtRub(cur.capex.total),                                       hint: 'capex' }),
-      React.createElement(KpiCard, { label: 'IRR',       value: fmtPct(cur.irr),   color: irrColor,                            hint: 'irr' }),
-      React.createElement(KpiCard, { label: 'NPV',       value: fmtRub(cur.npv),   color: cur.npv >= 0 ? T.green : T.red,     hint: 'npv' }),
-      React.createElement(KpiCard, { label: 'P(успеха)', value: fmtPct(model.successProb, 0),                                  hint: 'successProb' }),
-      React.createElement(KpiCard, { label: 'Sell-out',  value: `${cur.sellOutMonths.toFixed(0)} мес.`, sub: `проект ${cur.totalProjectMonths} мес.`, hint: 'sellOut' }),
+      { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2, 1fr)' : 'repeat(8, 1fr)', gap: 12 } },
+      React.createElement(KpiCard, { label: 'Выручка',      value: fmtRub(cur.revenue.totalRevenue),                                         hint: 'revenue' }),
+      React.createElement(KpiCard, { label: 'CAPEX всего',  value: fmtRub(cur.capex.total),  sub: `ПФ: ${fmtRub(cur.totalPfInterest)}`,      hint: 'capex' }),
+      React.createElement(KpiCard, { label: 'IRR',          value: cur.irr !== null ? fmtPct(cur.irr, 1) : '—', color: irrColor,             hint: 'irr' }),
+      React.createElement(KpiCard, { label: 'NPV',          value: fmtRub(cur.npv),   color: cur.npv >= 0 ? T.green : T.red,                 hint: 'npv' }),
+      React.createElement(KpiCard, {
+        label: 'ROE',
+        value: fmtPct(cur.roe, 1),
+        color: cur.roe >= 60 ? T.green : cur.roe >= 40 ? T.yellow : T.red,
+        sub: `equity: ${fmtRub(cur.totalEquityDeployed)}`,
+      }),
+      React.createElement(KpiCard, {
+        label: 'Вал. маржа',
+        value: fmtPct(cur.grossMargin, 1),
+        color: cur.grossMargin >= 30 ? T.green : cur.grossMargin >= 20 ? T.yellow : T.red,
+        sub: `чист.: ${fmtPct(cur.netMargin, 1)}`,
+      }),
+      React.createElement(KpiCard, { label: 'P(успеха)',    value: fmtPct(model.successProb, 0),                                             hint: 'successProb' }),
+      React.createElement(KpiCard, { label: 'Sell-out',     value: `${cur.sellOutMonths.toFixed(0)} мес.`, sub: `проект ${cur.totalProjectMonths} мес.`, hint: 'sellOut' }),
     ),
 
     // charts + inputs
