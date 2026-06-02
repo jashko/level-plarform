@@ -1,59 +1,37 @@
-name: Weekly Mortgage Rates Update
+name: LEVEL Platform — Daily Rates Update
 
 on:
   schedule:
-    - cron: '0 7 * * 1'
+    # 06:30 МСК = 03:30 UTC каждый день (до агента)
+    - cron: '30 3 * * *'
   workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Причина ручного запуска'
-        required: false
-        default: 'Ручное обновление'
 
 jobs:
   update-rates:
-    name: Fetch rates & rebuild
+    name: Fetch CBR + ипотека
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci --ignore-scripts
 
-      - name: Fetch latest rates
-        run: npm run fetch-cbr
+      - run: npm run fetch-cbr
 
-      - name: Rebuild UI bundle
-        run: npm run bundle
+      - run: npm run bundle
 
-      - name: Check for changes
-        id: changes
+      - name: Commit & push
         run: |
-          git diff --quiet src/data/macro-cbr.json ui/app.js ui/engine.js \
-            && echo "changed=false" >> "$GITHUB_OUTPUT" \
-            || echo "changed=true"  >> "$GITHUB_OUTPUT"
-
-      - name: Commit and push updated data
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "LEVEL Rates Bot"
+          git config user.email "rates@level-platform.ai"
           git add src/data/macro-cbr.json ui/app.js ui/engine.js
-          git commit -m "chore: auto-update mortgage rates $(date -u +'%Y-%m-%d')"
-          git push
-
-      - name: No changes detected
-        if: steps.changes.outputs.changed == 'false'
-        run: echo "Ставки не изменились"
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "📊 Rates update $(date -u +'%Y-%m-%d')"
+          git push origin main
