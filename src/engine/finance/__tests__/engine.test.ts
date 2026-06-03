@@ -85,17 +85,19 @@ describe('calculateRevenue', () => {
 });
 
 describe('calculateCapex', () => {
-  it('строит сумму = земля + стройка + инфра + маркетинг', () => {
+  it('строит сумму = земля + стройка + инфра + маркетинг + транзакции', () => {
     const v = calculateVolumes(baseInputs);
     const r = calculateRevenue(baseInputs, v, 'base');
     const c = calculateCapex(baseInputs, v, r.totalRevenue, 'base');
     expect(c.total).toBeCloseTo(
-      c.land + c.construction + c.infrastructure + c.marketing,
+      c.land + c.construction + c.infrastructure + c.marketing + c.transactions,
       2,
     );
     expect(c.land).toBe(600_000_000);
     expect(c.construction).toBe(40_000 * 95_000);
     expect(c.marketing).toBeCloseTo(r.totalRevenue * 0.04, 2);
+    // workingCapitalPct не задан → default 1% от выручки
+    expect(c.transactions).toBeCloseTo(r.totalRevenue * 0.01, 2);
   });
 });
 
@@ -348,7 +350,7 @@ function makeFlow(month: number, developerCashFlow: number) {
     pfBalanceStart: 0, pfRateAnnualEffective: 0, pfInterestAccrued: 0,
     cumulativePfInterest: 0, pfRepayment: 0, pfBalanceEnd: 0,
     escrowInflow: 0, escrowBalance: 0, escrowReleased: 0,
-    directInflow: 0,
+    directInflow: 0, opexSpend: 0,
     developerCashFlow,
     cumulativeDeveloperCashFlow: developerCashFlow,
   };

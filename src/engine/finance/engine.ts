@@ -14,6 +14,7 @@ import {
   buildSensitivity,
   calculateIRR,
   calculateNPV,
+  runMonteCarlo,
 } from './financialMetrics';
 import { calculateSuccessProb } from './successProb';
 import type {
@@ -42,8 +43,6 @@ export function runScenario(
   );
 
   const effectiveDiscountRate = inputs.discountRateAnnual + adj.discountRateDelta;
-  const npv = calculateNPV(monthlyCashFlow, effectiveDiscountRate);
-  const irr = calculateIRR(monthlyCashFlow);
 
   const totalPfInterest =
     monthlyCashFlow[monthlyCashFlow.length - 1]?.cumulativePfInterest ?? 0;
@@ -54,34 +53,69 @@ export function runScenario(
   const totalEquityDeployed =
     monthlyCashFlow[monthlyCashFlow.length - 1]?.cumulativeEquityDrawn ?? 0;
 
-  // Gross margin: выручка − все прямые затраты (земля + стройка + инфра + маркетинг).
-  // Отраслевой стандарт: не включает финансовые расходы (проценты по ПФ).
+  // Фактическая выручка с учётом стадийного роста цены (sum реальных потоков).
+  const actualTotalRevenue = monthlyCashFlow.reduce((s, f) => s + f.revenue, 0);
+  // Фактический CAPEX с учётом строительной инфляции (sum реальных потоков).
+  const actualTotalSpend = monthlyCashFlow.reduce((s, f) => s + f.totalSpend, 0);
+  // Совокупные операционные расходы хвостового периода (содержание непроданных кв.)
+  const totalOpex = monthlyCashFlow.reduce((s, f) => s + f.opexSpend, 0);
+
+  // Gross margin: выручка − прямые затраты (без ПФ и опекс — отраслевой стандарт).
   const grossMargin =
-    revenue.totalRevenue > 0
-      ? ((revenue.totalRevenue - capex.total) / revenue.totalRevenue) * 100
+    actualTotalRevenue > 0
+      ? ((actualTotalRevenue - actualTotalSpend) / actualTotalRevenue) * 100
       : 0;
 
-  // Net margin: учитывает CAPEX + проценты по ПФ (всё включено).
+  // Чистая прибыль ДО налога: выручка − CAPEX − % ПФ − операционные расходы.
+  const netProfitPreTax = actualTotalRevenue - actualTotalSpend - totalPfInterest - totalOpex;
+
+  // Налог на прибыль (НК РФ гл. 25): 25% с 2025 для крупного бизнеса (20% для МСП).
+  // База: max(0, выручка − затраты − % ПФ). Уплачивается через квартал после сдачи.
+  const corpTaxRate = (inputs.corpTaxRatePct ?? 25) / 100;
+  const corpTaxAmount = Math.max(0, netProfitPreTax) * corpTaxRate;
+
+  // Добавляем налог как отток в квартал после завершения продаж.
+  const lastFlowBeforeTax = monthlyCashFlow[monthlyCashFlow.length - 1];
+  if (corpTaxAmount > 0 && lastFlowBeforeTax) {
+    const taxMonth = lastFlowBeforeTax.month + 3;
+    monthlyCashFlow.push({
+      month: taxMonth,
+      landSpend: 0, constructionSpend: 0, infraSpend: 0, marketingSpend: 0,
+      totalSpend: 0, m2Sold: 0, cumulativeM2Sold: lastFlowBeforeTax.cumulativeM2Sold,
+      revenue: 0, projectNetCashFlow: 0,
+      equityDraw: 0, cumulativeEquityDrawn: totalEquityDeployed,
+      pfDraw: 0, pfBalanceStart: 0, pfRateAnnualEffective: 0,
+      pfInterestAccrued: 0, cumulativePfInterest: totalPfInterest,
+      pfRepayment: 0, pfBalanceEnd: 0,
+      escrowInflow: 0, escrowBalance: 0, escrowReleased: 0,
+      directInflow: 0, opexSpend: 0,
+      developerCashFlow: -corpTaxAmount,
+      cumulativeDeveloperCashFlow: lastFlowBeforeTax.cumulativeDeveloperCashFlow - corpTaxAmount,
+    });
+  }
+
+  // NPV и IRR вычисляются ПОСЛЕ добавления налога в cash flow.
+  const npv = calculateNPV(monthlyCashFlow, effectiveDiscountRate);
+  const irr = calculateIRR(monthlyCashFlow);
+
+  // Net margin и ROE — после налога (то, что реально остаётся девелоперу).
+  const netProfitAfterTax = netProfitPreTax - corpTaxAmount;
   const netMargin =
-    revenue.totalRevenue > 0
-      ? ((revenue.totalRevenue - capex.total - totalPfInterest) /
-          revenue.totalRevenue) *
-        100
+    actualTotalRevenue > 0
+      ? (netProfitAfterTax / actualTotalRevenue) * 100
       : 0;
 
-  // ROE (Return on Equity): чистая прибыль / вложенный equity × 100%.
-  // Ключевая метрика для девелопера: сколько заработал на каждый вложенный рубль.
-  const netProfit = revenue.totalRevenue - capex.total - totalPfInterest;
   const roe = totalEquityDeployed > 0
-    ? (netProfit / totalEquityDeployed) * 100
+    ? (netProfitAfterTax / totalEquityDeployed) * 100
     : 0;
 
-  // DSCR (Debt Service Coverage): макс. денежный поток проекта / пиковый ПФ.
-  // >1.2 — норма, <1.0 — риск ковенантного нарушения.
-  const maxMonthlyInflow = Math.max(
-    ...monthlyCashFlow.map(f => f.directInflow + f.escrowReleased),
-  );
-  const dscr = peakPfBalance > 0 ? (netProfit / peakPfBalance) : null;
+  // DSCR = эскроу в момент раскрытия / ПФ в момент раскрытия.
+  // ≥1.0 — эскроу полностью закрывает ПФ; <0.70 — высокая зависимость от хвостовых продаж.
+  const releaseFlow = monthlyCashFlow.find(f => f.escrowReleased > 0);
+  const pfAtRelease = releaseFlow ? releaseFlow.pfRepayment + releaseFlow.pfBalanceEnd : 0;
+  const dscr = pfAtRelease > 0 && releaseFlow
+    ? releaseFlow.escrowReleased / pfAtRelease
+    : null;
 
   const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
   const sellOutMonths = volumes.sellableM2 / Math.max(salesVelocity, 1);
@@ -104,6 +138,8 @@ export function runScenario(
     totalEquityDeployed,
     sellOutMonths,
     totalProjectMonths,
+    actualTotalRevenue,
+    corpTaxAmount,
   };
 }
 
@@ -154,9 +190,9 @@ export function runFinancialModel(
     warnings.push(`ROE ${base.roe.toFixed(1)}% < 40% — ниже отраслевого стандарта для бизнес-класса (норма: 40–80%)`);
   }
 
-  // LTV-ковенант: пиковый ПФ / (выручка × 0.7) > 0.85 = риск margin call
-  const ltvRatio = base.revenue.totalRevenue > 0
-    ? base.peakPfBalance / (base.revenue.totalRevenue * 0.70)
+  // LTV-ковенант: пиковый ПФ / (фактическая выручка × 0.7) > 0.85 = риск margin call
+  const ltvRatio = base.actualTotalRevenue > 0
+    ? base.peakPfBalance / (base.actualTotalRevenue * 0.70)
     : Infinity;
   if (ltvRatio > 0.85) {
     warnings.push(`Пиковый LTV ${(ltvRatio * 100).toFixed(0)}% > 85% — риск ковенантного нарушения. Увеличьте equity или ускорьте продажи`);
@@ -169,8 +205,8 @@ export function runFinancialModel(
     warnings.push(`Пиковый ПФ / equity = ${coverRatio.toFixed(1)}× > 6 — слишком высокий левередж`);
   }
 
-  if (base.dscr !== null && base.dscr < 1.2) {
-    warnings.push(`DSCR ${base.dscr.toFixed(2)} < 1.2 — недостаточное покрытие долга. Банк может потребовать доп. обеспечение`);
+  if (base.dscr !== null && base.dscr < 0.70) {
+    warnings.push(`Покрытие ПФ эскроу ${(base.dscr * 100).toFixed(0)}% < 70% — высокая зависимость от продаж после ввода. Ускорьте темп продаж или увеличьте equity`);
   }
 
   const months = base.totalProjectMonths;
@@ -178,12 +214,20 @@ export function runFinancialModel(
     warnings.push(`Длительность проекта ${months} мес. > 5 лет — высокая чувствительность к ставке ЦБ`);
   }
 
-  // Земля > 20% от выручки — сигнал переплаты
-  const landToRevenue = base.revenue.totalRevenue > 0
-    ? base.capex.land / base.revenue.totalRevenue
+  // Земля > 20% от фактической выручки — сигнал переплаты
+  const landToRevenue = base.actualTotalRevenue > 0
+    ? base.capex.land / base.actualTotalRevenue
     : 0;
   if (landToRevenue > 0.25) {
     warnings.push(`Стоимость земли ${(landToRevenue * 100).toFixed(0)}% от выручки > 25% — высокая. Норма для бизнес-класса: ≤15–20%`);
+  }
+
+  // Налог на прибыль > 15% от выручки — существенная нагрузка
+  const taxToRevenue = base.actualTotalRevenue > 0
+    ? base.corpTaxAmount / base.actualTotalRevenue
+    : 0;
+  if (taxToRevenue > 0.12) {
+    warnings.push(`Налог на прибыль ${(taxToRevenue * 100).toFixed(1)}% от выручки — убедитесь в корректности ставки (крупный бизнес: 25%, МСП: 20%)`);
   }
 
   let successProb = 0;
@@ -195,5 +239,24 @@ export function runFinancialModel(
     });
   }
 
-  return { scenarios, sensitivity, successProb, warnings };
+  // Monte Carlo: 500 итераций для получения статистически обоснованного
+  // распределения IRR. Заменяет эвристическую successProb на P(IRR ≥ 20%).
+  const monteCarlo = runMonteCarlo(
+    (inp, sc) => {
+      const r = runScenario(inp, sc);
+      return { irr: r.irr, npv: r.npv };
+    },
+    inputs,
+    500,
+  );
+
+  // Обновляем successProb на основе Monte Carlo (P(IRR ≥ 20%) взвешенная).
+  // Если был передан контекст скоров, используем гибрид: 50% MC, 50% scoring.
+  if (options.successProbContext) {
+    successProb = Math.round(0.5 * successProb + 0.5 * monteCarlo.probIrrAbove20Pct);
+  } else {
+    successProb = Math.round(monteCarlo.probIrrAbove20Pct);
+  }
+
+  return { scenarios, sensitivity, successProb, monteCarlo, warnings };
 }

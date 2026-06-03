@@ -5,6 +5,7 @@
 
 import { SENSITIVITY_DELTAS } from './config';
 import type {
+  MonteCarloResult,
   MonthlyCashFlow,
   ProjectInputs,
   Scenario,
@@ -129,4 +130,74 @@ function applyDelta(
       break;
   }
   return copy;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Monte Carlo
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Генератор нормально распределённой случайной величины (метод Бокса-Мюллера).
+ * Возвращает стандартное нормальное: μ=0, σ=1.
+ */
+function normalRandom(): number {
+  const u1 = Math.max(1e-15, Math.random());
+  const u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+/**
+ * Симуляция Монте-Карло: 500 итераций с нормально распределёнными
+ * отклонениями ключевых переменных от базовых значений.
+ *
+ * Распределения (σ выбраны по историческому РФ рынку):
+ *  - Цена: σ = 12% (волатильность цен бизнес-класса)
+ *  - Себестоимость: σ = 10% (строительная инфляция + риски подрядчика)
+ *  - Скорость продаж: σ = 20% (наибольшая неопределённость)
+ *  - Ставка ПФ: σ = 1.5 п.п. (зависит от ДКП ЦБ)
+ */
+export function runMonteCarlo(
+  runner: ScenarioRunner,
+  inputs: ProjectInputs,
+  iterations = 500,
+): MonteCarloResult {
+  const irrs: number[] = [];
+  const npvs: number[] = [];
+
+  for (let i = 0; i < iterations; i++) {
+    const priceFactor      = 1 + normalRandom() * 0.12;
+    const costFactor       = 1 + normalRandom() * 0.10;
+    const velocityFactor   = 1 + normalRandom() * 0.20;
+    const pfRateDeltaPp    = normalRandom() * 1.5;
+
+    const p: ProjectInputs = {
+      ...inputs,
+      financing: { ...inputs.financing },
+      basePricePerM2:         Math.max(10_000, inputs.basePricePerM2 * priceFactor),
+      constructionCostPerM2:  Math.max(50_000, inputs.constructionCostPerM2 * costFactor),
+      salesVelocityM2PerMonth: Math.max(50, inputs.salesVelocityM2PerMonth * velocityFactor),
+    };
+    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + pfRateDeltaPp);
+
+    const { irr, npv } = runner(p, 'base');
+    if (irr !== null && isFinite(irr)) irrs.push(irr);
+    npvs.push(npv);
+  }
+
+  const sorted = [...irrs].sort((a, b) => a - b);
+  const n = sorted.length || 1;
+  const mean = sorted.reduce((s, x) => s + x, 0) / n;
+  const variance = sorted.reduce((s, x) => s + (x - mean) ** 2, 0) / n;
+
+  return {
+    iterations,
+    meanIrrPct:         mean,
+    medianIrrPct:       sorted[Math.floor(n * 0.50)] ?? 0,
+    p10IrrPct:          sorted[Math.floor(n * 0.10)] ?? 0,
+    p90IrrPct:          sorted[Math.floor(n * 0.90)] ?? 0,
+    stdDevIrrPct:       Math.sqrt(variance),
+    probIrrAbove20Pct:  (sorted.filter(r => r >= 20).length / n) * 100,
+    probIrrAbove25Pct:  (sorted.filter(r => r >= 25).length / n) * 100,
+    probNpvPositivePct: (npvs.filter(v => v > 0).length / iterations) * 100,
+  };
 }

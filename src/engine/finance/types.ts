@@ -47,6 +47,18 @@ export interface ProjectFinanceParams {
    * Обычно линия открывается ровно под потребность, поэтому коэффициент ~1.0.
    */
   pfCommittedLineMultiplier: number;
+  /**
+   * Промежуточное (поэтапное) раскрытие эскроу: доля накопленного эскроу,
+   * раскрываемая при достижении готовности `escrowMidReleaseProgressPct`.
+   * По ФЗ-214 ред.2023 доступно при готовности ≥30% по спецсоглашению с банком.
+   * 0 = только финальное раскрытие (консервативная схема). Норма: 0.30–0.50.
+   */
+  escrowMidReleasePct: number;
+  /**
+   * Готовность стройки (0..1), при которой происходит промежуточное раскрытие.
+   * Типично 0.50 (при 50% CAPEX освоения). Игнорируется если escrowMidReleasePct=0.
+   */
+  escrowMidReleaseProgressPct: number;
 }
 
 export interface ProjectInputs {
@@ -74,6 +86,42 @@ export interface ProjectInputs {
 
   /** Параметры проектного финансирования. Обязательны (по 214-ФЗ). */
   financing: ProjectFinanceParams;
+
+  /**
+   * Рабочий капитал и транзакционные издержки, % от выручки.
+   * Включает: комиссию банка за ведение счёта эскроу (~0.5%/год),
+   * страхование объекта (~0.3%), регистрационные сборы (~0.2%).
+   * Уплачивается в month 0 из equity. Если не задан — 1.0%.
+   */
+  workingCapitalPct?: number;
+
+  /**
+   * Операционные расходы на содержание непроданных квартир после ввода, % от
+   * себестоимости строительства в год (управляющая компания, ЖКУ, охрана).
+   * Если не задан — 0.8%.
+   */
+  opexPctOfConstructionAnnual?: number;
+
+  /**
+   * Налог на прибыль, %. С 2025 года крупный бизнес — 25%, МСП — 20%.
+   * Применяется к чистой прибыли (выручка − CAPEX − % ПФ).
+   * Если не задан — по умолчанию 25%.
+   */
+  corpTaxRatePct?: number;
+
+  /**
+   * Стадийный рост цены продажи в процессе строительства, %/год.
+   * По мере строительства бизнес-класс дорожает: рынок учитывает снижение риска.
+   * Норма: 8–12%/год. Если не задан — 0 (нет роста).
+   */
+  annualPriceGrowthPct?: number;
+
+  /**
+   * Инфляция себестоимости строительства, %/год.
+   * По данным Росстат 2025: рост цен строительного производства ~7%/год.
+   * Если не задан — 0 (нет инфляции).
+   */
+  annualCostInflationPct?: number;
 }
 
 export interface ScenarioAdjustments {
@@ -102,6 +150,8 @@ export interface CapexBreakdown {
   construction: number;
   infrastructure: number;
   marketing: number;
+  /** Рабочий капитал: банк. комиссии + страхование + регистрация, ₽. */
+  transactions: number;
   total: number;
 }
 
@@ -152,6 +202,8 @@ export interface MonthlyCashFlow {
   // ── Итог для девелопера ─────────────────────────────────────
   /** Прямые продажи после ввода (ДКП). */
   directInflow: number;
+  /** Операционные расходы на содержание непроданных квартир после ввода, ₽. */
+  opexSpend: number;
   /** Чистый поток к девелоперу. Используется в NPV/IRR. */
   developerCashFlow: number;
   cumulativeDeveloperCashFlow: number;
@@ -171,7 +223,7 @@ export interface ScenarioResult {
   netMargin: number;
   /** ROE: чистая прибыль / вложенный equity × 100%. Ключевая метрика для девелопера. */
   roe: number;
-  /** DSCR: чистая прибыль / пиковый ПФ. >1.2 = норма, <1.0 = риск ковенанта. */
+  /** DSCR = эскроу при раскрытии / ПФ при раскрытии. ≥1.0 = полное покрытие; <0.70 = риск хвостовых продаж. */
   dscr: number | null;
   /** Совокупный капитализированный процент по ПФ, ₽. */
   totalPfInterest: number;
@@ -181,6 +233,10 @@ export interface ScenarioResult {
   totalEquityDeployed: number;
   sellOutMonths: number;
   totalProjectMonths: number;
+  /** Фактическая выручка с учётом стадийного роста цены, ₽. */
+  actualTotalRevenue: number;
+  /** Налог на прибыль (25% / 20%), начисленный на проект, ₽. */
+  corpTaxAmount: number;
 }
 
 export interface SensitivityCell {
@@ -212,9 +268,27 @@ export interface SuccessProbInputs {
   confidenceScore: number;
 }
 
+/**
+ * Результаты симуляции Монте-Карло (500 итераций).
+ * Ключевые входные переменные перемешиваются нормальным распределением:
+ * цена ±12%, себестоимость ±10%, скорость продаж ±20%, ставка ПФ ±1.5 п.п.
+ */
+export interface MonteCarloResult {
+  iterations: number;
+  meanIrrPct: number;
+  medianIrrPct: number;
+  p10IrrPct: number;   // 10-й перцентиль: пессимистичный исход
+  p90IrrPct: number;   // 90-й перцентиль: оптимистичный исход
+  stdDevIrrPct: number;
+  probIrrAbove20Pct: number;  // P(IRR ≥ 20%) — минимальный порог
+  probIrrAbove25Pct: number;  // P(IRR ≥ 25%) — целевой порог
+  probNpvPositivePct: number; // P(NPV > 0)
+}
+
 export interface FinancialModelOutput {
   scenarios: Record<Scenario, ScenarioResult>;
   sensitivity: SensitivityTable[];
   successProb: number;
+  monteCarlo: MonteCarloResult;
   warnings: string[];
 }

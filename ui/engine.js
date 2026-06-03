@@ -38,6 +38,37 @@ var SUCCESS_PROB_PENALTIES = {
   stressIrrNegative: 20,
   confidenceDivisor: 2
 };
+var MINSTROI_NORMATIVE_2025 = {
+  novosibirsk: 88e3,
+  // Новосибирская область
+  yekaterinburg: 87e3,
+  // Свердловская область
+  kazan: 91e3,
+  // Республика Татарстан
+  nizhny: 82e3,
+  // Нижегородская область
+  chelyabinsk: 67e3,
+  // Челябинская область
+  samara: 74e3,
+  // Самарская область
+  ufa: 76e3,
+  // Республика Башкортостан
+  rostov: 74e3,
+  // Ростовская область
+  omsk: 67e3,
+  // Омская область
+  krasnodar: 76e3,
+  // Краснодарский край
+  voronezh: 73e3,
+  // Воронежская область
+  volgograd: 64e3,
+  // Волгоградская область
+  perm: 68e3,
+  // Пермский край
+  krasnoyarsk: 86e3
+  // Красноярский край
+};
+var BUSINESS_CLASS_CONSTRUCTION_PREMIUM = 1.22;
 function getDefaultFinancingParams(ks = 14.5) {
   const pfBaseRate = Math.round((ks + 2.2) * 10) / 10;
   const pfEscrowRate = ks > 16 ? 4 : ks > 12 ? 3 : 2;
@@ -49,7 +80,10 @@ function getDefaultFinancingParams(ks = 14.5) {
     escrowCoverageDiscount: 0.7,
     escrowDiscountActivationProgress: 0.3,
     pfCommitmentFeeAnnual: 1.5,
-    pfCommittedLineMultiplier: 1
+    pfCommittedLineMultiplier: 1,
+    // Поэтапное раскрытие: 0 = только финальное (консервативная схема по умолчанию)
+    escrowMidReleasePct: 0,
+    escrowMidReleaseProgressPct: 0.5
   };
 }
 var DEFAULT_FINANCING_PARAMS = getDefaultFinancingParams(14.5);
@@ -73,14 +107,17 @@ function calculateCapex(inputs, volumes, totalRevenue, scenario) {
   const construction = volumes.sellableM2 * inputs.constructionCostPerM2 * adj.costMultiplier;
   const infrastructure = inputs.infrastructureCost;
   const marketing = totalRevenue * inputs.marketingShare;
-  const total = land + construction + infrastructure + marketing;
-  return { land, construction, infrastructure, marketing, total };
+  const transactions = totalRevenue * ((inputs.workingCapitalPct ?? 1) / 100);
+  const total = land + construction + infrastructure + marketing + transactions;
+  return { land, construction, infrastructure, marketing, transactions, total };
 }
 function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
   const adj = SCENARIO_ADJUSTMENTS[scenario];
   const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
   const pfBaseRate = inputs.financing.pfBaseRateAnnual + adj.pfRateDelta;
   const pfLowRate = inputs.financing.pfEscrowCoveredRateAnnual;
+  const priceGrowthMonthly = (inputs.annualPriceGrowthPct ?? 0) / 100 / 12;
+  const costInflationMonthly = (inputs.annualCostInflationPct ?? 0) / 100 / 12;
   const equityCap = capex.total * inputs.financing.equityShare;
   const constructionEndMonth = inputs.constructionMonths;
   const escrowReleaseMonth = constructionEndMonth + inputs.financing.escrowReleaseLagMonths;
@@ -98,22 +135,30 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
   let cumulativePfInterest = 0;
   let escrowBalance = 0;
   let cumulativeDevCash = 0;
+  const midReleasePct = inputs.financing.escrowMidReleasePct ?? 0;
+  const midReleaseProgress = inputs.financing.escrowMidReleaseProgressPct ?? 0.5;
+  let midReleaseTriggered = false;
+  const opexMonthlyRate = (inputs.opexPctOfConstructionAnnual ?? 0.8) / 100 / 12;
   const pfCommittedLine = capex.total * (1 - inputs.financing.equityShare) * inputs.financing.pfCommittedLineMultiplier;
   for (let m = 0; m <= horizon; m++) {
-    const landSpend = m === 0 ? capex.land : 0;
-    const constructionSpend = m >= 1 && m <= constructionEndMonth ? capex.construction * sCurve[m - 1] : 0;
-    const infraSpend = m >= 1 && m <= constructionEndMonth ? capex.infrastructure / constructionEndMonth : 0;
+    const inflationFactor = m >= 1 ? Math.pow(1 + costInflationMonthly, m) : 1;
+    const landSpend = m === 0 ? capex.land + capex.transactions : 0;
+    const constructionSpend = m >= 1 && m <= constructionEndMonth ? capex.construction * sCurve[m - 1] * inflationFactor : 0;
+    const infraSpend = m >= 1 && m <= constructionEndMonth ? capex.infrastructure / constructionEndMonth * inflationFactor : 0;
     let m2Sold = 0;
     if (m >= inputs.salesStartMonth && cumulativeM2 < volumes.sellableM2) {
       m2Sold = Math.min(salesVelocity, volumes.sellableM2 - cumulativeM2);
     }
     cumulativeM2 += m2Sold;
-    const revenueMonth = m2Sold * revenue.pricePerM2;
+    const priceGrowthFactor = m >= inputs.salesStartMonth ? Math.pow(1 + priceGrowthMonthly, m - inputs.salesStartMonth) : 1;
+    const revenueMonth = m2Sold * revenue.pricePerM2 * priceGrowthFactor;
     const isDuringConstruction = m <= constructionEndMonth;
     const escrowInflow = isDuringConstruction ? revenueMonth : 0;
     let directInflow = isDuringConstruction ? 0 : revenueMonth;
     const marketingSpend = revenueMonth * inputs.marketingShare;
     const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend;
+    const unsoldRatio = volumes.sellableM2 > 0 ? Math.max(0, 1 - cumulativeM2 / volumes.sellableM2) : 0;
+    const opexSpend = m > constructionEndMonth && unsoldRatio > 0 ? capex.construction * unsoldRatio * opexMonthlyRate : 0;
     let equityDraw = 0;
     let pfDraw = 0;
     if (totalSpend > 0) {
@@ -141,6 +186,14 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
     cumulativePfInterest += totalFinanceCharge;
     pfBalance = pfBalanceStart + pfDraw + totalFinanceCharge;
     escrowBalance += escrowInflow;
+    if (midReleasePct > 0 && !midReleaseTriggered && m <= constructionEndMonth && constructionProgress >= midReleaseProgress && escrowBalance > 0) {
+      midReleaseTriggered = true;
+      const midEscrow = escrowBalance * midReleasePct;
+      escrowBalance -= midEscrow;
+      const midPfRepay = Math.min(pfBalance, midEscrow);
+      pfBalance -= midPfRepay;
+      directInflow += Math.max(0, midEscrow - midPfRepay);
+    }
     let escrowReleased = 0;
     let pfRepayment = 0;
     if (m === escrowReleaseMonth && escrowBalance > 0) {
@@ -157,7 +210,7 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
       pfRepayment += tailRepayment;
       directInflow -= tailRepayment;
     }
-    const developerCashFlow = directInflow - equityDraw;
+    const developerCashFlow = directInflow - equityDraw - opexSpend;
     cumulativeDevCash += developerCashFlow;
     flows.push({
       month: m,
@@ -183,6 +236,7 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
       escrowBalance,
       escrowReleased,
       directInflow,
+      opexSpend,
       developerCashFlow,
       cumulativeDeveloperCashFlow: cumulativeDevCash
     });
@@ -284,6 +338,47 @@ function applyDelta(inputs, variable, delta) {
   }
   return copy;
 }
+function normalRandom() {
+  const u1 = Math.max(1e-15, Math.random());
+  const u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function runMonteCarlo(runner, inputs, iterations = 500) {
+  const irrs = [];
+  const npvs = [];
+  for (let i = 0; i < iterations; i++) {
+    const priceFactor = 1 + normalRandom() * 0.12;
+    const costFactor = 1 + normalRandom() * 0.1;
+    const velocityFactor = 1 + normalRandom() * 0.2;
+    const pfRateDeltaPp = normalRandom() * 1.5;
+    const p = {
+      ...inputs,
+      financing: { ...inputs.financing },
+      basePricePerM2: Math.max(1e4, inputs.basePricePerM2 * priceFactor),
+      constructionCostPerM2: Math.max(5e4, inputs.constructionCostPerM2 * costFactor),
+      salesVelocityM2PerMonth: Math.max(50, inputs.salesVelocityM2PerMonth * velocityFactor)
+    };
+    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + pfRateDeltaPp);
+    const { irr, npv } = runner(p, "base");
+    if (irr !== null && isFinite(irr)) irrs.push(irr);
+    npvs.push(npv);
+  }
+  const sorted = [...irrs].sort((a, b) => a - b);
+  const n = sorted.length || 1;
+  const mean = sorted.reduce((s, x) => s + x, 0) / n;
+  const variance = sorted.reduce((s, x) => s + (x - mean) ** 2, 0) / n;
+  return {
+    iterations,
+    meanIrrPct: mean,
+    medianIrrPct: sorted[Math.floor(n * 0.5)] ?? 0,
+    p10IrrPct: sorted[Math.floor(n * 0.1)] ?? 0,
+    p90IrrPct: sorted[Math.floor(n * 0.9)] ?? 0,
+    stdDevIrrPct: Math.sqrt(variance),
+    probIrrAbove20Pct: sorted.filter((r) => r >= 20).length / n * 100,
+    probIrrAbove25Pct: sorted.filter((r) => r >= 25).length / n * 100,
+    probNpvPositivePct: npvs.filter((v) => v > 0).length / iterations * 100
+  };
+}
 
 // src/engine/finance/successProb.ts
 function normalizeIrrToScore(irrPct) {
@@ -321,22 +416,59 @@ function runScenario(inputs, scenario) {
     scenario
   );
   const effectiveDiscountRate = inputs.discountRateAnnual + adj.discountRateDelta;
-  const npv = calculateNPV(monthlyCashFlow, effectiveDiscountRate);
-  const irr = calculateIRR(monthlyCashFlow);
   const totalPfInterest = monthlyCashFlow[monthlyCashFlow.length - 1]?.cumulativePfInterest ?? 0;
   const peakPfBalance = monthlyCashFlow.reduce(
     (max, f) => Math.max(max, f.pfBalanceEnd),
     0
   );
   const totalEquityDeployed = monthlyCashFlow[monthlyCashFlow.length - 1]?.cumulativeEquityDrawn ?? 0;
-  const grossMargin = revenue.totalRevenue > 0 ? (revenue.totalRevenue - capex.total) / revenue.totalRevenue * 100 : 0;
-  const netMargin = revenue.totalRevenue > 0 ? (revenue.totalRevenue - capex.total - totalPfInterest) / revenue.totalRevenue * 100 : 0;
-  const netProfit = revenue.totalRevenue - capex.total - totalPfInterest;
-  const roe = totalEquityDeployed > 0 ? netProfit / totalEquityDeployed * 100 : 0;
-  const maxMonthlyInflow = Math.max(
-    ...monthlyCashFlow.map((f) => f.directInflow + f.escrowReleased)
-  );
-  const dscr = peakPfBalance > 0 ? netProfit / peakPfBalance : null;
+  const actualTotalRevenue = monthlyCashFlow.reduce((s, f) => s + f.revenue, 0);
+  const actualTotalSpend = monthlyCashFlow.reduce((s, f) => s + f.totalSpend, 0);
+  const totalOpex = monthlyCashFlow.reduce((s, f) => s + f.opexSpend, 0);
+  const grossMargin = actualTotalRevenue > 0 ? (actualTotalRevenue - actualTotalSpend) / actualTotalRevenue * 100 : 0;
+  const netProfitPreTax = actualTotalRevenue - actualTotalSpend - totalPfInterest - totalOpex;
+  const corpTaxRate = (inputs.corpTaxRatePct ?? 25) / 100;
+  const corpTaxAmount = Math.max(0, netProfitPreTax) * corpTaxRate;
+  const lastFlowBeforeTax = monthlyCashFlow[monthlyCashFlow.length - 1];
+  if (corpTaxAmount > 0 && lastFlowBeforeTax) {
+    const taxMonth = lastFlowBeforeTax.month + 3;
+    monthlyCashFlow.push({
+      month: taxMonth,
+      landSpend: 0,
+      constructionSpend: 0,
+      infraSpend: 0,
+      marketingSpend: 0,
+      totalSpend: 0,
+      m2Sold: 0,
+      cumulativeM2Sold: lastFlowBeforeTax.cumulativeM2Sold,
+      revenue: 0,
+      projectNetCashFlow: 0,
+      equityDraw: 0,
+      cumulativeEquityDrawn: totalEquityDeployed,
+      pfDraw: 0,
+      pfBalanceStart: 0,
+      pfRateAnnualEffective: 0,
+      pfInterestAccrued: 0,
+      cumulativePfInterest: totalPfInterest,
+      pfRepayment: 0,
+      pfBalanceEnd: 0,
+      escrowInflow: 0,
+      escrowBalance: 0,
+      escrowReleased: 0,
+      directInflow: 0,
+      opexSpend: 0,
+      developerCashFlow: -corpTaxAmount,
+      cumulativeDeveloperCashFlow: lastFlowBeforeTax.cumulativeDeveloperCashFlow - corpTaxAmount
+    });
+  }
+  const npv = calculateNPV(monthlyCashFlow, effectiveDiscountRate);
+  const irr = calculateIRR(monthlyCashFlow);
+  const netProfitAfterTax = netProfitPreTax - corpTaxAmount;
+  const netMargin = actualTotalRevenue > 0 ? netProfitAfterTax / actualTotalRevenue * 100 : 0;
+  const roe = totalEquityDeployed > 0 ? netProfitAfterTax / totalEquityDeployed * 100 : 0;
+  const releaseFlow = monthlyCashFlow.find((f) => f.escrowReleased > 0);
+  const pfAtRelease = releaseFlow ? releaseFlow.pfRepayment + releaseFlow.pfBalanceEnd : 0;
+  const dscr = pfAtRelease > 0 && releaseFlow ? releaseFlow.escrowReleased / pfAtRelease : null;
   const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
   const sellOutMonths = volumes.sellableM2 / Math.max(salesVelocity, 1);
   const totalProjectMonths = monthlyCashFlow.length - 1;
@@ -356,7 +488,9 @@ function runScenario(inputs, scenario) {
     peakPfBalance,
     totalEquityDeployed,
     sellOutMonths,
-    totalProjectMonths
+    totalProjectMonths,
+    actualTotalRevenue,
+    corpTaxAmount
   };
 }
 function runFinancialModel(inputs, options = {}) {
@@ -390,7 +524,7 @@ function runFinancialModel(inputs, options = {}) {
   if (base.roe < 40) {
     warnings.push(`ROE ${base.roe.toFixed(1)}% < 40% \u2014 \u043D\u0438\u0436\u0435 \u043E\u0442\u0440\u0430\u0441\u043B\u0435\u0432\u043E\u0433\u043E \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442\u0430 \u0434\u043B\u044F \u0431\u0438\u0437\u043D\u0435\u0441-\u043A\u043B\u0430\u0441\u0441\u0430 (\u043D\u043E\u0440\u043C\u0430: 40\u201380%)`);
   }
-  const ltvRatio = base.revenue.totalRevenue > 0 ? base.peakPfBalance / (base.revenue.totalRevenue * 0.7) : Infinity;
+  const ltvRatio = base.actualTotalRevenue > 0 ? base.peakPfBalance / (base.actualTotalRevenue * 0.7) : Infinity;
   if (ltvRatio > 0.85) {
     warnings.push(`\u041F\u0438\u043A\u043E\u0432\u044B\u0439 LTV ${(ltvRatio * 100).toFixed(0)}% > 85% \u2014 \u0440\u0438\u0441\u043A \u043A\u043E\u0432\u0435\u043D\u0430\u043D\u0442\u043D\u043E\u0433\u043E \u043D\u0430\u0440\u0443\u0448\u0435\u043D\u0438\u044F. \u0423\u0432\u0435\u043B\u0438\u0447\u044C\u0442\u0435 equity \u0438\u043B\u0438 \u0443\u0441\u043A\u043E\u0440\u044C\u0442\u0435 \u043F\u0440\u043E\u0434\u0430\u0436\u0438`);
   }
@@ -398,16 +532,20 @@ function runFinancialModel(inputs, options = {}) {
   if (coverRatio > 6) {
     warnings.push(`\u041F\u0438\u043A\u043E\u0432\u044B\u0439 \u041F\u0424 / equity = ${coverRatio.toFixed(1)}\xD7 > 6 \u2014 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0432\u044B\u0441\u043E\u043A\u0438\u0439 \u043B\u0435\u0432\u0435\u0440\u0435\u0434\u0436`);
   }
-  if (base.dscr !== null && base.dscr < 1.2) {
-    warnings.push(`DSCR ${base.dscr.toFixed(2)} < 1.2 \u2014 \u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E\u0435 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435 \u0434\u043E\u043B\u0433\u0430. \u0411\u0430\u043D\u043A \u043C\u043E\u0436\u0435\u0442 \u043F\u043E\u0442\u0440\u0435\u0431\u043E\u0432\u0430\u0442\u044C \u0434\u043E\u043F. \u043E\u0431\u0435\u0441\u043F\u0435\u0447\u0435\u043D\u0438\u0435`);
+  if (base.dscr !== null && base.dscr < 0.7) {
+    warnings.push(`\u041F\u043E\u043A\u0440\u044B\u0442\u0438\u0435 \u041F\u0424 \u044D\u0441\u043A\u0440\u043E\u0443 ${(base.dscr * 100).toFixed(0)}% < 70% \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E\u0441\u0442\u044C \u043E\u0442 \u043F\u0440\u043E\u0434\u0430\u0436 \u043F\u043E\u0441\u043B\u0435 \u0432\u0432\u043E\u0434\u0430. \u0423\u0441\u043A\u043E\u0440\u044C\u0442\u0435 \u0442\u0435\u043C\u043F \u043F\u0440\u043E\u0434\u0430\u0436 \u0438\u043B\u0438 \u0443\u0432\u0435\u043B\u0438\u0447\u044C\u0442\u0435 equity`);
   }
   const months = base.totalProjectMonths;
   if (months > 60) {
     warnings.push(`\u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043F\u0440\u043E\u0435\u043A\u0442\u0430 ${months} \u043C\u0435\u0441. > 5 \u043B\u0435\u0442 \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u0447\u0443\u0432\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043A \u0441\u0442\u0430\u0432\u043A\u0435 \u0426\u0411`);
   }
-  const landToRevenue = base.revenue.totalRevenue > 0 ? base.capex.land / base.revenue.totalRevenue : 0;
+  const landToRevenue = base.actualTotalRevenue > 0 ? base.capex.land / base.actualTotalRevenue : 0;
   if (landToRevenue > 0.25) {
     warnings.push(`\u0421\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0437\u0435\u043C\u043B\u0438 ${(landToRevenue * 100).toFixed(0)}% \u043E\u0442 \u0432\u044B\u0440\u0443\u0447\u043A\u0438 > 25% \u2014 \u0432\u044B\u0441\u043E\u043A\u0430\u044F. \u041D\u043E\u0440\u043C\u0430 \u0434\u043B\u044F \u0431\u0438\u0437\u043D\u0435\u0441-\u043A\u043B\u0430\u0441\u0441\u0430: \u226415\u201320%`);
+  }
+  const taxToRevenue = base.actualTotalRevenue > 0 ? base.corpTaxAmount / base.actualTotalRevenue : 0;
+  if (taxToRevenue > 0.12) {
+    warnings.push(`\u041D\u0430\u043B\u043E\u0433 \u043D\u0430 \u043F\u0440\u0438\u0431\u044B\u043B\u044C ${(taxToRevenue * 100).toFixed(1)}% \u043E\u0442 \u0432\u044B\u0440\u0443\u0447\u043A\u0438 \u2014 \u0443\u0431\u0435\u0434\u0438\u0442\u0435\u0441\u044C \u0432 \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0441\u0442\u0438 \u0441\u0442\u0430\u0432\u043A\u0438 (\u043A\u0440\u0443\u043F\u043D\u044B\u0439 \u0431\u0438\u0437\u043D\u0435\u0441: 25%, \u041C\u0421\u041F: 20%)`);
   }
   let successProb = 0;
   if (options.successProbContext) {
@@ -417,7 +555,20 @@ function runFinancialModel(inputs, options = {}) {
       irrStress: scenarios.stress.irr ?? 0
     });
   }
-  return { scenarios, sensitivity, successProb, warnings };
+  const monteCarlo = runMonteCarlo(
+    (inp, sc) => {
+      const r = runScenario(inp, sc);
+      return { irr: r.irr, npv: r.npv };
+    },
+    inputs,
+    500
+  );
+  if (options.successProbContext) {
+    successProb = Math.round(0.5 * successProb + 0.5 * monteCarlo.probIrrAbove20Pct);
+  } else {
+    successProb = Math.round(monteCarlo.probIrrAbove20Pct);
+  }
+  return { scenarios, sensitivity, successProb, monteCarlo, warnings };
 }
 
 // src/engine/scoring/config.ts
@@ -1119,6 +1270,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 822, krtProjectsCount: 54, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 88e3, avgUnitSizeM2: 63 },
+    // Новосибирск
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0420\u0411\u041A \u041D\u0421\u041A \u043C\u0430\u0440.2026"],
@@ -1156,6 +1309,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 280, krtProjectsCount: 11, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 87e3, avgUnitSizeM2: 65 },
+    // Екатеринбург
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0424\u0435\u0434\u0435\u0440\u0430\u043B\u041F\u0440\u0435\u0441\u0441 Q1 2026"],
@@ -1193,6 +1348,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 228, krtProjectsCount: 2, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 91e3, avgUnitSizeM2: 61 },
+    // Казань
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u0422\u0430\u0442\u0430\u0440\u0441\u0442\u0430\u043D \u0444\u0435\u0432.2026"],
@@ -1230,6 +1387,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 180, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 82e3, avgUnitSizeM2: 63 },
+    // Нижний Новгород
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041D\u0438\u0436\u0435\u0433\u043E\u0440.\u043E\u0431\u043B. \u0444\u0435\u0432.2026"],
@@ -1266,6 +1425,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 349, krtProjectsCount: 78, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 59 },
+    // Челябинск
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0418\u043D\u0442\u0435\u0440\u0444\u0430\u043A\u0441-\u0423\u0440\u0430\u043B", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1303,6 +1464,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.6, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 120, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 61 },
+    // Самара
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1340,6 +1503,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 140, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 62 },
+    // Уфа
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u0411\u0430\u0448\u043A\u043E\u0440\u0442\u043E\u0441\u0442\u0430\u043D 2026"],
@@ -1377,6 +1542,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 500, krtProjectsCount: 6, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 63 },
+    // Ростов-на-Дону
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u041A\u041F \u0420\u043E\u0441\u0442\u043E\u0432 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1414,6 +1581,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 14, top5MarketShare: 0.7, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 115, krtProjectsCount: 5, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 57 },
+    // Омск
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041E\u043C\u0441\u043A\u0430\u044F \u043E\u0431\u043B. 2026"],
@@ -1452,6 +1621,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 400, krtProjectsCount: 10, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 65 },
+    // Краснодар
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1488,6 +1659,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 110, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 73e3, avgUnitSizeM2: 61 },
+    // Воронеж
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1525,6 +1698,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 45, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: false }
     },
+    finance: { constructionNormativePerTotalM2: 64e3, avgUnitSizeM2: 58 },
+    // Волгоград
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026"],
@@ -1561,6 +1736,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 68e3, avgUnitSizeM2: 60 },
+    // Пермь
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0420\u0411\u041A \u041F\u0435\u0440\u043C\u044C Q1 2026"],
@@ -1599,6 +1776,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 130, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
+    finance: { constructionNormativePerTotalM2: 86e3, avgUnitSizeM2: 64 },
+    // Красноярск
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "\u041D\u0414\u0412 \u0430\u043F\u0440.2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 \u041A\u0440\u0430\u0441\u043D\u043E\u044F\u0440\u0441\u043A\u0438\u0439 \u043A\u0440. 2026"],
@@ -2419,10 +2598,12 @@ async function buildCityRanking() {
 }
 export {
   ALL_CITY_KEYS,
+  BUSINESS_CLASS_CONSTRUCTION_PREMIUM,
   CITY_COORDINATES,
   DEFAULT_FINANCING_PARAMS,
   DEFAULT_SCORING_WEIGHTS,
   IRR_NORMALIZATION,
+  MINSTROI_NORMATIVE_2025,
   RUSSIA_MILLION_CITIES,
   SCENARIO_ADJUSTMENTS,
   SENSITIVITY_DELTAS,

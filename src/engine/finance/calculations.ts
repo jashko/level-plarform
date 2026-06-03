@@ -65,8 +65,11 @@ export function calculateCapex(
     volumes.sellableM2 * inputs.constructionCostPerM2 * adj.costMultiplier;
   const infrastructure = inputs.infrastructureCost;
   const marketing = totalRevenue * inputs.marketingShare;
-  const total = land + construction + infrastructure + marketing;
-  return { land, construction, infrastructure, marketing, total };
+  // Рабочий капитал: банковские комиссии эскроу + страхование + регистрация.
+  // Уплачивается в month 0 из equity. Default: 1.0% от выручки.
+  const transactions = totalRevenue * ((inputs.workingCapitalPct ?? 1.0) / 100);
+  const total = land + construction + infrastructure + marketing + transactions;
+  return { land, construction, infrastructure, marketing, transactions, total };
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -85,6 +88,11 @@ export function buildMonthlyCashFlow(
 
   const pfBaseRate = inputs.financing.pfBaseRateAnnual + adj.pfRateDelta;
   const pfLowRate = inputs.financing.pfEscrowCoveredRateAnnual;
+
+  // Ежемесячные ставки роста для стадийного удорожания и строительной инфляции
+  const priceGrowthMonthly = (inputs.annualPriceGrowthPct ?? 0) / 100 / 12;
+  const costInflationMonthly = (inputs.annualCostInflationPct ?? 0) / 100 / 12;
+
   const equityCap = capex.total * inputs.financing.equityShare;
 
   const constructionEndMonth = inputs.constructionMonths;
@@ -110,6 +118,14 @@ export function buildMonthlyCashFlow(
   let escrowBalance = 0;
   let cumulativeDevCash = 0;
 
+  // Поэтапное раскрытие эскроу (промежуточная транш при достижении готовности)
+  const midReleasePct = inputs.financing.escrowMidReleasePct ?? 0;
+  const midReleaseProgress = inputs.financing.escrowMidReleaseProgressPct ?? 0.50;
+  let midReleaseTriggered = false;
+
+  // Операционные расходы после ввода (содержание непроданных квартир)
+  const opexMonthlyRate = (inputs.opexPctOfConstructionAnnual ?? 0.8) / 100 / 12;
+
   // Лимит кредитной линии — для расчёта commitment fee
   const pfCommittedLine =
     capex.total *
@@ -118,12 +134,20 @@ export function buildMonthlyCashFlow(
 
   for (let m = 0; m <= horizon; m++) {
     // ─── 1. Operational expenses ─────────────────────────────────
-    const landSpend = m === 0 ? capex.land : 0;
+    // Строительная инфляция: каждый месяц затраты растут на costInflationMonthly.
+    // Коэффициент отсчитывается с месяца 1 (начало стройки).
+    const inflationFactor = m >= 1
+      ? Math.pow(1 + costInflationMonthly, m)
+      : 1;
+    // Рабочий капитал уплачивается в month 0 вместе с покупкой земли
+    const landSpend = m === 0 ? capex.land + capex.transactions : 0;
     const constructionSpend =
-      m >= 1 && m <= constructionEndMonth ? capex.construction * sCurve[m - 1]! : 0;
+      m >= 1 && m <= constructionEndMonth
+        ? capex.construction * sCurve[m - 1]! * inflationFactor
+        : 0;
     const infraSpend =
       m >= 1 && m <= constructionEndMonth
-        ? capex.infrastructure / constructionEndMonth
+        ? (capex.infrastructure / constructionEndMonth) * inflationFactor
         : 0;
 
     // ─── 2. Продажи ──────────────────────────────────────────────
@@ -132,7 +156,12 @@ export function buildMonthlyCashFlow(
       m2Sold = Math.min(salesVelocity, volumes.sellableM2 - cumulativeM2);
     }
     cumulativeM2 += m2Sold;
-    const revenueMonth = m2Sold * revenue.pricePerM2;
+    // Стадийный рост цены: каждый месяц продаж цена выше на priceGrowthMonthly.
+    // Отсчёт от salesStartMonth — базовая цена в момент начала продаж.
+    const priceGrowthFactor = m >= inputs.salesStartMonth
+      ? Math.pow(1 + priceGrowthMonthly, m - inputs.salesStartMonth)
+      : 1;
+    const revenueMonth = m2Sold * revenue.pricePerM2 * priceGrowthFactor;
 
     const isDuringConstruction = m <= constructionEndMonth;
     const escrowInflow = isDuringConstruction ? revenueMonth : 0;
@@ -140,6 +169,16 @@ export function buildMonthlyCashFlow(
 
     const marketingSpend = revenueMonth * inputs.marketingShare;
     const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend;
+
+    // ─── 1b. Операционные расходы (после ввода в эксплуатацию) ──────────
+    // Содержание непроданных квартир: ЖКУ, управляющая компания, охрана.
+    // Начисляются с месяца после ввода, пропорционально непроданному остатку.
+    const unsoldRatio = volumes.sellableM2 > 0
+      ? Math.max(0, 1 - cumulativeM2 / volumes.sellableM2)
+      : 0;
+    const opexSpend = m > constructionEndMonth && unsoldRatio > 0
+      ? capex.construction * unsoldRatio * opexMonthlyRate
+      : 0;
 
     // ─── 3. Финансирование: сначала equity, потом ПФ ────────────
     let equityDraw = 0;
@@ -185,6 +224,25 @@ export function buildMonthlyCashFlow(
 
     escrowBalance += escrowInflow;
 
+    // ─── 4b. Промежуточное (поэтапное) раскрытие эскроу ─────────────────
+    // ФЗ-214 ред.2023: банк может раскрыть часть эскроу при достижении
+    // застройщиком заданной строительной готовности (по спецсоглашению).
+    if (
+      midReleasePct > 0 &&
+      !midReleaseTriggered &&
+      m <= constructionEndMonth &&
+      constructionProgress >= midReleaseProgress &&
+      escrowBalance > 0
+    ) {
+      midReleaseTriggered = true;
+      const midEscrow = escrowBalance * midReleasePct;
+      escrowBalance -= midEscrow;
+      const midPfRepay = Math.min(pfBalance, midEscrow);
+      pfBalance -= midPfRepay;
+      // Остаток от промежуточного раскрытия сверх долга — застройщику
+      directInflow += Math.max(0, midEscrow - midPfRepay);
+    }
+
     // ─── 5. Раскрытие эскроу ─────────────────────────────────────
     let escrowReleased = 0;
     let pfRepayment = 0;
@@ -208,9 +266,8 @@ export function buildMonthlyCashFlow(
 
     // ─── 7. Чистый поток к девелоперу ────────────────────────────
     // Equity — отток для инвестора, прямые поступления — приток.
-    // Маркетинг во время стройки оплачивается из equity/ПФ, в operating блок
-    // уже учли, поэтому здесь только баланс инвестора.
-    const developerCashFlow = directInflow - equityDraw;
+    // opexSpend — операционные расходы, финансируются из продаж (не из equity/ПФ).
+    const developerCashFlow = directInflow - equityDraw - opexSpend;
     cumulativeDevCash += developerCashFlow;
 
     flows.push({
@@ -237,6 +294,7 @@ export function buildMonthlyCashFlow(
       escrowBalance,
       escrowReleased,
       directInflow,
+      opexSpend,
       developerCashFlow,
       cumulativeDeveloperCashFlow: cumulativeDevCash,
     });

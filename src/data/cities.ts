@@ -24,8 +24,23 @@
 
 import type { CityInputs } from '../engine/scoring';
 
+export interface CityFinanceData {
+  /**
+   * Нормативная себестоимость строительства МКД по Минстрою РФ 2025,
+   * ₽/м² ОБЩЕЙ площади (стандартное жильё, без учёта класса).
+   * Для бизнес-класса умножить на BUSINESS_CLASS_CONSTRUCTION_PREMIUM (1.22).
+   */
+  constructionNormativePerTotalM2: number;
+  /**
+   * Средний метраж квартиры бизнес-класса в данном городе, м².
+   * Источник: аналитика bnMAP.pro / ДОМ.РФ по проектам бизнес-класса, 2025.
+   */
+  avgUnitSizeM2: number;
+}
+
 export interface CityDatasetEntry {
   inputs: CityInputs;
+  finance: CityFinanceData;
   meta: {
     dataAsOfDate: string;
     sources: string[];
@@ -57,6 +72,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 822, krtProjectsCount: 54, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 88_000, avgUnitSizeM2: 63 }, // Новосибирск
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР апр.2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026', 'РБК НСК мар.2026'],
@@ -87,6 +103,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 280, krtProjectsCount: 11, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 87_000, avgUnitSizeM2: 65 }, // Екатеринбург
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['НДВ апр.2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026', 'ФедералПресс Q1 2026'],
@@ -117,6 +134,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 228, krtProjectsCount: 2, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 91_000, avgUnitSizeM2: 61 }, // Казань
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['НДВ апр.2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат Татарстан фев.2026'],
@@ -147,6 +165,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 180, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 82_000, avgUnitSizeM2: 63 }, // Нижний Новгород
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР май 2026', 'Коммерсант апр.2026', 'Росстат Нижегор.обл. фев.2026'],
@@ -176,6 +195,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 349, krtProjectsCount: 78, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 67_000, avgUnitSizeM2: 59 }, // Челябинск
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'Коммерсант апр.2026', 'Интерфакс-Урал', 'Росстат 2026'],
@@ -206,6 +226,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.60, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 120, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 74_000, avgUnitSizeM2: 61 }, // Самара
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026'],
@@ -236,6 +257,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 140, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 76_000, avgUnitSizeM2: 62 }, // Уфа
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат Башкортостан 2026'],
@@ -266,6 +288,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 500, krtProjectsCount: 6, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 74_000, avgUnitSizeM2: 63 }, // Ростов-на-Дону
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'НДВ апр.2026', 'Коммерсант апр.2026', 'КП Ростов апр.2026', 'Росстат 2026'],
@@ -295,6 +318,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 14, top5MarketShare: 0.70, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 115, krtProjectsCount: 5, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 67_000, avgUnitSizeM2: 57 }, // Омск
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат Омская обл. 2026'],
@@ -325,6 +349,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 400, krtProjectsCount: 10, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 76_000, avgUnitSizeM2: 65 }, // Краснодар
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'НДВ апр.2026', 'Коммерсант апр.2026', 'Росстат 2026'],
@@ -354,6 +379,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 110, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 73_000, avgUnitSizeM2: 61 }, // Воронеж
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026'],
@@ -383,6 +409,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 45, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: false },
     },
+    finance: { constructionNormativePerTotalM2: 64_000, avgUnitSizeM2: 58 }, // Волгоград
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'Коммерсант апр.2026', 'Росстат 2026'],
@@ -412,6 +439,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 68_000, avgUnitSizeM2: 60 }, // Пермь
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026', 'РБК Пермь Q1 2026'],
@@ -442,6 +470,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 130, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true },
     },
+    finance: { constructionNormativePerTotalM2: 86_000, avgUnitSizeM2: 64 }, // Красноярск
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'НДВ апр.2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат Красноярский кр. 2026'],

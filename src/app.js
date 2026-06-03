@@ -12,7 +12,7 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 
-import { runFinancialModel, DEFAULT_FINANCING_PARAMS, getDefaultFinancingParams, buildCityRanking, calculateDistrictScore, calculateSiteScore, calculateCityScore, calculateMacroScore, calculateMarketCycle, calculateCityRiskProfile, calculateAffordability } from './engine/index.ts';
+import { runFinancialModel, DEFAULT_FINANCING_PARAMS, getDefaultFinancingParams, buildCityRanking, calculateDistrictScore, calculateSiteScore, calculateCityScore, calculateMacroScore, calculateMarketCycle, calculateCityRiskProfile, calculateAffordability, MINSTROI_NORMATIVE_2025, BUSINESS_CLASS_CONSTRUCTION_PREMIUM } from './engine/index.ts';
 import { RUSSIA_MILLION_CITIES, ALL_CITY_KEYS, CITY_COORDINATES } from './data/cities.ts';
 import agentOutputRaw from './data/agent-output.json';
 import macroCbrRaw from './data/macro-cbr.json';
@@ -3587,6 +3587,12 @@ function InputPanel({ inputs, onChange }) {
       React.createElement(InputField, { label: 'Темп продаж, м²/мес',     value: inputs.salesVelocityM2PerMonth,     step: 100,         onChange: set('salesVelocityM2PerMonth') }),
       React.createElement(InputField, { label: 'Equity, доля',            value: inputs.financing.equityShare,       step: 0.05, min: 0, max: 1, onChange: setFin('equityShare') }),
       React.createElement(InputField, { label: 'Ставка ПФ база, %',       value: inputs.financing.pfBaseRateAnnual,  step: 0.5,         onChange: setFin('pfBaseRateAnnual') }),
+      React.createElement(InputField, { label: 'Налог на прибыль, %',     value: inputs.corpTaxRatePct ?? 25,              step: 1,   min: 0, max: 30,  onChange: v => setInputs(prev => ({ ...prev, corpTaxRatePct: v })) }),
+      React.createElement(InputField, { label: 'Рост цены/год, %',        value: inputs.annualPriceGrowthPct ?? 8,         step: 1,   min: 0, max: 25,  onChange: v => setInputs(prev => ({ ...prev, annualPriceGrowthPct: v })) }),
+      React.createElement(InputField, { label: 'Инфляция затрат/год, %',  value: inputs.annualCostInflationPct ?? 7,       step: 1,   min: 0, max: 20,  onChange: v => setInputs(prev => ({ ...prev, annualCostInflationPct: v })) }),
+      React.createElement(InputField, { label: 'Рабочий капитал, %',      value: inputs.workingCapitalPct ?? 1.0,          step: 0.1, min: 0, max: 5,   onChange: v => setInputs(prev => ({ ...prev, workingCapitalPct: v })) }),
+      React.createElement(InputField, { label: 'Опex после ввода, %/год', value: inputs.opexPctOfConstructionAnnual ?? 0.8, step: 0.1, min: 0, max: 3,   onChange: v => setInputs(prev => ({ ...prev, opexPctOfConstructionAnnual: v })) }),
+      React.createElement(InputField, { label: 'Эскроу транш (при 50%)', value: (inputs.financing.escrowMidReleasePct ?? 0) * 100, step: 5, min: 0, max: 50, onChange: v => setInputs(prev => ({ ...prev, financing: { ...prev.financing, escrowMidReleasePct: v / 100 } })) }),
     ),
   );
 }
@@ -3722,6 +3728,38 @@ function WarningsPanel({ warnings }) {
       'ul',
       { style: { fontSize: 12, color: T.yellow, opacity: 0.75, paddingLeft: 16, margin: 0, lineHeight: 2 } },
       warnings.map((w, i) => React.createElement('li', { key: i }, w)),
+    ),
+  );
+}
+
+// ── Monte Carlo Results Panel ───────────────────────────────────────
+function MonteCarloPanel({ mc }) {
+  if (!mc) return null;
+  const bar = (pct, color) => React.createElement('div', { style: { height: 6, borderRadius: 3, background: `${T.surface}`, overflow: 'hidden', flex: 1 } },
+    React.createElement('div', { style: { width: `${Math.min(100, pct)}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.4s' } })
+  );
+  const row = (label, value, pct, color) => React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+    React.createElement('div', { style: { fontSize: 11, color: T.textSub, width: 140, flexShrink: 0 } }, label),
+    bar(pct, color),
+    React.createElement('div', { style: { fontSize: 13, fontWeight: 700, color, width: 52, textAlign: 'right', flexShrink: 0 } }, `${Math.round(pct)}%`),
+  );
+  const c20 = mc.probIrrAbove20Pct >= 70 ? T.green : mc.probIrrAbove20Pct >= 50 ? T.yellow : T.red;
+  const c25 = mc.probIrrAbove25Pct >= 60 ? T.green : mc.probIrrAbove25Pct >= 40 ? T.yellow : T.red;
+  const cnpv = mc.probNpvPositivePct >= 75 ? T.green : mc.probNpvPositivePct >= 50 ? T.yellow : T.red;
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '18px 20px' },
+  },
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 } },
+      React.createElement('div', { style: { fontSize: 12, fontWeight: 600, color: T.textSub, letterSpacing: '0.06em' } }, 'MONTE CARLO · 500 ИТЕРАЦИЙ'),
+      React.createElement('div', { style: { fontSize: 11, color: T.textMuted } }, `Медиана IRR: ${mc.medianIrrPct.toFixed(1)}% | P10–P90: ${mc.p10IrrPct.toFixed(1)}%–${mc.p90IrrPct.toFixed(1)}%`),
+    ),
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+      row('P(IRR ≥ 20%) — порог', '', mc.probIrrAbove20Pct, c20),
+      row('P(IRR ≥ 25%) — цель', '', mc.probIrrAbove25Pct, c25),
+      row('P(NPV > 0)', '', mc.probNpvPositivePct, cnpv),
+    ),
+    React.createElement('div', { style: { marginTop: 10, fontSize: 10, color: T.textMuted } },
+      `σ IRR: ${mc.stdDevIrrPct.toFixed(1)} п.п. · Переменные: цена ±12%, себестоимость ±10%, темп продаж ±20%, ставка ПФ ±1.5 п.п.`
     ),
   );
 }
@@ -4508,28 +4546,42 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
 
   const initialInputs = useMemo(() => {
     const price = city ? city.inputs.housing.businessClassPricePerM2 : 250_000;
-    // Себестоимость бизнес-класса: ~50–55% от цены продажи (рыночный ориентир 2026)
-    const constCost = Math.round(price * 0.50 / 1000) * 1000;
-    // Земля бизнес-класс: ~10–15% от выручки. Выручка = 2.5га × 20000 × 0.80 × цена
-    const sellableM2 = 2.5 * 20_000 * 0.80;
+    const cityKey = city ? Object.keys(RUSSIA_MILLION_CITIES ?? {}).find(k => RUSSIA_MILLION_CITIES[k]?.inputs === city.inputs) : null;
+
+    // Себестоимость: Минстрой 2025 × коэффициент БК 1.22, пересчёт в ₽/м² продаваемой площади.
+    // Для неизвестного города: fallback 80k норматив (средний по РФ).
+    const minstroiNorm = cityKey ? (MINSTROI_NORMATIVE_2025[cityKey] ?? 80_000) : 80_000;
+    const sellableRatioDefault = 0.78;
+    const constCost = Math.round(minstroiNorm * BUSINESS_CLASS_CONSTRUCTION_PREMIUM / sellableRatioDefault / 1000) * 1000;
+
+    // Земля: ~12% от выручки; sellableRatio = 0.78
+    const sellableM2 = 2.5 * 20_000 * sellableRatioDefault;
     const landBudget = Math.round(sellableM2 * price * 0.12 / 50_000_000) * 50_000_000;
 
     return {
       landAreaHa:              2.5,
       allowedDensityM2PerHa:   20_000,
-      sellableRatio:           0.78,      // бизнес-класс: 78% (выше КОП, паркинг, МОП)
-      averageUnitSizeM2:       62,        // бизнес-класс: средняя квартира 62 м²
+      sellableRatio:           sellableRatioDefault, // бизнес-класс: 78% (выше КОП, паркинг, МОП)
+      averageUnitSizeM2:       city?.finance?.avgUnitSizeM2 ?? 62, // средний метраж по городу
       housingClass:            'business',
       basePricePerM2:          price,
       landCost:                Math.max(300_000_000, landBudget),
       constructionCostPerM2:   constCost,
-      infrastructureCost:      350_000_000,
+      infrastructureCost:      350_000_000, // 7k ₽/м² × 50k м² = 350M (сети, дороги, благоустройство)
       marketingShare:          0.035,     // бизнес-класс: 3.5% (ниже, чем комфорт)
       constructionMonths:      32,        // бизнес-класс строится дольше
-      discountRateAnnual:      22,        // ставка дисконтирования с учётом риска
-      salesVelocityM2PerMonth: city ? Math.round(city.inputs.housing.monthlySalesM2 * 0.025) : 1_200,
+      discountRateAnnual:      Math.round((currentKS + 7.5) * 2) / 2, // КС + 7.5% риск-надбавка
+      salesVelocityM2PerMonth: city
+        ? Math.min(2_500, Math.max(300, Math.round(city.inputs.housing.monthlySalesM2 * 0.025)))
+        : 1_200,
       salesStartMonth:         4,         // продажи открываются через 4 мес. после старта
       financing: getDefaultFinancingParams(currentKS),
+      // Полная себестоимость: налог, стадийный рост цены, строительная инфляция
+      corpTaxRatePct:          25,        // налог на прибыль (крупный бизнес с 2025)
+      annualPriceGrowthPct:    8,         // рост цены по мере готовности объекта, %/год
+      annualCostInflationPct:  7,         // инфляция строительных затрат (Росстат 2025), %/год
+      workingCapitalPct:       1.0,       // рабочий капитал: комиссии + страхование + регистрация
+      opexPctOfConstructionAnnual: 0.8,   // содержание непроданных кв. после ввода, %/год
     };
   }, [city, currentKS]);
 
@@ -4706,6 +4758,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     ),
 
     model.warnings.length > 0 && React.createElement(WarningsPanel, { warnings: model.warnings }),
+
+    // Monte Carlo Distribution
+    React.createElement(MonteCarloPanel, { mc: model.monteCarlo }),
 
     // Tornado + Benchmark row
     React.createElement(
