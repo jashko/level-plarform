@@ -84,7 +84,11 @@ export function buildMonthlyCashFlow(
   scenario: Scenario,
 ): MonthlyCashFlow[] {
   const adj = SCENARIO_ADJUSTMENTS[scenario];
-  const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
+  // Расторжения ДДУ: часть покупателей возвращает деньги с эскроу.
+  // Эффективный темп «чистых» продаж (net settled) ниже на долю расторжений.
+  const cancellationRate = (inputs.dduCancellationRatePct ?? 7) / 100;
+  const salesVelocity =
+    inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier * (1 - cancellationRate);
 
   const pfBaseRate = inputs.financing.pfBaseRateAnnual + adj.pfRateDelta;
   const pfLowRate = inputs.financing.pfEscrowCoveredRateAnnual;

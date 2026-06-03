@@ -3592,6 +3592,7 @@ function InputPanel({ inputs, onChange }) {
       React.createElement(InputField, { label: 'Инфляция затрат/год, %',  value: inputs.annualCostInflationPct ?? 7,       step: 1,   min: 0, max: 20,  onChange: v => setInputs(prev => ({ ...prev, annualCostInflationPct: v })) }),
       React.createElement(InputField, { label: 'Рабочий капитал, %',      value: inputs.workingCapitalPct ?? 1.0,          step: 0.1, min: 0, max: 5,   onChange: v => setInputs(prev => ({ ...prev, workingCapitalPct: v })) }),
       React.createElement(InputField, { label: 'Опex после ввода, %/год', value: inputs.opexPctOfConstructionAnnual ?? 0.8, step: 0.1, min: 0, max: 3,   onChange: v => setInputs(prev => ({ ...prev, opexPctOfConstructionAnnual: v })) }),
+      React.createElement(InputField, { label: 'Расторжения ДДУ, %',     value: inputs.dduCancellationRatePct ?? 7,            step: 1,   min: 0, max: 20,  onChange: v => setInputs(prev => ({ ...prev, dduCancellationRatePct: v })) }),
       React.createElement(InputField, { label: 'Эскроу транш (при 50%)', value: (inputs.financing.escrowMidReleasePct ?? 0) * 100, step: 5, min: 0, max: 50, onChange: v => setInputs(prev => ({ ...prev, financing: { ...prev.financing, escrowMidReleasePct: v / 100 } })) }),
     ),
   );
@@ -3732,6 +3733,46 @@ function WarningsPanel({ warnings }) {
   );
 }
 
+// ── Real Option Panel ───────────────────────────────────────────────
+function RealOptionPanel({ ro, baseNpv }) {
+  if (!ro) return null;
+  const fmt = v => (v / 1e6).toFixed(0) + ' млн ₽';
+  const interpColor = { invest_now: T.green, wait: T.yellow, borderline: T.textSub };
+  const interpLabel = {
+    invest_now: '↗ Входить сейчас — промедление обходится дороже',
+    wait:       '⏳ Стоит подождать — рынок может улучшить условия',
+    borderline: '⚖ На границе — детально сравните с NPV',
+  };
+  const color = interpColor[ro.interpretation];
+  return React.createElement('div', {
+    style: { background: T.surface, border: `1px solid ${color}33`, borderRadius: 12, padding: '18px 20px' },
+  },
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, flexWrap: 'wrap', gap: 8 } },
+      React.createElement('div', { style: { fontSize: 12, fontWeight: 600, color: T.textSub, letterSpacing: '0.06em' } },
+        `REAL OPTION · ЗАДЕРЖКА ${ro.optionYears} ГОДА (BLACK-SCHOLES)`),
+      React.createElement('div', { style: { fontSize: 13, fontWeight: 700, color } }, interpLabel[ro.interpretation]),
+    ),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
+      [
+        ['Стоимость опциона', fmt(ro.delayOptionValueRub), color],
+        ['Стоимость актива S', fmt(ro.assetValueRub), T.text],
+        ['Цена входа X (CAPEX)', fmt(ro.strikeRub), T.text],
+        ['Волатильность σ', (ro.sigma * 100).toFixed(1) + '%/год', T.textSub],
+        ['Безрисковая ставка', (ro.riskFreeRate * 100).toFixed(1) + '%', T.textSub],
+        ['NPV сейчас', fmt(baseNpv), baseNpv >= 0 ? T.green : T.red],
+      ].map(([label, value, c], i) =>
+        React.createElement('div', { key: i, style: { padding: '10px 12px', background: T.bg, borderRadius: 8 } },
+          React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginBottom: 3 } }, label),
+          React.createElement('div', { style: { fontSize: 14, fontWeight: 700, color: c } }, value),
+        )
+      ),
+    ),
+    React.createElement('div', { style: { marginTop: 10, fontSize: 10, color: T.textMuted } },
+      `S/X = ${(ro.assetValueRub / ro.strikeRub).toFixed(2)} (порог входа по Дикситу-Пиндику: ${ro.investThreshold?.toFixed(2) ?? '—'}) · σ = ${(ro.sigma * 100).toFixed(1)}%/год · T = ${ro.optionYears} лет · r = ${(ro.riskFreeRate * 100).toFixed(1)}%`
+    ),
+  );
+}
+
 // ── Monte Carlo Results Panel ───────────────────────────────────────
 function MonteCarloPanel({ mc }) {
   if (!mc) return null;
@@ -3759,7 +3800,7 @@ function MonteCarloPanel({ mc }) {
       row('P(NPV > 0)', '', mc.probNpvPositivePct, cnpv),
     ),
     React.createElement('div', { style: { marginTop: 10, fontSize: 10, color: T.textMuted } },
-      `σ IRR: ${mc.stdDevIrrPct.toFixed(1)} п.п. · Переменные: цена ±12%, себестоимость ±10%, темп продаж ±20%, ставка ПФ ±1.5 п.п.`
+      `σ IRR: ${mc.stdDevIrrPct.toFixed(1)} п.п. · Коррелированные переменные (Холецкий): цена ±12%, себестоимость ±10%, темп ±20%, ставка ПФ ±1.5 п.п. · ρ(цена, темп)=0.6`
     ),
   );
 }
@@ -4582,6 +4623,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
       annualCostInflationPct:  7,         // инфляция строительных затрат (Росстат 2025), %/год
       workingCapitalPct:       1.0,       // рабочий капитал: комиссии + страхование + регистрация
       opexPctOfConstructionAnnual: 0.8,   // содержание непроданных кв. после ввода, %/год
+      dduCancellationRatePct:  7,         // расторжения ДДУ: норма РФ 2024-2025
     };
   }, [city, currentKS]);
 
@@ -4761,6 +4803,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
 
     // Monte Carlo Distribution
     React.createElement(MonteCarloPanel, { mc: model.monteCarlo }),
+
+    // Real Option
+    React.createElement(RealOptionPanel, { ro: model.realOption, baseNpv: model.scenarios.base.npv }),
 
     // Tornado + Benchmark row
     React.createElement(

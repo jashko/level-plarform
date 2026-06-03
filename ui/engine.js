@@ -113,7 +113,8 @@ function calculateCapex(inputs, volumes, totalRevenue, scenario) {
 }
 function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
   const adj = SCENARIO_ADJUSTMENTS[scenario];
-  const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier;
+  const cancellationRate = (inputs.dduCancellationRatePct ?? 7) / 100;
+  const salesVelocity = inputs.salesVelocityM2PerMonth * adj.salesVelocityMultiplier * (1 - cancellationRate);
   const pfBaseRate = inputs.financing.pfBaseRateAnnual + adj.pfRateDelta;
   const pfLowRate = inputs.financing.pfEscrowCoveredRateAnnual;
   const priceGrowthMonthly = (inputs.annualPriceGrowthPct ?? 0) / 100 / 12;
@@ -343,22 +344,30 @@ function normalRandom() {
   const u2 = Math.random();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
+function correlatedNormals() {
+  const u1 = normalRandom();
+  const u2 = normalRandom();
+  const u3 = normalRandom();
+  const u4 = normalRandom();
+  const zPrice = 1 * u1;
+  const zCost = 0.3 * u1 + 0.95394 * u2;
+  const zVelocity = 0.6 * u1 - 0.2935 * u2 + 0.74421 * u3;
+  const zPfRate = -0.2 * u1 + 0.16773 * u2 - 0.17571 * u3 + 0.94923 * u4;
+  return [zPrice, zCost, zVelocity, zPfRate];
+}
 function runMonteCarlo(runner, inputs, iterations = 500) {
   const irrs = [];
   const npvs = [];
   for (let i = 0; i < iterations; i++) {
-    const priceFactor = 1 + normalRandom() * 0.12;
-    const costFactor = 1 + normalRandom() * 0.1;
-    const velocityFactor = 1 + normalRandom() * 0.2;
-    const pfRateDeltaPp = normalRandom() * 1.5;
+    const [zP, zC, zV, zR] = correlatedNormals();
     const p = {
       ...inputs,
       financing: { ...inputs.financing },
-      basePricePerM2: Math.max(1e4, inputs.basePricePerM2 * priceFactor),
-      constructionCostPerM2: Math.max(5e4, inputs.constructionCostPerM2 * costFactor),
-      salesVelocityM2PerMonth: Math.max(50, inputs.salesVelocityM2PerMonth * velocityFactor)
+      basePricePerM2: Math.max(1e4, inputs.basePricePerM2 * (1 + zP * 0.12)),
+      constructionCostPerM2: Math.max(5e4, inputs.constructionCostPerM2 * (1 + zC * 0.1)),
+      salesVelocityM2PerMonth: Math.max(50, inputs.salesVelocityM2PerMonth * (1 + zV * 0.2))
     };
-    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + pfRateDeltaPp);
+    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + zR * 1.5);
     const { irr, npv } = runner(p, "base");
     if (irr !== null && isFinite(irr)) irrs.push(irr);
     npvs.push(npv);
@@ -378,6 +387,40 @@ function runMonteCarlo(runner, inputs, iterations = 500) {
     probIrrAbove25Pct: sorted.filter((r) => r >= 25).length / n * 100,
     probNpvPositivePct: npvs.filter((v) => v > 0).length / iterations * 100
   };
+}
+function normalCDF(x) {
+  const k = 1 / (1 + 0.2316419 * Math.abs(x));
+  const poly = k * (0.31938153 + k * (-0.356563782 + k * (1.781477937 + k * (-1.821255978 + k * 1.330274429))));
+  const phi = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  const p = 1 - phi * poly;
+  return x >= 0 ? p : 1 - p;
+}
+function calculateRealOption(inputs, mc, base, optionYears = 2) {
+  const ks = Math.max(5, inputs.financing.pfBaseRateAnnual - 2.2);
+  const riskFreeRate = ks / 100;
+  const S = base.actualTotalRevenue;
+  const X = base.capex.total;
+  const projectYears = Math.max(1, base.totalProjectMonths / 12);
+  const sigma = Math.max(0.15, mc.stdDevIrrPct / 100 / Math.sqrt(projectYears));
+  const T = optionYears;
+  const sqrtT = Math.sqrt(T);
+  const d1 = (Math.log(S / Math.max(X, 1)) + (riskFreeRate + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+  const callValue = S * normalCDF(d1) - X * Math.exp(-riskFreeRate * T) * normalCDF(d2);
+  const delayOptionValueRub = Math.max(0, callValue);
+  const npv = base.npv;
+  const moneyness = S / Math.max(X, 1);
+  const beta = 0.5 + Math.sqrt(0.25 + 2 * riskFreeRate / Math.max(sigma * sigma, 1e-6));
+  const investThreshold = beta / (beta - 1);
+  let interpretation;
+  if (npv > 0 && moneyness >= investThreshold * 0.95) {
+    interpretation = "invest_now";
+  } else if (npv < 0 || moneyness < 0.9) {
+    interpretation = "wait";
+  } else {
+    interpretation = "borderline";
+  }
+  return { delayOptionValueRub, assetValueRub: S, strikeRub: X, sigma, riskFreeRate, optionYears, investThreshold, interpretation };
 }
 
 // src/engine/finance/successProb.ts
@@ -568,7 +611,13 @@ function runFinancialModel(inputs, options = {}) {
   } else {
     successProb = Math.round(monteCarlo.probIrrAbove20Pct);
   }
-  return { scenarios, sensitivity, successProb, monteCarlo, warnings };
+  const realOption = calculateRealOption(inputs, monteCarlo, scenarios.base);
+  if (realOption.interpretation === "wait") {
+    warnings.push(
+      `Real Option: \u043E\u043F\u0446\u0438\u043E\u043D \u043D\u0430 \u0437\u0430\u0434\u0435\u0440\u0436\u043A\u0443 (${realOption.optionYears} \u0433\u043E\u0434\u0430) \u0441\u0442\u043E\u0438\u0442 ${(realOption.delayOptionValueRub / 1e6).toFixed(0)} \u043C\u043B\u043D \u20BD \u2014 \u0440\u044B\u043D\u043E\u043A \u043C\u043E\u0436\u0435\u0442 \u0432\u043E\u0437\u043D\u0430\u0433\u0440\u0430\u0434\u0438\u0442\u044C \u0442\u0435\u0440\u043F\u0435\u043D\u0438\u0435. \u0422\u0435\u043A\u0443\u0449\u0438\u0439 NPV: ${(scenarios.base.npv / 1e6).toFixed(0)} \u043C\u043B\u043D \u20BD`
+    );
+  }
+  return { scenarios, sensitivity, successProb, monteCarlo, realOption, warnings };
 }
 
 // src/engine/scoring/config.ts

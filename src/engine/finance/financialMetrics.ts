@@ -8,6 +8,8 @@ import type {
   MonteCarloResult,
   MonthlyCashFlow,
   ProjectInputs,
+  RealOptionResult,
+  ScenarioResult,
   Scenario,
   SensitivityCell,
   SensitivityTable,
@@ -133,12 +135,11 @@ function applyDelta(
 }
 
 // ────────────────────────────────────────────────────────────────
-// Monte Carlo
+// Monte Carlo с корреляциями (разложение Холецкого)
 // ────────────────────────────────────────────────────────────────
 
 /**
- * Генератор нормально распределённой случайной величины (метод Бокса-Мюллера).
- * Возвращает стандартное нормальное: μ=0, σ=1.
+ * Box-Muller: стандартное нормальное N(0,1).
  */
 function normalRandom(): number {
   const u1 = Math.max(1e-15, Math.random());
@@ -147,14 +148,42 @@ function normalRandom(): number {
 }
 
 /**
- * Симуляция Монте-Карло: 500 итераций с нормально распределёнными
- * отклонениями ключевых переменных от базовых значений.
+ * Генерирует 4 коррелированных N(0,1) через нижнетреугольную матрицу Холецкого L
+ * корреляционной матрицы переменных (цена, себестоимость, темп продаж, ставка ПФ).
  *
- * Распределения (σ выбраны по историческому РФ рынку):
- *  - Цена: σ = 12% (волатильность цен бизнес-класса)
- *  - Себестоимость: σ = 10% (строительная инфляция + риски подрядчика)
- *  - Скорость продаж: σ = 20% (наибольшая неопределённость)
- *  - Ставка ПФ: σ = 1.5 п.п. (зависит от ДКП ЦБ)
+ * Матрица корреляций Σ (откалибрована по РФ рынку недвижимости):
+ *   ρ(цена, себестоимость)  = +0.30  (инфляция бьёт по обоим)
+ *   ρ(цена, темп продаж)    = +0.60  (горячий рынок → и цена выше, и продаётся быстрее)
+ *   ρ(цена, ставка ПФ)      = −0.20  (высокая ставка → ниже цены из-за доступности)
+ *   ρ(себестоимость, темп)  = −0.10  (слабая)
+ *   ρ(себестоимость, ПФ)    = +0.10  (слабая)
+ *   ρ(темп, ставка ПФ)      = −0.30  (высокая ставка → ипотека дороже → меньше покупателей)
+ *
+ * Разложение Холецкого L вычислено аналитически и захардкожено.
+ */
+function correlatedNormals(): [number, number, number, number] {
+  // Независимые N(0,1)
+  const u1 = normalRandom();
+  const u2 = normalRandom();
+  const u3 = normalRandom();
+  const u4 = normalRandom();
+
+  // L — нижнетреугольная матрица Холецкого (L×Lᵀ = Σ)
+  // [0]: цена, [1]: себестоимость, [2]: темп продаж, [3]: ставка ПФ
+  const zPrice    = 1.00000 * u1;
+  const zCost     = 0.30000 * u1 + 0.95394 * u2;
+  const zVelocity = 0.60000 * u1 - 0.29350 * u2 + 0.74421 * u3;
+  const zPfRate   =-0.20000 * u1 + 0.16773 * u2 - 0.17571 * u3 + 0.94923 * u4;
+
+  return [zPrice, zCost, zVelocity, zPfRate];
+}
+
+/**
+ * Monte Carlo: 500 итераций с КОРРЕЛИРОВАННЫМИ нормальными отклонениями.
+ * Корреляции устраняют нереалистичные сценарии (дешёвые квартиры + ажиотажный спрос).
+ *
+ * σ-параметры (историческая волатильность РФ рынка):
+ *  цена: 12%, себестоимость: 10%, темп продаж: 20%, ставка ПФ: ±1.5 п.п.
  */
 export function runMonteCarlo(
   runner: ScenarioRunner,
@@ -165,19 +194,16 @@ export function runMonteCarlo(
   const npvs: number[] = [];
 
   for (let i = 0; i < iterations; i++) {
-    const priceFactor      = 1 + normalRandom() * 0.12;
-    const costFactor       = 1 + normalRandom() * 0.10;
-    const velocityFactor   = 1 + normalRandom() * 0.20;
-    const pfRateDeltaPp    = normalRandom() * 1.5;
+    const [zP, zC, zV, zR] = correlatedNormals();
 
     const p: ProjectInputs = {
       ...inputs,
       financing: { ...inputs.financing },
-      basePricePerM2:         Math.max(10_000, inputs.basePricePerM2 * priceFactor),
-      constructionCostPerM2:  Math.max(50_000, inputs.constructionCostPerM2 * costFactor),
-      salesVelocityM2PerMonth: Math.max(50, inputs.salesVelocityM2PerMonth * velocityFactor),
+      basePricePerM2:          Math.max(10_000, inputs.basePricePerM2          * (1 + zP * 0.12)),
+      constructionCostPerM2:   Math.max(50_000, inputs.constructionCostPerM2   * (1 + zC * 0.10)),
+      salesVelocityM2PerMonth: Math.max(50,     inputs.salesVelocityM2PerMonth * (1 + zV * 0.20)),
     };
-    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + pfRateDeltaPp);
+    p.financing.pfBaseRateAnnual = Math.max(4, inputs.financing.pfBaseRateAnnual + zR * 1.5);
 
     const { irr, npv } = runner(p, 'base');
     if (irr !== null && isFinite(irr)) irrs.push(irr);
@@ -200,4 +226,86 @@ export function runMonteCarlo(
     probIrrAbove25Pct:  (sorted.filter(r => r >= 25).length / n) * 100,
     probNpvPositivePct: (npvs.filter(v => v > 0).length / iterations) * 100,
   };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Real Options (Black-Scholes / Merton)
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Функция распределения стандартного нормального закона.
+ * Аппроксимация Абрамовица–Стегана, ошибка < 7.5×10⁻⁸.
+ */
+function normalCDF(x: number): number {
+  const k = 1 / (1 + 0.2316419 * Math.abs(x));
+  const poly = k * (0.319381530 + k * (-0.356563782 + k * (1.781477937
+             + k * (-1.821255978 + k * 1.330274429))));
+  const phi = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  const p = 1 - phi * poly;
+  return x >= 0 ? p : 1 - p;
+}
+
+/**
+ * Расчёт реального опциона на ЗАДЕРЖКУ старта проекта (European call, Black-Scholes).
+ *
+ * Смысл: сколько стоит право НЕ НАЧИНАТЬ сейчас, а подождать до T лет
+ * и принять решение, когда рыночная ситуация прояснится.
+ *
+ * Если opcionValue > NPV_сейчас: рациональнее подождать.
+ * Если NPV_сейчас > opcionValue × 0.8: входить немедленно.
+ */
+export function calculateRealOption(
+  inputs: ProjectInputs,
+  mc: MonteCarloResult,
+  base: ScenarioResult,
+  optionYears = 2,
+): RealOptionResult {
+  // КС ≈ ставка ПФ − 2.2 п.п. (маржа банка), но не меньше 5%
+  const ks = Math.max(5, inputs.financing.pfBaseRateAnnual - 2.2);
+  const riskFreeRate = ks / 100;
+
+  // S = текущая рыночная стоимость актива (что застройщик мог бы продать СЕГОДНЯ,
+  // если бы объект был уже построен) = выручка по сегодняшним ценам.
+  const S = base.actualTotalRevenue;
+
+  // X = цена «входа» = суммарный CAPEX
+  const X = base.capex.total;
+
+  // σ (годовая) — волатильность стоимости актива.
+  // Конвертируем σ(IRR) из Monte Carlo в σ(ln V):
+  // σ_V ≈ σ(IRR)/100 / sqrt(T_project), ограничиваем снизу на 0.15.
+  const projectYears = Math.max(1, base.totalProjectMonths / 12);
+  const sigma = Math.max(0.15, (mc.stdDevIrrPct / 100) / Math.sqrt(projectYears));
+
+  const T = optionYears;
+  const sqrtT = Math.sqrt(T);
+
+  const d1 = (Math.log(S / Math.max(X, 1)) + (riskFreeRate + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+
+  const callValue = S * normalCDF(d1) - X * Math.exp(-riskFreeRate * T) * normalCDF(d2);
+  const delayOptionValueRub = Math.max(0, callValue);
+
+  // Интерпретация по соотношению S/X (монейнесс) и знаку NPV.
+  // Стоимость опциона ВСЕГДА ≥ max(0, S−Xe^{−rT}), поэтому сравнивать её с NPV напрямую неверно.
+  // Правило Диксита-Пиндика: инвестировать оптимально при S/X > β/(β−1),
+  //   где β = 0.5 + sqrt(0.25 + 2r/σ²).
+  const npv = base.npv;
+  const moneyness = S / Math.max(X, 1);
+  const beta = 0.5 + Math.sqrt(0.25 + 2 * riskFreeRate / Math.max(sigma * sigma, 1e-6));
+  const investThreshold = beta / (beta - 1); // критический S/X для немедленного входа
+
+  let interpretation: 'invest_now' | 'wait' | 'borderline';
+  if (npv > 0 && moneyness >= investThreshold * 0.95) {
+    // Проект в деньгах и прибыльный — промедление обходится дороже
+    interpretation = 'invest_now';
+  } else if (npv < 0 || moneyness < 0.90) {
+    // Проект убыточен или вне денег — опцион ценен как право подождать улучшения
+    interpretation = 'wait';
+  } else {
+    // NPV положителен, но проект около порога — анализ чувствительности
+    interpretation = 'borderline';
+  }
+
+  return { delayOptionValueRub, assetValueRub: S, strikeRub: X, sigma, riskFreeRate, optionYears, investThreshold, interpretation };
 }

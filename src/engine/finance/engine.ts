@@ -14,6 +14,7 @@ import {
   buildSensitivity,
   calculateIRR,
   calculateNPV,
+  calculateRealOption,
   runMonteCarlo,
 } from './financialMetrics';
 import { calculateSuccessProb } from './successProb';
@@ -258,5 +259,17 @@ export function runFinancialModel(
     successProb = Math.round(monteCarlo.probIrrAbove20Pct);
   }
 
-  return { scenarios, sensitivity, successProb, monteCarlo, warnings };
+  // Real Option: опцион на задержку старта (2 года, Black-Scholes)
+  const realOption = calculateRealOption(inputs, monteCarlo, scenarios.base);
+
+  // Добавляем предупреждение, если опцион ценнее немедленного входа
+  if (realOption.interpretation === 'wait') {
+    warnings.push(
+      `Real Option: опцион на задержку (${realOption.optionYears} года) стоит `
+      + `${(realOption.delayOptionValueRub / 1e6).toFixed(0)} млн ₽ — `
+      + `рынок может вознаградить терпение. Текущий NPV: ${(scenarios.base.npv / 1e6).toFixed(0)} млн ₽`
+    );
+  }
+
+  return { scenarios, sensitivity, successProb, monteCarlo, realOption, warnings };
 }
