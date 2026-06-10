@@ -121,6 +121,158 @@ const downloadCSV = (rows, filename) => {
   URL.revokeObjectURL(url);
 };
 
+// PNG-снимок трёх сценариев: метрики + кривые накопленного дисконтированного потока
+const exportScenariosPNG = (model, inputs, cityName) => {
+  const SCN = [
+    { key: 'base',       label: 'BASE',   color: T.gold,  delta: 0  },
+    { key: 'optimistic', label: 'OPT',    color: T.green, delta: -3 },
+    { key: 'stress',     label: 'STRESS', color: T.red,   delta: 3  },
+  ];
+  const W = 1600, H = 1000, S = 2;
+  const cv = document.createElement('canvas');
+  cv.width = W * S; cv.height = H * S;
+  const ctx = cv.getContext('2d');
+  ctx.scale(S, S);
+
+  const F = (size, weight = 400) => `${weight} ${size}px Inter, -apple-system, sans-serif`;
+
+  // фон
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // шапка
+  ctx.fillStyle = T.gold;
+  ctx.font = `600 13px Inter, sans-serif`;
+  ctx.fillText('L E V E L   P L A T F O R M', 48, 50);
+  ctx.fillStyle = T.text;
+  ctx.font = `600 34px 'Cormorant Garamond', Georgia, serif`;
+  ctx.fillText(`Финмодель — ${cityName} · сравнение сценариев`, 48, 96);
+  ctx.fillStyle = T.textSub;
+  ctx.font = F(12);
+  ctx.fillText(
+    `Барьерная ставка ${inputs.discountRateAnnual}% · ПФ ${inputs.financing.pfBaseRateAnnual}% → ${inputs.financing.pfEscrowCoveredRateAnnual}% · equity ${Math.round(inputs.financing.equityShare * 100)}% · ${new Date().toLocaleDateString('ru-RU')}`,
+    48, 122,
+  );
+
+  // ── колонки метрик ──
+  const colW = (W - 96 - 2 * 24) / 3;
+  const rows = (sc) => [
+    ['IRR',         sc.irr !== null ? fmtPct(sc.irr, 1) : '—', sc.irr === null ? T.textSub : sc.irr >= 25 ? T.green : sc.irr >= 15 ? T.yellow : T.red],
+    ['NPV',         fmtRub(sc.npv),                            sc.npv >= 0 ? T.green : T.red],
+    ['Выручка',     fmtRub(sc.revenue.totalRevenue),           T.text],
+    ['CAPEX',       fmtRub(sc.capex.total),                    T.text],
+    ['Чист. маржа', fmtPct(sc.netMargin, 1),                   sc.netMargin >= 15 ? T.green : sc.netMargin >= 5 ? T.yellow : T.red],
+    ['ROE',         fmtPct(sc.roe, 0),                         sc.roe >= 60 ? T.green : sc.roe >= 0 ? T.yellow : T.red],
+    ['Sell-out',    `${sc.sellOutMonths.toFixed(0)} мес. (проект ${sc.totalProjectMonths})`, T.textSub],
+  ];
+
+  SCN.forEach((s, i) => {
+    const x = 48 + i * (colW + 24), y = 152, cardH = 286;
+    const sc = model.scenarios[s.key];
+    ctx.fillStyle = T.surface;
+    ctx.strokeStyle = T.border;
+    ctx.beginPath(); ctx.roundRect(x, y, colW, cardH, 12); ctx.fill(); ctx.stroke();
+    // заголовок сценария
+    ctx.fillStyle = s.color;
+    ctx.font = F(14, 700);
+    ctx.fillText(s.label, x + 22, y + 34);
+    ctx.fillStyle = T.textMuted;
+    ctx.font = F(10);
+    ctx.fillText(
+      s.key === 'base' ? 'текущие параметры' : s.key === 'optimistic' ? 'цена +15% · темп +30%' : 'цена −15% · себест. +15% · темп ×0.5',
+      x + 80, y + 34,
+    );
+    rows(sc).forEach(([label, val, color], r) => {
+      const ry = y + 68 + r * 31;
+      ctx.fillStyle = T.textSub; ctx.font = F(11);
+      ctx.fillText(label, x + 22, ry);
+      ctx.fillStyle = color; ctx.font = F(13, 600);
+      ctx.textAlign = 'right';
+      ctx.fillText(String(val), x + colW - 22, ry);
+      ctx.textAlign = 'left';
+    });
+  });
+
+  // ── график: накопленный дисконтированный поток (running NPV) ──
+  const gx = 48, gy = 492, gw = W - 96, gh = H - gy - 60;
+  ctx.fillStyle = T.surface;
+  ctx.strokeStyle = T.border;
+  ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 12); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = T.textSub;
+  ctx.font = `600 11px Inter, sans-serif`;
+  ctx.fillText('НАКОПЛЕННЫЙ ДИСКОНТИРОВАННЫЙ ПОТОК ДЕВЕЛОПЕРА (RUNNING NPV), МЛН ₽', gx + 24, gy + 30);
+
+  const series = SCN.map((s) => {
+    const sc = model.scenarios[s.key];
+    const rate = (inputs.discountRateAnnual + s.delta) / 100 / 12;
+    let acc = 0;
+    const pts = sc.monthlyCashFlow.map((mcf) => {
+      acc += mcf.developerCashFlow / Math.pow(1 + rate, mcf.month);
+      return acc / 1e6;
+    });
+    return { ...s, pts, final: sc.npv / 1e6 };
+  });
+
+  const maxLen = Math.max(...series.map(s => s.pts.length));
+  const allVals = series.flatMap(s => s.pts).concat([0]);
+  const vMin = Math.min(...allVals), vMax = Math.max(...allVals);
+  const pad = (vMax - vMin) * 0.08 || 1;
+  const yMin = vMin - pad, yMax = vMax + pad;
+  const px = { l: gx + 80, r: gx + gw - 130, t: gy + 56, b: gy + gh - 44 };
+  const xAt = (mo) => px.l + (mo / (maxLen - 1)) * (px.r - px.l);
+  const yAt = (v)  => px.b - ((v - yMin) / (yMax - yMin)) * (px.b - px.t);
+
+  // сетка + подписи Y
+  ctx.font = F(10);
+  const ySteps = 6;
+  for (let i = 0; i <= ySteps; i++) {
+    const v = yMin + (i / ySteps) * (yMax - yMin);
+    const yy = yAt(v);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath(); ctx.moveTo(px.l, yy); ctx.lineTo(px.r, yy); ctx.stroke();
+    ctx.fillStyle = T.textMuted;
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(v).toLocaleString('ru-RU'), px.l - 10, yy + 3);
+    ctx.textAlign = 'left';
+  }
+  // ось X
+  ctx.fillStyle = T.textMuted;
+  for (let mo = 0; mo < maxLen; mo += 12) {
+    ctx.fillText(`${mo} мес`, xAt(mo) - 12, px.b + 22);
+  }
+  // нулевая линия
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(px.l, yAt(0)); ctx.lineTo(px.r, yAt(0)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // кривые
+  series.forEach((s) => {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    s.pts.forEach((v, mo) => { mo === 0 ? ctx.moveTo(xAt(mo), yAt(v)) : ctx.lineTo(xAt(mo), yAt(v)); });
+    ctx.stroke();
+    // метка NPV у конца линии
+    const lastV = s.pts[s.pts.length - 1];
+    ctx.fillStyle = s.color;
+    ctx.font = F(11, 700);
+    ctx.fillText(`${s.label}  ${s.final >= 0 ? '+' : '−'}${Math.abs(Math.round(s.final)).toLocaleString('ru-RU')}`, px.r + 8, yAt(lastV) + 4);
+  });
+  ctx.lineWidth = 1;
+
+  // подпись внизу
+  ctx.fillStyle = T.textMuted;
+  ctx.font = F(10);
+  ctx.fillText('Дисконтирование по эффективной ставке сценария (барьер ± дельта сценария). Значение в конце кривой = NPV проекта.', gx + 24, gy + gh - 14);
+
+  cv.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href: url, download: `LEVEL_scenarios_${cityName}_${new Date().toISOString().slice(0, 10)}.png` }).click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+};
+
 // History — localStorage
 const HISTORY_KEY = 'level_history_v1';
 const getHistory  = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; } };
@@ -4725,6 +4877,10 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
           },
           style: { padding: '7px 16px', background: T.surfaceRaise, border: `1px solid ${T.border}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
         }, '↓ CSV'),
+        React.createElement('button', {
+          onClick: () => exportScenariosPNG(model, inputs, city?.name || 'Проект'),
+          style: { padding: '7px 16px', background: T.surfaceRaise, border: `1px solid ${T.border}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+        }, '📷 PNG'),
         React.createElement('button', {
           onClick: () => setShowHistory(s => !s),
           style: { padding: '7px 16px', background: showHistory ? T.goldDim : T.surfaceRaise, border: `1px solid ${showHistory ? T.borderGold : T.border}`, borderRadius: 7, color: showHistory ? T.gold : T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
