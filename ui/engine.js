@@ -268,6 +268,35 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
     const allDone = cumulativeM2 >= volumes.sellableM2 && m > escrowReleaseMonth && pfBalance < 1 && escrowBalance < 1;
     if (allDone) break;
   }
+  if (pfBalance >= 1 && flows.length > 0) {
+    const prev = flows[flows.length - 1];
+    cumulativeDevCash -= pfBalance;
+    flows.push({
+      ...prev,
+      month: prev.month + 1,
+      landSpend: 0,
+      constructionSpend: 0,
+      infraSpend: 0,
+      marketingSpend: 0,
+      totalSpend: 0,
+      m2Sold: 0,
+      revenue: 0,
+      projectNetCashFlow: 0,
+      equityDraw: 0,
+      pfDraw: 0,
+      pfBalanceStart: pfBalance,
+      pfInterestAccrued: 0,
+      pfRepayment: pfBalance,
+      pfBalanceEnd: 0,
+      escrowInflow: 0,
+      escrowReleased: 0,
+      directInflow: 0,
+      opexSpend: 0,
+      developerCashFlow: -pfBalance,
+      cumulativeDeveloperCashFlow: cumulativeDevCash
+    });
+    pfBalance = 0;
+  }
   return flows;
 }
 function normalizedSCurveWeights(months) {
