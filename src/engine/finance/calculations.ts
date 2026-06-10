@@ -13,7 +13,7 @@
  * Это создаёт стимул быстро продавать — каждый ДДУ снижает стоимость долга.
  */
 
-import { SCENARIO_ADJUSTMENTS } from './config';
+import { SALES_SEASONALITY, PROPERTY_TAX_RATE_DEFAULT, SCENARIO_ADJUSTMENTS } from './config';
 import type {
   CapexBreakdown,
   MonthlyCashFlow,
@@ -130,6 +130,14 @@ export function buildMonthlyCashFlow(
   // Операционные расходы после ввода (содержание непроданных квартир)
   const opexMonthlyRate = (inputs.opexPctOfConstructionAnnual ?? 0.8) / 100 / 12;
 
+  // Налог на имущество (НК РФ ст. 380): на стройку — с накопленного CAPEX
+  const propertyTaxMonthlyRate = (inputs.propertyTaxPct ?? PROPERTY_TAX_RATE_DEFAULT) / 100 / 12;
+  let cumulativePropertyTax = 0; // для исключения из constructionProgress
+
+  // Сезонность продаж
+  const seasonEnabled = inputs.seasonalityEnabled !== false; // true по умолчанию
+  const startCalMonth = (inputs.projectStartCalendarMonth ?? 3) - 1; // 0-based
+
   // Лимит кредитной линии — для расчёта commitment fee
   const pfCommittedLine =
     capex.total *
@@ -155,9 +163,12 @@ export function buildMonthlyCashFlow(
         : 0;
 
     // ─── 2. Продажи ──────────────────────────────────────────────
+    // Сезонный коэффициент: умножаем темп продаж на помесячный индекс спроса.
+    const calMonth = (startCalMonth + m) % 12;
+    const seasonFactor = seasonEnabled ? SALES_SEASONALITY[calMonth]! : 1.0;
     let m2Sold = 0;
     if (m >= inputs.salesStartMonth && cumulativeM2 < volumes.sellableM2) {
-      m2Sold = Math.min(salesVelocity, volumes.sellableM2 - cumulativeM2);
+      m2Sold = Math.min(salesVelocity * seasonFactor, volumes.sellableM2 - cumulativeM2);
     }
     cumulativeM2 += m2Sold;
     // Стадийный рост цены: каждый месяц продаж цена выше на priceGrowthMonthly.
@@ -172,16 +183,29 @@ export function buildMonthlyCashFlow(
     let directInflow = isDuringConstruction ? 0 : revenueMonth;
 
     const marketingSpend = revenueMonth * inputs.marketingShare;
-    const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend;
 
-    // ─── 1b. Операционные расходы (после ввода в эксплуатацию) ──────────
+    // ─── 1b. Налог на имущество (НК РФ ст. 380) ─────────────────────────
+    // Во время стройки: база = накопленный CAPEX (без самого НИ).
+    // Финансируется из equity/ПФ как операционная статья проекта.
+    const propertyTaxDuringConstruction = m >= 1 && m <= constructionEndMonth
+      ? (cumulativeCapexSpent - cumulativePropertyTax) * propertyTaxMonthlyRate
+      : 0;
+    cumulativePropertyTax += propertyTaxDuringConstruction;
+
+    const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend + propertyTaxDuringConstruction;
+
+    // ─── 1c. Операционные расходы (после ввода в эксплуатацию) ──────────
     // Содержание непроданных квартир: ЖКУ, управляющая компания, охрана.
     // Начисляются с месяца после ввода, пропорционально непроданному остатку.
     const unsoldRatio = volumes.sellableM2 > 0
       ? Math.max(0, 1 - cumulativeM2 / volumes.sellableM2)
       : 0;
+    // Opex + НИ после ввода: оба финансируются из поступлений от продаж (не из ПФ/equity)
+    const postCompletionPropertyTax = m > constructionEndMonth
+      ? capex.construction * unsoldRatio * propertyTaxMonthlyRate
+      : 0;
     const opexSpend = m > constructionEndMonth && unsoldRatio > 0
-      ? capex.construction * unsoldRatio * opexMonthlyRate
+      ? capex.construction * unsoldRatio * opexMonthlyRate + postCompletionPropertyTax
       : 0;
 
     // ─── 3. Финансирование: сначала equity, потом ПФ ────────────
@@ -197,10 +221,10 @@ export function buildMonthlyCashFlow(
 
     // ─── 4. Эффективная ставка ПФ с floor + дисконтом ───────────
     const pfBalanceStart = pfBalance;
-    // Готовность стройки = доля кумулятивного освоения CAPEX (excluding marketing).
-    // Маркетинг исключаем, т.к. это операционный расход, а не индикатор готовности.
+    // Готовность стройки = доля кумулятивного освоения CAPEX (без маркетинга и НИ).
+    // НИ и маркетинг — операционные расходы, не индикатор строительной готовности.
     const constructionProgress =
-      Math.min(1, cumulativeCapexSpent / Math.max(1, capex.total - capex.marketing));
+      Math.min(1, (cumulativeCapexSpent - cumulativePropertyTax) / Math.max(1, capex.total - capex.marketing));
 
     let effectiveRateAnnual: number;
     if (constructionProgress < inputs.financing.escrowDiscountActivationProgress) {

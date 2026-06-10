@@ -91,6 +91,8 @@ export interface CityRankingEntry {
   sources: string[];
   /** Полный набор inputs для дальнейшего использования (карточка города). */
   inputs: CityDatasetEntry['inputs'];
+  /** Финансовые нормативы города (земля, инфра, себестоимость). */
+  finance: CityDatasetEntry['finance'];
   needsVerification: string[];
   /** Позиция рынка в цикле и сигнал входа. */
   marketCycle: MarketCycleResult;
@@ -166,6 +168,7 @@ export async function buildCityRanking(): Promise<RankingResult> {
       dataAsOfDate: entry.meta.dataAsOfDate,
       sources: entry.meta.sources,
       inputs: entry.inputs,
+      finance: entry.finance,
       needsVerification: entry.meta.needsVerification,
       marketCycle:  calculateMarketCycle(entry.inputs),
       riskProfile:  calculateCityRiskProfile(entry.inputs),

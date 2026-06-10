@@ -3593,6 +3593,8 @@ function InputPanel({ inputs, onChange }) {
       React.createElement(InputField, { label: 'Рабочий капитал, %',      value: inputs.workingCapitalPct ?? 1.0,          step: 0.1, min: 0, max: 5,   onChange: v => setInputs(prev => ({ ...prev, workingCapitalPct: v })) }),
       React.createElement(InputField, { label: 'Опex после ввода, %/год', value: inputs.opexPctOfConstructionAnnual ?? 0.8, step: 0.1, min: 0, max: 3,   onChange: v => setInputs(prev => ({ ...prev, opexPctOfConstructionAnnual: v })) }),
       React.createElement(InputField, { label: 'Расторжения ДДУ, %',     value: inputs.dduCancellationRatePct ?? 7,            step: 1,   min: 0, max: 20,  onChange: v => setInputs(prev => ({ ...prev, dduCancellationRatePct: v })) }),
+      React.createElement(InputField, { label: 'Налог на имущество, %',  value: inputs.propertyTaxPct ?? 2.2,                  step: 0.1, min: 0, max: 2.2, onChange: v => setInputs(prev => ({ ...prev, propertyTaxPct: v })) }),
+      React.createElement(InputField, { label: 'Месяц старта (1–12)',    value: inputs.projectStartCalendarMonth ?? 3,         step: 1,   min: 1, max: 12,  onChange: v => setInputs(prev => ({ ...prev, projectStartCalendarMonth: v })) }),
       React.createElement(InputField, { label: 'Эскроу транш (при 50%)', value: (inputs.financing.escrowMidReleasePct ?? 0) * 100, step: 5, min: 0, max: 50, onChange: v => setInputs(prev => ({ ...prev, financing: { ...prev.financing, escrowMidReleasePct: v / 100 } })) }),
     ),
   );
@@ -3800,7 +3802,7 @@ function MonteCarloPanel({ mc }) {
       row('P(NPV > 0)', '', mc.probNpvPositivePct, cnpv),
     ),
     React.createElement('div', { style: { marginTop: 10, fontSize: 10, color: T.textMuted } },
-      `σ IRR: ${mc.stdDevIrrPct.toFixed(1)} п.п. · Коррелированные переменные (Холецкий): цена ±12%, себестоимость ±10%, темп ±20%, ставка ПФ ±1.5 п.п. · ρ(цена, темп)=0.6`
+      `σ IRR: ${mc.stdDevIrrPct.toFixed(1)} п.п. · Стьюдент t(ν=5) + корреляции Холецкого · цена ±12%, себестоим. ±10%, темп ±20%, ставка ±1.5 п.п. · ρ(цена,темп)=0.6`
     ),
   );
 }
@@ -4595,9 +4597,14 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
     const sellableRatioDefault = 0.78;
     const constCost = Math.round(minstroiNorm * BUSINESS_CLASS_CONSTRUCTION_PREMIUM / sellableRatioDefault / 1000) * 1000;
 
-    // Земля: ~12% от выручки; sellableRatio = 0.78
+    // Земля: городской % от выручки (Коллиерс/JLL Russia 2025), иначе 11%
+    const landPct = (city?.finance?.landRevenuePct ?? 11) / 100;
     const sellableM2 = 2.5 * 20_000 * sellableRatioDefault;
-    const landBudget = Math.round(sellableM2 * price * 0.12 / 50_000_000) * 50_000_000;
+    const landBudget = Math.round(sellableM2 * price * landPct / 50_000_000) * 50_000_000;
+    // Инфраструктура: городской ₽/м² × общая площадь, иначе 7,000 ₽/м²
+    const infraPerM2 = city?.finance?.infraCostPerTotalM2 ?? 7_000;
+    const totalBuildableM2 = 2.5 * 20_000;
+    const infraCostDefault = Math.round(totalBuildableM2 * infraPerM2 / 50_000_000) * 50_000_000;
 
     return {
       landAreaHa:              2.5,
@@ -4608,7 +4615,7 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
       basePricePerM2:          price,
       landCost:                Math.max(300_000_000, landBudget),
       constructionCostPerM2:   constCost,
-      infrastructureCost:      350_000_000, // 7k ₽/м² × 50k м² = 350M (сети, дороги, благоустройство)
+      infrastructureCost:      infraCostDefault,
       marketingShare:          0.035,     // бизнес-класс: 3.5% (ниже, чем комфорт)
       constructionMonths:      32,        // бизнес-класс строится дольше
       discountRateAnnual:      Math.round((currentKS + 7.5) * 2) / 2, // КС + 7.5% риск-надбавка
@@ -4624,6 +4631,9 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
       workingCapitalPct:       1.0,       // рабочий капитал: комиссии + страхование + регистрация
       opexPctOfConstructionAnnual: 0.8,   // содержание непроданных кв. после ввода, %/год
       dduCancellationRatePct:  7,         // расторжения ДДУ: норма РФ 2024-2025
+      propertyTaxPct:          2.2,       // налог на имущество (НК РФ ст. 380)
+      seasonalityEnabled:      true,      // сезонные коэффициенты продаж
+      projectStartCalendarMonth: 3,       // март — типичный старт
     };
   }, [city, currentKS]);
 

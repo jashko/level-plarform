@@ -69,6 +69,21 @@ var MINSTROI_NORMATIVE_2025 = {
   // Красноярский край
 };
 var BUSINESS_CLASS_CONSTRUCTION_PREMIUM = 1.22;
+var SALES_SEASONALITY = [
+  0.88,
+  0.92,
+  1.05,
+  1.12,
+  1.08,
+  0.88,
+  0.73,
+  0.82,
+  1.18,
+  1.23,
+  1.13,
+  0.98
+];
+var PROPERTY_TAX_RATE_DEFAULT = 2.2;
 function getDefaultFinancingParams(ks = 14.5) {
   const pfBaseRate = Math.round((ks + 2.2) * 10) / 10;
   const pfEscrowRate = ks > 16 ? 4 : ks > 12 ? 3 : 2;
@@ -140,15 +155,21 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
   const midReleaseProgress = inputs.financing.escrowMidReleaseProgressPct ?? 0.5;
   let midReleaseTriggered = false;
   const opexMonthlyRate = (inputs.opexPctOfConstructionAnnual ?? 0.8) / 100 / 12;
+  const propertyTaxMonthlyRate = (inputs.propertyTaxPct ?? PROPERTY_TAX_RATE_DEFAULT) / 100 / 12;
+  let cumulativePropertyTax = 0;
+  const seasonEnabled = inputs.seasonalityEnabled !== false;
+  const startCalMonth = (inputs.projectStartCalendarMonth ?? 3) - 1;
   const pfCommittedLine = capex.total * (1 - inputs.financing.equityShare) * inputs.financing.pfCommittedLineMultiplier;
   for (let m = 0; m <= horizon; m++) {
     const inflationFactor = m >= 1 ? Math.pow(1 + costInflationMonthly, m) : 1;
     const landSpend = m === 0 ? capex.land + capex.transactions : 0;
     const constructionSpend = m >= 1 && m <= constructionEndMonth ? capex.construction * sCurve[m - 1] * inflationFactor : 0;
     const infraSpend = m >= 1 && m <= constructionEndMonth ? capex.infrastructure / constructionEndMonth * inflationFactor : 0;
+    const calMonth = (startCalMonth + m) % 12;
+    const seasonFactor = seasonEnabled ? SALES_SEASONALITY[calMonth] : 1;
     let m2Sold = 0;
     if (m >= inputs.salesStartMonth && cumulativeM2 < volumes.sellableM2) {
-      m2Sold = Math.min(salesVelocity, volumes.sellableM2 - cumulativeM2);
+      m2Sold = Math.min(salesVelocity * seasonFactor, volumes.sellableM2 - cumulativeM2);
     }
     cumulativeM2 += m2Sold;
     const priceGrowthFactor = m >= inputs.salesStartMonth ? Math.pow(1 + priceGrowthMonthly, m - inputs.salesStartMonth) : 1;
@@ -157,9 +178,12 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
     const escrowInflow = isDuringConstruction ? revenueMonth : 0;
     let directInflow = isDuringConstruction ? 0 : revenueMonth;
     const marketingSpend = revenueMonth * inputs.marketingShare;
-    const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend;
+    const propertyTaxDuringConstruction = m >= 1 && m <= constructionEndMonth ? (cumulativeCapexSpent - cumulativePropertyTax) * propertyTaxMonthlyRate : 0;
+    cumulativePropertyTax += propertyTaxDuringConstruction;
+    const totalSpend = landSpend + constructionSpend + infraSpend + marketingSpend + propertyTaxDuringConstruction;
     const unsoldRatio = volumes.sellableM2 > 0 ? Math.max(0, 1 - cumulativeM2 / volumes.sellableM2) : 0;
-    const opexSpend = m > constructionEndMonth && unsoldRatio > 0 ? capex.construction * unsoldRatio * opexMonthlyRate : 0;
+    const postCompletionPropertyTax = m > constructionEndMonth ? capex.construction * unsoldRatio * propertyTaxMonthlyRate : 0;
+    const opexSpend = m > constructionEndMonth && unsoldRatio > 0 ? capex.construction * unsoldRatio * opexMonthlyRate + postCompletionPropertyTax : 0;
     let equityDraw = 0;
     let pfDraw = 0;
     if (totalSpend > 0) {
@@ -170,7 +194,7 @@ function buildMonthlyCashFlow(inputs, volumes, revenue, capex, scenario) {
     cumulativeEquity += equityDraw;
     cumulativeCapexSpent += totalSpend;
     const pfBalanceStart = pfBalance;
-    const constructionProgress = Math.min(1, cumulativeCapexSpent / Math.max(1, capex.total - capex.marketing));
+    const constructionProgress = Math.min(1, (cumulativeCapexSpent - cumulativePropertyTax) / Math.max(1, capex.total - capex.marketing));
     let effectiveRateAnnual;
     if (constructionProgress < inputs.financing.escrowDiscountActivationProgress) {
       effectiveRateAnnual = pfBaseRate;
@@ -344,11 +368,20 @@ function normalRandom() {
   const u2 = Math.random();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
+function studentTRandom(nu = 5) {
+  const z = normalRandom();
+  let chiSq = 0;
+  for (let i = 0; i < nu; i++) {
+    const w = normalRandom();
+    chiSq += w * w;
+  }
+  return z / Math.sqrt(chiSq / nu) * Math.sqrt((nu - 2) / nu);
+}
 function correlatedNormals() {
-  const u1 = normalRandom();
-  const u2 = normalRandom();
-  const u3 = normalRandom();
-  const u4 = normalRandom();
+  const u1 = studentTRandom(5);
+  const u2 = studentTRandom(5);
+  const u3 = studentTRandom(5);
+  const u4 = studentTRandom(5);
   const zPrice = 1 * u1;
   const zCost = 0.3 * u1 + 0.95394 * u2;
   const zVelocity = 0.6 * u1 - 0.2935 * u2 + 0.74421 * u3;
@@ -474,34 +507,40 @@ function runScenario(inputs, scenario) {
   const corpTaxAmount = Math.max(0, netProfitPreTax) * corpTaxRate;
   const lastFlowBeforeTax = monthlyCashFlow[monthlyCashFlow.length - 1];
   if (corpTaxAmount > 0 && lastFlowBeforeTax) {
-    const taxMonth = lastFlowBeforeTax.month + 3;
-    monthlyCashFlow.push({
-      month: taxMonth,
-      landSpend: 0,
-      constructionSpend: 0,
-      infraSpend: 0,
-      marketingSpend: 0,
-      totalSpend: 0,
-      m2Sold: 0,
-      cumulativeM2Sold: lastFlowBeforeTax.cumulativeM2Sold,
-      revenue: 0,
-      projectNetCashFlow: 0,
-      equityDraw: 0,
-      cumulativeEquityDrawn: totalEquityDeployed,
-      pfDraw: 0,
-      pfBalanceStart: 0,
-      pfRateAnnualEffective: 0,
-      pfInterestAccrued: 0,
-      cumulativePfInterest: totalPfInterest,
-      pfRepayment: 0,
-      pfBalanceEnd: 0,
-      escrowInflow: 0,
-      escrowBalance: 0,
-      escrowReleased: 0,
-      directInflow: 0,
-      opexSpend: 0,
-      developerCashFlow: -corpTaxAmount,
-      cumulativeDeveloperCashFlow: lastFlowBeforeTax.cumulativeDeveloperCashFlow - corpTaxAmount
+    const sellOutMonth = lastFlowBeforeTax.month;
+    const taxQ1StartMonth = sellOutMonth + 9;
+    const quarterlyTax = corpTaxAmount / 4;
+    let cumCF = lastFlowBeforeTax.cumulativeDeveloperCashFlow;
+    [0, 3, 6, 9].forEach((qOffset) => {
+      cumCF -= quarterlyTax;
+      monthlyCashFlow.push({
+        month: taxQ1StartMonth + qOffset,
+        landSpend: 0,
+        constructionSpend: 0,
+        infraSpend: 0,
+        marketingSpend: 0,
+        totalSpend: 0,
+        m2Sold: 0,
+        cumulativeM2Sold: lastFlowBeforeTax.cumulativeM2Sold,
+        revenue: 0,
+        projectNetCashFlow: 0,
+        equityDraw: 0,
+        cumulativeEquityDrawn: totalEquityDeployed,
+        pfDraw: 0,
+        pfBalanceStart: 0,
+        pfRateAnnualEffective: 0,
+        pfInterestAccrued: 0,
+        cumulativePfInterest: totalPfInterest,
+        pfRepayment: 0,
+        pfBalanceEnd: 0,
+        escrowInflow: 0,
+        escrowBalance: 0,
+        escrowReleased: 0,
+        directInflow: 0,
+        opexSpend: 0,
+        developerCashFlow: -quarterlyTax,
+        cumulativeDeveloperCashFlow: cumCF
+      });
     });
   }
   const npv = calculateNPV(monthlyCashFlow, effectiveDiscountRate);
@@ -1319,7 +1358,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 32, top5MarketShare: 0.48, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 822, krtProjectsCount: 54, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 88e3, avgUnitSizeM2: 63 },
+    finance: { constructionNormativePerTotalM2: 88e3, avgUnitSizeM2: 63, landRevenuePct: 11.5, infraCostPerTotalM2: 7500 },
     // Новосибирск
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1358,7 +1397,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 28, top5MarketShare: 0.55, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 280, krtProjectsCount: 11, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 87e3, avgUnitSizeM2: 65 },
+    finance: { constructionNormativePerTotalM2: 87e3, avgUnitSizeM2: 65, landRevenuePct: 14.5, infraCostPerTotalM2: 8500 },
     // Екатеринбург
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1397,7 +1436,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 25, top5MarketShare: 0.62, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 228, krtProjectsCount: 2, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 91e3, avgUnitSizeM2: 61 },
+    finance: { constructionNormativePerTotalM2: 91e3, avgUnitSizeM2: 61, landRevenuePct: 13, infraCostPerTotalM2: 8500 },
     // Казань
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1436,7 +1475,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 22, top5MarketShare: 0.58, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 180, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 82e3, avgUnitSizeM2: 63 },
+    finance: { constructionNormativePerTotalM2: 82e3, avgUnitSizeM2: 63, landRevenuePct: 12, infraCostPerTotalM2: 7500 },
     // Нижний Новгород
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1474,7 +1513,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.65, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 349, krtProjectsCount: 78, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 59 },
+    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 59, landRevenuePct: 9, infraCostPerTotalM2: 6e3 },
     // Челябинск
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1513,7 +1552,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.6, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 120, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 61 },
+    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 61, landRevenuePct: 11, infraCostPerTotalM2: 6500 },
     // Самара
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1552,7 +1591,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 19, top5MarketShare: 0.55, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 140, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 62 },
+    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 62, landRevenuePct: 10.5, infraCostPerTotalM2: 7e3 },
     // Уфа
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1591,7 +1630,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 21, top5MarketShare: 0.52, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 500, krtProjectsCount: 6, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 63 },
+    finance: { constructionNormativePerTotalM2: 74e3, avgUnitSizeM2: 63, landRevenuePct: 11.5, infraCostPerTotalM2: 7e3 },
     // Ростов-на-Дону
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1630,7 +1669,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 14, top5MarketShare: 0.7, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 115, krtProjectsCount: 5, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 57 },
+    finance: { constructionNormativePerTotalM2: 67e3, avgUnitSizeM2: 57, landRevenuePct: 8, infraCostPerTotalM2: 5e3 },
     // Омск
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1670,7 +1709,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 35, top5MarketShare: 0.42, hasFederalPlayers: true, hasWhiteSpaceBusinessClass: false },
       infrastructure: { krtProgramsHa: 400, krtProjectsCount: 10, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 65 },
+    finance: { constructionNormativePerTotalM2: 76e3, avgUnitSizeM2: 65, landRevenuePct: 11, infraCostPerTotalM2: 8e3 },
     // Краснодар
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1708,7 +1747,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 17, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 110, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 73e3, avgUnitSizeM2: 61 },
+    finance: { constructionNormativePerTotalM2: 73e3, avgUnitSizeM2: 61, landRevenuePct: 10, infraCostPerTotalM2: 6500 },
     // Воронеж
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1747,7 +1786,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 12, top5MarketShare: 0.72, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 45, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: false }
     },
-    finance: { constructionNormativePerTotalM2: 64e3, avgUnitSizeM2: 58 },
+    finance: { constructionNormativePerTotalM2: 64e3, avgUnitSizeM2: 58, landRevenuePct: 8, infraCostPerTotalM2: 5500 },
     // Волгоград
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1785,7 +1824,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 68e3, avgUnitSizeM2: 60 },
+    finance: { constructionNormativePerTotalM2: 68e3, avgUnitSizeM2: 60, landRevenuePct: 10, infraCostPerTotalM2: 6e3 },
     // Пермь
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -1825,7 +1864,7 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 18, top5MarketShare: 0.58, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 130, hasMajorInfraProjects: true, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 86e3, avgUnitSizeM2: 64 },
+    finance: { constructionNormativePerTotalM2: 86e3, avgUnitSizeM2: 64, landRevenuePct: 11.5, infraCostPerTotalM2: 7e3 },
     // Красноярск
     meta: {
       dataAsOfDate: "2026-05-31",
@@ -2620,6 +2659,7 @@ async function buildCityRanking() {
       dataAsOfDate: entry.meta.dataAsOfDate,
       sources: entry.meta.sources,
       inputs: entry.inputs,
+      finance: entry.finance,
       needsVerification: entry.meta.needsVerification,
       marketCycle: calculateMarketCycle(entry.inputs),
       riskProfile: calculateCityRiskProfile(entry.inputs),

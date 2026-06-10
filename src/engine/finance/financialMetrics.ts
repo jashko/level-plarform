@@ -148,6 +148,27 @@ function normalRandom(): number {
 }
 
 /**
+ * Распределение Стьюдента с ν степенями свободы, нормированное к ед. дисперсии.
+ * Использование: вместо N(0,1) для тяжёлых хвостов (экстремальные события рынка).
+ *
+ * При ν=5: кэксцесс = 6/(ν−4) = 6 (vs 0 у нормального).
+ * 5-й перцентиль: −2.02 (vs −1.65 у нормального) — на 23% экстремальнее.
+ * 1-й перцентиль: −3.37 (vs −2.33) — на 45% экстремальнее.
+ *
+ * Формула: t = Z / sqrt(χ²(ν)/ν), нормировано к ед. дисперсии умножением √((ν−2)/ν).
+ */
+function studentTRandom(nu = 5): number {
+  const z = normalRandom();
+  let chiSq = 0;
+  for (let i = 0; i < nu; i++) {
+    const w = normalRandom();
+    chiSq += w * w;
+  }
+  // t с var = nu/(nu-2); нормируем к var = 1
+  return (z / Math.sqrt(chiSq / nu)) * Math.sqrt((nu - 2) / nu);
+}
+
+/**
  * Генерирует 4 коррелированных N(0,1) через нижнетреугольную матрицу Холецкого L
  * корреляционной матрицы переменных (цена, себестоимость, темп продаж, ставка ПФ).
  *
@@ -162,11 +183,11 @@ function normalRandom(): number {
  * Разложение Холецкого L вычислено аналитически и захардкожено.
  */
 function correlatedNormals(): [number, number, number, number] {
-  // Независимые N(0,1)
-  const u1 = normalRandom();
-  const u2 = normalRandom();
-  const u3 = normalRandom();
-  const u4 = normalRandom();
+  // Независимые t(5) с единичной дисперсией — тяжёлые хвосты для редких событий
+  const u1 = studentTRandom(5);
+  const u2 = studentTRandom(5);
+  const u3 = studentTRandom(5);
+  const u4 = studentTRandom(5);
 
   // L — нижнетреугольная матрица Холецкого (L×Lᵀ = Σ)
   // [0]: цена, [1]: себестоимость, [2]: темп продаж, [3]: ставка ПФ
