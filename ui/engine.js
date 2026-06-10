@@ -68,7 +68,7 @@ var MINSTROI_NORMATIVE_2025 = {
   krasnoyarsk: 86e3
   // Красноярский край
 };
-var BUSINESS_CLASS_CONSTRUCTION_PREMIUM = 1.22;
+var BUSINESS_CLASS_CONSTRUCTION_PREMIUM = 1.4;
 var SALES_SEASONALITY = [
   0.88,
   0.92,
@@ -1853,8 +1853,8 @@ var RUSSIA_MILLION_CITIES = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true }
     },
-    finance: { constructionNormativePerTotalM2: 68e3, avgUnitSizeM2: 60, landRevenuePct: 16, infraCostPerTotalM2: 6e3 },
-    // Пермь: 16% — вход через КРТ с умеренным расселением (бенчмарк КРТ-договоров Пермского края)
+    finance: { constructionNormativePerTotalM2: 68e3, avgUnitSizeM2: 60, landRevenuePct: 8.5, infraCostPerTotalM2: 6e3 },
+    // Пермь: 8.5% — фактические КРТ-сделки (ДКЖ 25 га — 767 млн, Куйбышева 12.5 га — 356 млн) + умеренное расселение
     meta: {
       dataAsOfDate: "2026-05-31",
       sources: ["\u041C\u0418\u0420 \u041A\u0412\u0410\u0420\u0422\u0418\u0420 Q1 2026", "ZSRF \u043C\u0430\u0439 2026", "\u041A\u043E\u043C\u043C\u0435\u0440\u0441\u0430\u043D\u0442 \u0430\u043F\u0440.2026", "\u0420\u043E\u0441\u0441\u0442\u0430\u0442 2026", "\u0420\u0411\u041A \u041F\u0435\u0440\u043C\u044C Q1 2026"],

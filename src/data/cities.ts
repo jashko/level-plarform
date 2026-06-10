@@ -451,7 +451,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       competition: { activeDevelopers: 16, top5MarketShare: 0.62, hasFederalPlayers: false, hasWhiteSpaceBusinessClass: true },
       infrastructure: { krtProgramsHa: 770, krtProjectsCount: 40, hasMajorInfraProjects: false, hasUniversitiesOrTechparks: true },
     },
-    finance: { constructionNormativePerTotalM2: 68_000, avgUnitSizeM2: 60, landRevenuePct: 16.0, infraCostPerTotalM2: 6_000 }, // Пермь: 16% — вход через КРТ с умеренным расселением (бенчмарк КРТ-договоров Пермского края)
+    finance: { constructionNormativePerTotalM2: 68_000, avgUnitSizeM2: 60, landRevenuePct: 8.5, infraCostPerTotalM2: 6_000 }, // Пермь: 8.5% — фактические КРТ-сделки (ДКЖ 25 га — 767 млн, Куйбышева 12.5 га — 356 млн) + умеренное расселение
     meta: {
       dataAsOfDate: '2026-05-31',
       sources: ['МИР КВАРТИР Q1 2026', 'ZSRF май 2026', 'Коммерсант апр.2026', 'Росстат 2026', 'РБК Пермь Q1 2026'],

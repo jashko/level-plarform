@@ -4787,8 +4787,10 @@ function FinanceScreen({ city, districtResult, siteResult, onBack }) {
       marketingShare:          0.035,     // бизнес-класс: 3.5% (ниже, чем комфорт)
       constructionMonths:      32,        // бизнес-класс строится дольше
       discountRateAnnual:      Math.round((currentKS + 7.5) * 2) / 2, // КС + 7.5% риск-надбавка
+      // Доля нового игрока ~1.8% месячного объёма рынка (первый проект в регионе,
+      // без лояльной базы; устоявшиеся локальные игроки держат 2.5-4%).
       salesVelocityM2PerMonth: city
-        ? Math.min(2_500, Math.max(300, Math.round(city.inputs.housing.monthlySalesM2 * 0.025)))
+        ? Math.min(2_500, Math.max(300, Math.round(city.inputs.housing.monthlySalesM2 * 0.018)))
         : 1_200,
       salesStartMonth:         4,         // продажи открываются через 4 мес. после старта
       financing: getDefaultFinancingParams(currentKS),
