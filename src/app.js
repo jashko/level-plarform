@@ -248,14 +248,30 @@ const exportScenariosPNG = (model, inputs, cityName) => {
 
   // кривые
   series.forEach((s) => {
+    const lastMo = s.pts.length - 1;
+    const lastV  = s.pts[lastMo];
     ctx.strokeStyle = s.color;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     s.pts.forEach((v, mo) => { mo === 0 ? ctx.moveTo(xAt(mo), yAt(v)) : ctx.lineTo(xAt(mo), yAt(v)); });
     ctx.stroke();
-    // метка NPV у конца линии
-    const lastV = s.pts[s.pts.length - 1];
+    // проект завершён раньше самого длинного сценария — дотягиваем пунктиром (поток = 0, NPV не меняется)
+    if (lastMo < maxLen - 1) {
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(xAt(lastMo), yAt(lastV));
+      ctx.lineTo(px.r, yAt(lastV));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2.5;
+    }
+    // точка завершения проекта
     ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(xAt(lastMo), yAt(lastV), 4, 0, Math.PI * 2);
+    ctx.fill();
+    // метка NPV у правого края, на уровне финального значения
     ctx.font = F(11, 700);
     ctx.fillText(`${s.label}  ${s.final >= 0 ? '+' : '−'}${Math.abs(Math.round(s.final)).toLocaleString('ru-RU')}`, px.r + 8, yAt(lastV) + 4);
   });
@@ -264,7 +280,7 @@ const exportScenariosPNG = (model, inputs, cityName) => {
   // подпись внизу
   ctx.fillStyle = T.textMuted;
   ctx.font = F(10);
-  ctx.fillText('Дисконтирование по эффективной ставке сценария (барьер ± дельта сценария). Значение в конце кривой = NPV проекта.', gx + 24, gy + gh - 14);
+  ctx.fillText('Дисконтирование по эффективной ставке сценария (барьер ± дельта сценария). Точка = завершение проекта, далее пунктир (потоков нет, NPV не меняется). Значение справа = итоговый NPV.', gx + 24, gy + gh - 14);
 
   cv.toBlob((blob) => {
     const url = URL.createObjectURL(blob);
