@@ -1,0 +1,448 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Cities ──────────────────────────────────────────────────────
+
+model City {
+  id            String   @id @default(uuid())
+  key           String   @unique // novosibirsk, yekaterinburg, etc.
+  name          String
+  region        String
+  country       String   @default("RU")
+
+  // Demography
+  populationThousands     Float
+  populationTrend5yPct    Float
+  shareAge25to45          Float
+  migrationBalanceThousands Float
+
+  // Economy
+  avgSalary               Float
+  salaryGrowthYoY         Float
+  highPaidIndustriesShare Float
+  unemploymentRate        Float
+
+  // Housing Market
+  dealsGrowthYoY          Float
+  priceGrowthYoY          Float
+  monthsOfSupply          Float
+  businessClassPricePerM2 Float
+  monthlySalesM2          Float
+  annualDduCount          Float?
+  constructionVolumeMkdThousM2 Float?
+  sellReadinessRatioPct   Float?
+  unsoldYearsOfSupply     Float?
+
+  // Competition
+  activeDevelopers        Int
+  top5MarketShare         Float
+  hasFederalPlayers       Boolean
+  hasWhiteSpaceBusinessClass Boolean
+
+  // Infrastructure
+  krtProgramsHa           Float
+  krtProjectsCount        Int?
+  hasMajorInfraProjects   Boolean
+  hasUniversitiesOrTechparks Boolean
+
+  // Finance data
+  constructionNormativePerTotalM2 Float
+  avgUnitSizeM2           Float
+  landRevenuePct          Float
+  infraCostPerTotalM2     Float
+
+  // Metadata
+  dataAsOfDate            DateTime
+  sources                 String    @default("[]") // JSON array
+  needsVerification       String    @default("[]") // JSON array
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relations
+  versions                CityVersion[]
+  scores                  CityScore[]
+  projects                Project[]
+
+  @@index([key])
+  @@index([country])
+}
+
+// ─── City Versioning ─────────────────────────────────────────────
+
+model CityVersion {
+  id            String   @id @default(uuid())
+  cityId        String
+  version       Int
+  snapshot      Json     // Full city data at this version
+  comment       String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  city          City     @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, version])
+  @@index([cityId])
+}
+
+// ─── Audit Log ───────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  entityType    String   // city, project, scenario, config
+  entityId      String
+  action        String   // create, update, delete
+  field         String?
+  oldValue      Json?
+  newValue      Json?
+  userId        String?
+  userAgent     String?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// ─── Macro Snapshot ──────────────────────────────────────────────
+
+model MacroSnapshot {
+  id            String   @id @default(uuid())
+  keyRateAnnual           Float
+  mortgageRateAnnual      Float
+  preferentialMortgageRate Float?
+  inflationYoY            Float
+  realIncomeIndex3yr      Float
+  unemploymentRate        Float
+  medianMonthlyIncomeRu   Float
+  medianPricePerM2Ru      Float
+  source                  String
+  fetchedAt               DateTime @default(now())
+
+  scores                  MacroScore[]
+
+  @@index([fetchedAt])
+}
+
+model MacroScore {
+  id            String   @id @default(uuid())
+  snapshotId    String
+  macroScore    Float
+  macroMultiplier Float
+  breakdown     Json
+  createdAt     DateTime @default(now())
+
+  snapshot      MacroSnapshot @relation(fields: [snapshotId], references: [id])
+}
+
+// ─── City Scores ─────────────────────────────────────────────────
+
+model CityScore {
+  id            String   @id @default(uuid())
+  cityId        String
+  macroSnapshotId String?
+  cityScore     Float
+  zone          String   // green, orange, yellow, red
+  breakdown     Json     // { demographyScore, economyScore, ... }
+  summary       String?
+  calculatedAt  DateTime @default(now())
+
+  city          City     @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
+  @@index([calculatedAt])
+}
+
+// ─── Projects ────────────────────────────────────────────────────
+
+model Project {
+  id            String   @id @default(uuid())
+  cityId        String
+  name          String
+  status        String   @default("draft") // draft, active, archived
+
+  // Site params
+  landAreaHa              Float
+  allowedDensityM2PerHa   Float
+  sellableRatio           Float
+  averageUnitSizeM2       Float
+  housingClass            String   @default("business")
+  basePricePerM2          Float
+  landCost                Float
+  constructionCostPerM2   Float
+  infrastructureCost      Float
+  marketingShare          Float
+  constructionMonths      Float
+  discountRateAnnual      Float
+  salesVelocityM2PerMonth Float
+  salesStartMonth         Float
+
+  // Financing
+  equityShare             Float
+  pfBaseRateAnnual        Float
+  pfEscrowCoveredRateAnnual Float
+  escrowReleaseLagMonths  Float
+  escrowCoverageDiscount  Float
+  escrowDiscountActivationProgress Float
+  pfCommitmentFeeAnnual   Float
+  pfCommittedLineMultiplier Float
+  escrowMidReleasePct     Float
+  escrowMidReleaseProgressPct Float
+
+  // Optional params
+  dduCancellationRatePct  Float?
+  workingCapitalPct       Float?
+  opexPctOfConstructionAnnual Float?
+  propertyTaxPct          Float?
+  seasonalityEnabled      Boolean  @default(true)
+  projectStartCalendarMonth Int    @default(3)
+  corpTaxRatePct          Float?
+  annualPriceGrowthPct    Float?
+  annualCostInflationPct  Float?
+
+  // Results cache
+  lastRunAt               DateTime?
+  lastRunResult           Json?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  city          City     @relation(fields: [cityId], references: [id])
+  scenarios     Scenario[]
+  sensitivityResults SensitivityResult[]
+  monteCarloResults  MonteCarloResult[]
+
+  @@index([cityId])
+  @@index([status])
+}
+
+// ─── Scenarios ───────────────────────────────────────────────────
+
+model Scenario {
+  id            String   @id @default(uuid())
+  projectId     String
+  scenarioType  String   // base, optimistic, stress
+  result        Json     // Full ScenarioResult
+
+  createdAt     DateTime @default(now())
+
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, scenarioType])
+  @@index([projectId])
+}
+
+// ─── Sensitivity Results ─────────────────────────────────────────
+
+model SensitivityResult {
+  id            String   @id @default(uuid())
+  projectId     String
+  variable      String   // pricePerM2, constructionCost, etc.
+  cells         Json     // SensitivityCell[]
+
+  createdAt     DateTime @default(now())
+
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+}
+
+// ─── Monte Carlo Results ─────────────────────────────────────────
+
+model MonteCarloResult {
+  id            String   @id @default(uuid())
+  projectId     String
+  iterations    Int
+  result        Json     // MonteCarloResult
+
+  createdAt     DateTime @default(now())
+
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+}
+
+// ─── API Keys ────────────────────────────────────────────────────
+
+model ApiKey {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  name          String
+  tier          String   @default("basic") // basic, pro, enterprise
+  rateLimit     Int      @default(100)     // requests per month
+  usedThisMonth Int      @default(0)
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([key])
+}
+
+// ─── Webhooks ────────────────────────────────────────────────────
+
+model Webhook {
+  id            String   @id @default(uuid())
+  url           String
+  events        String   @default("[]") // JSON array
+  secret        String
+  active        Boolean  @default(true)
+  lastTriggered DateTime?
+  failureCount  Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([active])
+}
+
+// ─── Data Pipeline Runs ──────────────────────────────────────────
+
+model DataPipelineRun {
+  id            String   @id @default(uuid())
+  type          String   // cbr_fetch, city_update, crawl
+  status        String   // running, completed, failed
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  itemsProcessed Int     @default(0)
+  errors        String   @default("[]") // JSON array
+  result        Json?
+
+  @@index([type])
+  @@index([startedAt])
+}
+
+// ─── Alerts ──────────────────────────────────────────────────────
+
+model Alert {
+  id            String   @id @default(uuid())
+  type          String   // price_spike, rate_change, anomaly
+  severity      String   // info, warning, critical
+  entityType    String   // city, project, macro
+  entityId      String?
+  title         String
+  message       String
+  acknowledged  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([type, acknowledged])
+  @@index([createdAt])
+}
+
+// ─── Asset Classes ───────────────────────────────────────────────
+
+model AssetClass {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  displayName   String
+  description   String?
+
+  // Financial parameters
+  taxRate                Float
+  vatRate                Float
+  propertyTaxRate        Float
+
+  // Capex model
+  constructionCostMultiplier Float
+  infrastructureCostMultiplier Float
+  marketingShareMin     Float
+  marketingShareMax     Float
+
+  // Revenue model
+  priceMultiplier       Float
+  sellableRatioMin      Float
+  sellableRatioMax      Float
+  averageUnitSizeMin    Float
+  averageUnitSizeMax    Float
+
+  // Sales dynamics
+  absorptionRateMin     Float
+  absorptionRateMax     Float
+  seasonalityPattern    String   @default("[]") // JSON array of 12 monthly factors
+
+  // Financing
+  equityShareMin        Float
+  equityShareMax        Float
+  pfRateAdjustment      Float
+
+  // Metadata
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ─── Regions ─────────────────────────────────────────────────────
+
+model Region {
+  id            String   @id @default(uuid())
+  name          String
+  countryCode   String   @unique
+  currency      String
+
+  // Tax regime
+  corporateTaxRate       Float
+  vatRate                Float
+  propertyTaxRate        Float
+  dividendTaxRate        Float
+
+  // Financing
+  centralBankRate        Float
+  mortgageRateMin        Float
+  mortgageRateMax        Float
+  pfRateMin              Float
+  pfRateMax              Float
+
+  // Regulatory
+  escrowRequired         Boolean
+  dduRequired            Boolean
+  foreignOwnershipRestrictions Boolean
+
+  // Market
+  typicalAbsorptionMonths Float
+  priceGrowthTypical     Float
+
+  // Metadata
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([countryCode])
+}
+
+// ─── Backtesting Projects ────────────────────────────────────────
+
+model ClosedProject {
+  id            String   @id @default(uuid())
+  name          String
+  cityKey       String
+  assetClassName String?
+  regionCode    String?
+
+  // Predicted values
+  predictedNpv          Float
+  predictedIrr          Float?
+  predictedRevenue      Float
+  predictedCapex        Float
+
+  // Actual outcomes
+  actualNpv             Float
+  actualIrr             Float?
+  actualRevenue         Float
+  actualCapex           Float
+
+  // Metadata
+  closedAt              DateTime
+  dataSource            String
+  notes                 String?
+
+  createdAt             DateTime @default(now())
+
+  @@index([cityKey])
+  @@index([closedAt])
+}
