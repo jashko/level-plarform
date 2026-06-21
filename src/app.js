@@ -22,12 +22,13 @@ const BUILD_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 // ── Design tokens ─────────────────────────────────────────────────
 const T = {
-  bg:           '#07080B',
+  bg:           '#0A0B0F',
   surface:      '#0F1116',
   surfaceRaise: '#161A22',
   border:       'rgba(255,255,255,0.07)',
   borderGold:   'rgba(201,169,110,0.28)',
   gold:         '#C9A96E',
+  goldBright:   '#E2C98A',
   goldDim:      'rgba(201,169,110,0.10)',
   text:         '#EDECEA',
   textSub:      '#7A7C86',
@@ -1869,6 +1870,209 @@ function IntelligenceFeed({ items }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  DESIGN LANGUAGE · LEVEL Platform.dc.html (Claude Design handoff)
+// ══════════════════════════════════════════════════════════════════
+
+// Богатая зональная палитра для карточек / вердиктов
+const ZONE_RICH = {
+  green:  { color: T.green,  bg: 'rgba(91,191,138,0.10)', border: 'rgba(91,191,138,0.35)', glow: 'rgba(91,191,138,0.14)', verdict: 'Приоритет — заходить' },
+  orange: { color: T.orange, bg: 'rgba(232,146,74,0.10)', border: 'rgba(232,146,74,0.35)', glow: 'rgba(232,146,74,0.14)', verdict: 'Сильный кандидат' },
+  yellow: { color: T.yellow, bg: 'rgba(212,184,74,0.10)', border: 'rgba(212,184,74,0.30)', glow: 'rgba(212,184,74,0.12)', verdict: 'Точечно, проверять' },
+  red:    { color: T.red,    bg: 'rgba(212,91,91,0.10)',  border: 'rgba(212,91,91,0.30)',  glow: 'rgba(212,91,91,0.12)',  verdict: 'Ждать / пропустить' },
+};
+
+// Инвест-тезисы (из дизайн-хэндоффа); fallback — c.summary из движка
+const CITY_THESIS = {
+  kazan:        'Лучший баланс среди миллионников: растущая демография, премиальные цены и редкий для рынка рост сделок (+2,6%). КРТ «Восстания» у метро — потенциал чека 280–320 тыс. ₽/м².',
+  yekaterinburg:'Дефицит бизнес-класса −34% за год при сильной IT/корпоративной экономике. Окно для камерных проектов 15–25 тыс. м² с реализацией за 8–10 месяцев.',
+  krasnodar:    'Демографический локомотив РФ (+28 тыс./год миграции), но запас 14 мес. и высокий объём нераспроданного требуют аккуратного ценообразования.',
+  krasnoyarsk:  'Самые высокие зарплаты выборки (95 тыс.) и ресурсная экономика. Риск — большой запас нераспроданного жилья (5,2 года).',
+  nizhny:       'Лидер ценового импульса (+18% YoY) и идеальный баланс спроса/предложения (sell-ready 100%). Демография слабее — компенсируется дефицитом.',
+  novosibirsk:  'Крупнейший рынок выборки и рекордные КРТ (822 га), но сделки просели −25,6%. Заходить на дефиците качественного предложения.',
+  perm:         'Сильный ценовой рост (+13%) и большой объём КРТ (770 га) при отрицательной демографии. Точечные проекты в дефицитных локациях.',
+  rostov:       'Развитая инфраструктура и КРТ (500 га), сильный 2025-й, но охлаждение −17,9% в 2026. Наблюдать за стабилизацией спроса.',
+  voronezh:     'Единственный лидер роста сделок (+18,6% YoY) и цен (+11%) — но скромная инфраструктура и конкурентное окружение. Спекулятивно интересен.',
+  ufa:          'Доступные цены и белое пятно в бизнес-классе, но резкое охлаждение (−5,6% QoQ) и слабый баланс предложения. Высокий риск.',
+  samara:       'Белое пятно в премиуме при слабом Q1 (−19,1%) и избыточном предложении. Заходить только под конкретный дефицитный участок.',
+  chelyabinsk:  'Давление на цены (+1%) и обвал сделок −24,9%. Рынок в коррекции — преждевременно для бизнес-класса.',
+  omsk:         'Крошечный рынок бизнес-класса (9 тыс. м²/мес), отток населения −8,5 тыс./год и запас 18 мес. Не рекомендован.',
+  volgograd:    'Худшая динамика выборки: сделки −49,7%, запас 22 мес., 35 тыс.+ нераспроданных. Рынок схлопнулся — пропустить.',
+};
+
+// Амбиентная аврора — фиксированный фон за контентом
+function LpAurora() {
+  return React.createElement('div', {
+    style: { position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' },
+  },
+    React.createElement('div', { style: { position: 'absolute', top: '-14%', right: '-8%', width: '64vw', height: '64vw', borderRadius: '50%', background: 'radial-gradient(circle,rgba(201,169,110,0.18),transparent 62%)', filter: 'blur(46px)', mixBlendMode: 'screen', animation: 'lp-aurora 24s ease-in-out infinite' } }),
+    React.createElement('div', { style: { position: 'absolute', bottom: '-22%', left: '-12%', width: '58vw', height: '58vw', borderRadius: '50%', background: 'radial-gradient(circle,rgba(92,128,205,0.14),transparent 60%)', filter: 'blur(56px)', mixBlendMode: 'screen', animation: 'lp-aurora2 30s ease-in-out infinite' } }),
+    React.createElement('div', { style: { position: 'absolute', top: '32%', left: '34%', width: '42vw', height: '42vw', borderRadius: '50%', background: 'radial-gradient(circle,rgba(160,112,200,0.09),transparent 60%)', filter: 'blur(64px)', mixBlendMode: 'screen', animation: 'lp-aurora 34s ease-in-out infinite' } }),
+  );
+}
+
+// Спарклайн ключевой ставки за 12 мес
+function KeyRateSparkline() {
+  const hist = (macroCbrRaw?.keyRate?.history12mo ?? []).map(h => h.ratePct);
+  const h = hist.length >= 2 ? hist : [18, 17, 16.5, 16, 15.5, 14.5, 14.25];
+  const w = 128, ht = 42, pad = 5;
+  const min = Math.min(...h) - 0.4, max = Math.max(...h) + 0.4;
+  const xs = (i) => pad + i * (w - 2 * pad) / (h.length - 1);
+  const ys = (v) => pad + (1 - (v - min) / (max - min)) * (ht - 2 * pad);
+  const pts = h.map((v, i) => [xs(i), ys(v)]);
+  const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+  const area = line + ` L ${xs(h.length - 1).toFixed(1)} ${(ht - pad).toFixed(1)} L ${pad} ${(ht - pad).toFixed(1)} Z`;
+  const E = React.createElement;
+  return E('svg', { width: w, height: ht, viewBox: `0 0 ${w} ${ht}`, style: { display: 'block' } },
+    E('defs', null, E('linearGradient', { id: 'lpspk', x1: '0', y1: '0', x2: '0', y2: '1' },
+      E('stop', { offset: '0%', stopColor: T.gold, stopOpacity: 0.28 }),
+      E('stop', { offset: '100%', stopColor: T.gold, stopOpacity: 0 }))),
+    E('path', { d: area, fill: 'url(#lpspk)' }),
+    E('path', { d: line, fill: 'none', stroke: T.gold, strokeWidth: 1.6, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+    E('circle', { cx: xs(h.length - 1), cy: ys(h[h.length - 1]), r: 2.8, fill: T.goldBright || '#E2C98A' }),
+  );
+}
+
+// HERO + KPI-карточки
+function HeroSection({ ranking }) {
+  const m = useIsMobile();
+  const snap = ranking.macroSnapshot;
+  const priority = ranking.cities.filter(c => c.cityScore >= 60).length;
+  const kpi = (label, value, unit, sub, color, glow) => React.createElement('div',
+    { style: { background: 'rgba(15,17,23,0.5)', padding: m ? '20px 18px' : '26px 28px' } },
+    React.createElement('div', { style: { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 12 } }, label),
+    React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6 } },
+      React.createElement('span', { style: { fontSize: m ? 34 : 42, fontWeight: 600, color: color || T.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', textShadow: glow ? `0 0 28px ${glow}` : 'none', fontFamily: 'Inter, sans-serif' } }, value),
+      unit && React.createElement('span', { style: { fontSize: 16, color: T.textMuted } }, unit),
+    ),
+    sub && React.createElement('div', { style: { fontSize: 11, color: sub.color || T.textSub, marginTop: 8 } }, sub.text),
+  );
+  return React.createElement('section', { className: 'lp-fadeup', style: { paddingTop: m ? 6 : 18, position: 'relative' } },
+    React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.3em', textTransform: 'uppercase', color: T.gold, marginBottom: m ? 16 : 22, fontWeight: 500 } },
+      `Скоринговая модель · ${ranking.cities.length} городов-миллионников · ${snap.asOfDate}`),
+    React.createElement('h1', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, fontSize: m ? 40 : 64, lineHeight: 1.04, letterSpacing: '-0.01em', color: '#F3F1EC', maxWidth: '18ch', marginBottom: m ? 18 : 24 } },
+      'Скоринговая оценка рынков ', React.createElement('span', { style: { fontStyle: 'italic', color: T.goldBright || '#E2C98A' } }, 'жилья')),
+    React.createElement('p', { style: { fontSize: m ? 15 : 17, lineHeight: 1.7, color: '#9A9CA6', maxWidth: '62ch', fontWeight: 300 } },
+      'Собираем открытые данные Росстата, ЦБ и ДОМ.РФ и сводим их в одну оценку — ',
+      React.createElement('span', { style: { color: T.text } }, 'CityScore по пяти факторам: демография, экономика, рынок, конкуренция, инфраструктура.')),
+    React.createElement('div', {
+      style: {
+        marginTop: m ? 28 : 46, display: 'grid', gridTemplateColumns: m ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
+        gap: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 20, overflow: 'hidden',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10),0 34px 80px -40px rgba(0,0,0,0.9)',
+      },
+    },
+      kpi('MacroScore среды', snap.macroScore.toFixed(0), '/ 100', { text: 'Благоприятная — цикл смягчения', color: T.green }, T.gold, 'rgba(201,169,110,0.40)'),
+      kpi('Ключевая ставка ЦБ', fmtPct(snap.keyRateAnnual, 2), null, { text: '3-е снижение подряд · пик был 21%' }, T.text),
+      kpi('Рынков в анализе', String(ranking.cities.length), null, { text: 'Миллионники РФ, кроме МСК / СПб' }, T.text),
+      kpi('Приоритетных рынков', String(priority), `из ${ranking.cities.length}`, { text: 'CityScore ≥ 60 — оранжевая+ зона' }, T.goldBright || '#E2C98A', 'rgba(226,201,138,0.38)'),
+    ),
+  );
+}
+
+// Макро-полоса со спарклайном и метриками
+function MacroStrip({ snapshot }) {
+  const m = useIsMobile();
+  const infl = macroCbrRaw?.inflation?.yoyPct;
+  const fcEntry = (AGENT_DATA?.dataUpdates || []).find(d => d.field === 'keyRateForecastQ4');
+  const forecast = fcEntry ? fcEntry.newValue : 13.25;
+  const hist = macroCbrRaw?.keyRate?.history12mo ?? [];
+  const peak = hist.length ? Math.max(...hist.map(h => h.ratePct), 21) : 21;
+  const drop = Math.round((peak - snapshot.keyRateAnnual) * 100);
+  const tile = (label, value, unit, sub, color) => React.createElement('div', null,
+    React.createElement('div', { style: { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 7 } }, label),
+    React.createElement('div', { style: { fontSize: 19, fontWeight: 600, color: color || T.text, fontVariantNumeric: 'tabular-nums' } },
+      value, unit && React.createElement('span', { style: { fontSize: 13, color: T.textSub } }, unit)),
+    sub && React.createElement('div', { style: { fontSize: 10, color: T.textSub, marginTop: 3 } }, sub),
+  );
+  return React.createElement('section', {
+    style: {
+      marginTop: m ? 14 : 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
+      borderLeft: '2px solid rgba(201,169,110,0.75)', borderRadius: 18, padding: m ? '20px' : '24px 28px',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08),0 26px 64px -38px rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'center', gap: m ? 22 : 38, flexWrap: 'wrap',
+    },
+  },
+    React.createElement('div', null,
+      React.createElement('div', { style: { fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 6 } }, 'Ключевая ставка · 12 мес'),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 12 } },
+        React.createElement(KeyRateSparkline),
+        React.createElement('div', null,
+          React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' } }, `${peak}% → ${fmtPct(snapshot.keyRateAnnual, 2)}`),
+          React.createElement('div', { style: { fontSize: 10, color: T.green } }, `−${drop} б.п. за год`),
+        ),
+      ),
+    ),
+    !m && React.createElement('div', { style: { width: 1, height: 46, background: 'rgba(255,255,255,0.07)' } }),
+    React.createElement('div', { style: { display: 'flex', gap: m ? '20px 28px' : 34, flexWrap: 'wrap', flex: 1 } },
+      tile('Рыночная ипотека', fmtPct(snapshot.mortgageRateAnnual, 1).replace('%', ''), '%', 'первичка, ДОМ.РФ'),
+      tile('Семейная ипотека', snapshot.preferentialMortgageRate ? fmtPct(snapshot.preferentialMortgageRate, 1).replace('%', '') : '—', '%', 'драйвер спроса', T.gold),
+      infl != null && tile('Инфляция YoY', String(infl).replace('.', ','), '%', 'цель ЦБ — 4%'),
+      tile('Ставка ПФ', '18–18,5', '%', 'снижается вслед за КС'),
+      tile('Прогноз КС к Q4', `~${String(forecast).replace('.', ',')}`, '%', 'базовый сценарий', T.green),
+    ),
+  );
+}
+
+// Топ-3 инвестиционный шорт-лист
+function Top3Cards({ cities, onCityClick }) {
+  const m = useIsMobile();
+  const top3 = cities.slice(0, 3);
+  return React.createElement('section', { style: { marginTop: m ? 28 : 44 } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, gap: 16, flexWrap: 'wrap' } },
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.26em', textTransform: 'uppercase', color: T.gold, marginBottom: 10, fontWeight: 500 } }, 'Инвестиционный шорт-лист'),
+        React.createElement('h2', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, fontSize: m ? 26 : 34, color: '#F3F1EC', letterSpacing: '-0.01em' } }, 'Три рынка, куда смотреть первыми'),
+      ),
+      !m && React.createElement('div', { style: { fontSize: 12, color: T.textSub, maxWidth: '32ch', textAlign: 'right', lineHeight: 1.6 } }, 'Отсортировано по CityScore — взвешенной оценке демографии, экономики, рынка, конкуренции и инфраструктуры.'),
+    ),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : 'repeat(3,1fr)', gap: 18 } },
+      ...top3.map((c, i) => {
+        const z = ZONE_RICH[c.zone] || ZONE_RICH.yellow;
+        const price = c.inputs.housing.businessClassPricePerM2;
+        const growth = c.inputs.housing.priceGrowthYoY;
+        const growthColor = growth >= 8 ? T.green : growth > 0 ? T.gold : T.red;
+        return React.createElement('div', {
+          key: c.key, onClick: () => onCityClick(c.key),
+          style: {
+            position: 'relative', cursor: 'pointer', background: 'linear-gradient(155deg,rgba(255,255,255,0.075),rgba(255,255,255,0.02))',
+            border: `1px solid ${z.border}`, borderRadius: 22, padding: m ? 22 : 28, overflow: 'hidden',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10),0 28px 64px -38px rgba(0,0,0,0.85)',
+          },
+        },
+          React.createElement('div', { style: { position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: `radial-gradient(circle,${z.glow},transparent 70%)` } }),
+          React.createElement('div', { style: { position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 22 } },
+            React.createElement('div', null,
+              React.createElement('div', { style: { fontSize: 11, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6 } }, `№${i + 1} · ${c.region}`),
+              React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: 30, color: '#F3F1EC', lineHeight: 1.05 } }, c.name),
+            ),
+            React.createElement('div', { style: { textAlign: 'right' } },
+              React.createElement('div', { style: { fontSize: 40, fontWeight: 600, color: z.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1, letterSpacing: '-0.02em', textShadow: `0 0 26px ${z.glow}` } }, Math.round(c.cityScore)),
+              React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', marginTop: 2 } }, 'CITYSCORE'),
+            ),
+          ),
+          React.createElement('div', { style: { position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px', borderRadius: 999, background: z.bg, marginBottom: 22 } },
+            React.createElement('span', { style: { width: 6, height: 6, borderRadius: '50%', background: z.color } }),
+            React.createElement('span', { style: { fontSize: 11, fontWeight: 600, color: z.color } }, z.verdict),
+          ),
+          React.createElement('div', { style: { position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 18px', marginBottom: 22 } },
+            ...[['Цена м² БК', `${price.toLocaleString('ru-RU')} ₽`, T.text],
+               ['Цена YoY', `${growth > 0 ? '+' : ''}${growth}%`, growthColor],
+               ['Запас, мес', String(c.inputs.housing.monthsOfSupply), T.text],
+               ['Население', `${(c.inputs.demography.populationThousands / 1000).toFixed(2).replace('.', ',')} млн`, T.text],
+            ].map(([k, v, col], j) => React.createElement('div', { key: j },
+              React.createElement('div', { style: { fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 } }, k),
+              React.createElement('div', { style: { fontSize: 16, fontWeight: 600, color: col, fontVariantNumeric: 'tabular-nums' } }, v),
+            )),
+          ),
+          React.createElement('div', { style: { position: 'relative', fontSize: 12.5, lineHeight: 1.65, color: '#9A9CA6', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16, minHeight: 62 } },
+            CITY_THESIS[c.key] || c.summary),
+        );
+      }),
+    ),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter,    setZoneFilter]    = useState('all');
   const [minScore,      setMinScore]      = useState(0);
@@ -1922,7 +2126,9 @@ function MainScreen({ ranking, onCityClick }) {
     showTrendsFor &&
       React.createElement(TrendsModal, { city: showTrendsFor, onClose: () => setShowTrendsFor(null) }),
 
-    React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
+    React.createElement(HeroSection, { ranking }),
+    React.createElement(MacroStrip, { snapshot: ranking.macroSnapshot }),
+    React.createElement(Top3Cards, { cities: ranking.cities, onCityClick }),
 
     React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(TopEntryWidget, { cities: activeCities, onCityClick }),
@@ -5475,7 +5681,10 @@ function App() {
 
   return React.createElement(
     'div',
-    { style: { minHeight: '100vh', background: T.bg } },
+    { style: { minHeight: '100vh', background: T.bg, position: 'relative' } },
+
+    // Амбиентная аврора (фон)
+    React.createElement(LpAurora),
 
     // Командная палитра
     cmdOpen && ranking && React.createElement(CommandPalette, {
@@ -5604,17 +5813,19 @@ function App() {
 
     // ── Intelligence Feed ─────────────────────────────────────
     AGENT_DATA?.newsItems?.length > 0 &&
-      React.createElement(IntelligenceFeed, { items: AGENT_DATA.newsItems }),
+      React.createElement('div', { style: { position: 'relative', zIndex: 1 } },
+        React.createElement(IntelligenceFeed, { items: AGENT_DATA.newsItems })),
 
     // ── Content ──────────────────────────────────────────────
     React.createElement(
       'main',
-      { style: { maxWidth: 1280, margin: '0 auto', padding: m ? '16px 16px 40px' : '32px 36px 60px' } },
+      { style: { maxWidth: 1280, margin: '0 auto', padding: m ? '16px 16px 40px' : '32px 36px 60px', position: 'relative', zIndex: 1 } },
       content,
     ),
 
     // ── News Ticker ──────────────────────────────────────────
-    React.createElement(NewsTicker),
+    React.createElement('div', { style: { position: 'relative', zIndex: 1 } },
+      React.createElement(NewsTicker)),
   );
 }
 

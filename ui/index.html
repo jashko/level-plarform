@@ -14,7 +14,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:            #07080B;
+      --bg:            #0A0B0F;
       --surface:       #0F1116;
       --surface-raise: #161A22;
       --surface-hover: #1C2028;
@@ -93,6 +93,14 @@
       0%   { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
+
+    /* ── Design language: aurora, shimmer, reveal ── */
+    @keyframes lp-shimmer { 0% { background-position: -180% 0; } 100% { background-position: 180% 0; } }
+    @keyframes lp-aurora  { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(3%,-2%,0) scale(1.08); } }
+    @keyframes lp-aurora2 { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(-3%,2.5%,0) scale(1.1); } }
+    @keyframes lp-glow    { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
+    @keyframes lp-fadeup  { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: translateY(0); } }
+    .lp-fadeup { animation: lp-fadeup .7s cubic-bezier(.2,.7,.2,1) both; }
 
     /* ── Mobile / touch ──────────────────────────── */
     * { -webkit-tap-highlight-color: transparent; }
