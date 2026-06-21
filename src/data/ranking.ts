@@ -139,7 +139,7 @@ export async function buildCityRanking(): Promise<RankingResult> {
     mortgageRateAnnual: cbr.mortgageRateAnnual,
     preferentialMortgageRate: cbr.preferentialMortgageRate,
     mortgageShareOfDeals: 0.76, // 76% сделок с ипотекой (охлаждение с 78%), апр.2026
-    inflationYoY: 5.4,          // Росстат, май 2026: 5.36% (дезинфляция)
+    inflationYoY: 5.3,          // Росстат, май 2026: 5.31% YoY (с 5.58% в апреле — дезинфляция)
     realIncomeIndex3yr: 1.11,   // +11% за 3 года, Росстат янв.2026
     unemploymentRate: 3.2,
     medianMonthlyIncomeRu: RU_MEDIAN_SALARY,

@@ -71,12 +71,12 @@ export async function fetchCbrSnapshot(): Promise<CbrSnapshot> {
   const mortgageFetchedAt = saved?.mortgage?.marketRateFetchedAt ?? saved?.fetchedAt ?? '';
   const preferential   = saved?.mortgage?.preferentialRatePct ?? 6.0;
 
-  const nextMeeting = (saved as any)?.keyRate?.nextMeetingDate ?? '2026-06-19';
+  const nextMeeting = (saved as any)?.keyRate?.nextMeetingDate ?? '2026-07-24';
 
   const FALLBACK: CbrSnapshot = {
-    asOfDate: saved?.fetchedAt ? saved.fetchedAt.slice(0, 10) : (saved?.keyRate?.effectiveSince ?? '2026-04-27'),
-    keyRateAnnual: saved?.keyRate?.currentPct ?? 14.5,
-    mortgageRateAnnual: savedMortgage ?? 18.5,
+    asOfDate: saved?.fetchedAt ? saved.fetchedAt.slice(0, 10) : (saved?.keyRate?.effectiveSince ?? '2026-06-19'),
+    keyRateAnnual: saved?.keyRate?.currentPct ?? 14.25,
+    mortgageRateAnnual: savedMortgage ?? 19.5,
     mortgageRateSource: mortgageSource,
     mortgageRateFetchedAt: mortgageFetchedAt,
     preferentialMortgageRate: preferential,

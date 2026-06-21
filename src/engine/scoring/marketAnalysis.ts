@@ -239,7 +239,7 @@ export interface AffordabilityIndex {
   /** Оценка: 'high' | 'moderate' | 'premium' | 'elite'. */
   tier: 'high' | 'moderate' | 'premium' | 'elite';
   tierRu: string;
-  /** Ежемесячный платёж как % от средней ЗП (ипотека, 30 лет, 20% взнос, 14.5%). */
+  /** Ежемесячный платёж как % от средней ЗП (ипотека, 30 лет, 20% взнос, 14.25%). */
   mortgagePaymentSharePct: number;
   /**
    * Средняя площадь квартиры бизнес-класса 65 м².
@@ -264,9 +264,9 @@ export function calculateAffordability(inputs: CityInputs): AffordabilityIndex {
     : tier === 'premium' ? 'Премиум'
     : 'Элитный';
 
-  // Ипотека: 65 м², 80% LTV, ставка 14.5%, 30 лет
+  // Ипотека: 65 м², 80% LTV, ставка 14.25% (КС с 19.06.2026), 30 лет
   const loanAmount = price * 65 * 0.80;
-  const monthlyRate = 0.145 / 12;
+  const monthlyRate = 0.1425 / 12;
   const months = 360;
   const payment = loanAmount * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
   const mortgagePaymentSharePct = Math.round((payment / salary) * 100);

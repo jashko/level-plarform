@@ -1958,7 +1958,7 @@ function MainScreen({ ranking, onCityClick }) {
         }),
         React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 9, color: T.textMuted, marginTop: 4 } },
           React.createElement('span', null, '6% — нейтраль'),
-          React.createElement('span', null, '14.5% — сейчас'),
+          React.createElement('span', null, '14.25% — сейчас'),
           React.createElement('span', null, '21% — пик'),
         ),
       ),
@@ -2587,9 +2587,9 @@ function AffordabilityCard({ city }) {
         }, af.tierRu),
       ),
       React.createElement('div', null,
-        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 } }, 'Ипотека 30 лет, 14.5%'),
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 } }, 'Ипотека 30 лет, 14.25%'),
         React.createElement('div', { style: { fontSize: 11, color: T.textSub, marginBottom: 6 } },
-          `Платёж: `, React.createElement('span', { style: { color: T.text, fontWeight: 600 } }, fmtRub(city.inputs.housing.businessClassPricePerM2 * 65 * 0.8 * (0.145 / 12) / (1 - Math.pow(1 + 0.145 / 12, -360)))),
+          `Платёж: `, React.createElement('span', { style: { color: T.text, fontWeight: 600 } }, fmtRub(city.inputs.housing.businessClassPricePerM2 * 65 * 0.8 * (0.1425 / 12) / (1 - Math.pow(1 + 0.1425 / 12, -360)))),
         ),
         React.createElement('div', { style: { fontSize: 11, color: T.textSub, marginBottom: 6 } },
           `${af.mortgagePaymentSharePct}% от ср. ЗП`,
@@ -4753,7 +4753,7 @@ function SmartHintsPanel({ inputs }) {
 
 function FinanceScreen({ city, districtResult, siteResult, onBack }) {
   // Актуальная КС из данных ЦБ — для корректной ставки ПФ
-  const currentKS = (macroCbrRaw?.keyRate?.currentPct) ?? 14.5;
+  const currentKS = (macroCbrRaw?.keyRate?.currentPct) ?? 14.25;
 
   const initialInputs = useMemo(() => {
     const price = city ? city.inputs.housing.businessClassPricePerM2 : 250_000;
@@ -5233,7 +5233,7 @@ function PriceForecastChart({ city, macroSnapshot }) {
   const m = useIsMobile();
   const basePrice = city.inputs.housing.businessClassPricePerM2;
   const baseGrowth = city.inputs.housing.priceGrowthYoY / 100;
-  const ks = macroSnapshot?.keyRateAnnual ?? 14.5;
+  const ks = macroSnapshot?.keyRateAnnual ?? 14.25;
 
   // Сценарный прогноз на 18 месяцев
   // Базовый: текущий тренд сохраняется

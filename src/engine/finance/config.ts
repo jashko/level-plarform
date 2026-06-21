@@ -116,7 +116,7 @@ export const PROPERTY_TAX_RATE_DEFAULT = 2.2;
  *    На практике от 0.01% до 4% в зависимости от банка и условий
  *  - Equity share: бизнес-класс обычно 20–25% (банки требуют "кожу в игре")
  */
-export function getDefaultFinancingParams(ks: number = 14.5): ProjectFinanceParams {
+export function getDefaultFinancingParams(ks: number = 14.25): ProjectFinanceParams {
   // Базовая ставка ПФ = КС + маржа банка (~2.2 п.п. в нормальных условиях)
   const pfBaseRate = Math.round((ks + 2.2) * 10) / 10;
   // Льготная ставка при 100% покрытии эскроу: практика Сбер/ВТБ ≈ 0.1–5%
@@ -139,7 +139,7 @@ export function getDefaultFinancingParams(ks: number = 14.5): ProjectFinancePara
 }
 
 /**
- * Дефолтные параметры при КС = 14.5% (актуально на июнь 2026).
+ * Дефолтные параметры при КС = 14.25% (с 19.06.2026).
  * Используется как начальное значение в UI до подгрузки актуальных данных.
  */
-export const DEFAULT_FINANCING_PARAMS: ProjectFinanceParams = getDefaultFinancingParams(14.5);
+export const DEFAULT_FINANCING_PARAMS: ProjectFinanceParams = getDefaultFinancingParams(14.25);

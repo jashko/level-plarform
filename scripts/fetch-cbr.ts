@@ -19,14 +19,15 @@ const OUTPUT_PATH = join(__dirname, '..', 'src', 'data', 'macro-cbr.json');
 // ── Расписание заседаний Совета директоров ЦБ РФ (2026) ──────────
 // Источник: https://www.cbr.ru/press/event/?id=...
 // Обновляй этот список раз в год когда ЦБ публикует календарь
+// Официальный календарь заседаний по ключевой ставке на 2026 (cbr.ru/dkp/cal_mp/)
 const CBR_MEETING_DATES_2026 = [
-  '2026-02-16',
-  '2026-03-21',
-  '2026-04-27',
-  '2026-06-19', // следующее заседание
-  '2026-07-25',
-  '2026-09-12',
-  '2026-10-24',
+  '2026-02-13',
+  '2026-03-20',
+  '2026-04-24',
+  '2026-06-19',
+  '2026-07-24', // следующее заседание
+  '2026-09-11',
+  '2026-10-23',
   '2026-12-18',
 ];
 
@@ -295,8 +296,8 @@ async function main(): Promise<void> {
   } catch { /* нет предыдущих данных */ }
 
   // КС: live fetch только в день заседания, иначе берём из предыдущего снапшота
-  let keyRateValue = prevSnapshot?.keyRate?.currentPct ?? 14.5;
-  let effectiveSince = prevSnapshot?.keyRate?.effectiveSince ?? '2026-04-27';
+  let keyRateValue = prevSnapshot?.keyRate?.currentPct ?? 14.25;
+  let effectiveSince = prevSnapshot?.keyRate?.effectiveSince ?? '2026-06-19';
   let history12mo = prevSnapshot?.keyRate?.history12mo ?? [];
 
   if (isMeetingDay || !prevSnapshot) {
@@ -327,7 +328,7 @@ async function main(): Promise<void> {
       history12mo,
     },
     inflation: {
-      yoyPct: prevSnapshot?.inflation?.yoyPct ?? 5.9,
+      yoyPct: prevSnapshot?.inflation?.yoyPct ?? 5.31,
       asOf: prevSnapshot?.inflation?.asOf ?? '2026-05',
       target: 4.0,
     },
