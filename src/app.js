@@ -1924,54 +1924,7 @@ function MainScreen({ ranking, onCityClick }) {
 
     React.createElement(MacroSnapshotBanner, { snapshot: ranking.macroSnapshot }),
 
-    // ── КС-Симулятор ──────────────────────────────────────────────
-    React.createElement('div', {
-      style: {
-        background: simKS !== null
-          ? 'linear-gradient(135deg, rgba(91,191,138,0.07) 0%, rgba(91,191,138,0.02) 100%)'
-          : T.surface,
-        border: `1px solid ${simKS !== null ? T.green + '44' : T.border}`,
-        borderRadius: 12, padding: '18px 24px',
-        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
-      },
-    },
-      React.createElement('div', { style: { flexShrink: 0 } },
-        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 4 } }, 'СЦЕНАРИЙ: КЛЮЧЕВАЯ СТАВКА'),
-        React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6 } },
-          React.createElement('span', {
-            style: { fontSize: 28, fontWeight: 800, color: simKS !== null ? T.green : T.gold, fontFamily: 'Inter', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' },
-          }, `${(simKS ?? ranking.macroSnapshot.keyRateAnnual).toFixed(1)}%`),
-          simKS !== null && React.createElement('span', {
-            style: { fontSize: 11, color: T.textMuted },
-          }, `← было ${ranking.macroSnapshot.keyRateAnnual.toFixed(1)}%`),
-        ),
-      ),
-      React.createElement('div', { style: { flex: 1, minWidth: 200 } },
-        React.createElement('input', {
-          type: 'range', min: 6, max: 21, step: 0.5,
-          value: simKS ?? ranking.macroSnapshot.keyRateAnnual,
-          onChange: e => {
-            const v = parseFloat(e.target.value);
-            setSimKS(Math.abs(v - ranking.macroSnapshot.keyRateAnnual) < 0.01 ? null : v);
-          },
-          style: { width: '100%', accentColor: T.green, cursor: 'pointer', height: 4 },
-        }),
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 9, color: T.textMuted, marginTop: 4 } },
-          React.createElement('span', null, '6% — нейтраль'),
-          React.createElement('span', null, '14.25% — сейчас'),
-          React.createElement('span', null, '21% — пик'),
-        ),
-      ),
-      simKS !== null && React.createElement('button', {
-        onClick: () => setSimKS(null),
-        style: { padding: '7px 16px', borderRadius: 8, fontSize: 11, cursor: 'pointer', background: T.surfaceRaise, border: `1px solid ${T.border}`, color: T.textSub, fontFamily: 'Inter', flexShrink: 0 },
-      }, '↩ Сбросить'),
-      simKS !== null && React.createElement('div', {
-        style: { padding: '6px 14px', borderRadius: 20, background: T.greenDim, border: `1px solid ${T.green}44`, fontSize: 10, fontWeight: 700, color: T.green, flexShrink: 0 },
-      }, '● СИМ-РЕЖИМ'),
-    ),
-
-    React.createElement(RussiaMap, { cities: simKS !== null ? activeCities : ranking.cities, onCityClick }),
+    React.createElement(RussiaMap, { cities: ranking.cities, onCityClick }),
     React.createElement(TopEntryWidget, { cities: activeCities, onCityClick }),
     React.createElement(SupplyDemandBalanceChart, { cities: activeCities, onCityClick }),
     React.createElement(CityQuadrant, { cities: activeCities, onCityClick }),
