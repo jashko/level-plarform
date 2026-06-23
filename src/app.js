@@ -2073,6 +2073,327 @@ function Top3Cards({ cities, onCityClick }) {
   );
 }
 
+// ── Заголовок экрана (редакционный) ──
+function ScreenHero({ eyebrow, title, titleAccent, subtitle }) {
+  const m = useIsMobile();
+  return React.createElement('section', { className: 'lp-fadeup', style: { paddingTop: m ? 6 : 16, marginBottom: m ? 26 : 40 } },
+    React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.3em', textTransform: 'uppercase', color: T.gold, marginBottom: m ? 14 : 18, fontWeight: 500 } }, eyebrow),
+    React.createElement('h1', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, fontSize: m ? 36 : 56, lineHeight: 1.03, letterSpacing: '-0.01em', color: '#F3F1EC', marginBottom: m ? 14 : 18 } },
+      title, titleAccent && React.createElement('span', { style: { fontStyle: 'italic', color: T.goldBright } }, titleAccent)),
+    subtitle && React.createElement('p', { style: { fontSize: m ? 15 : 16, lineHeight: 1.7, color: '#9A9CA6', maxWidth: '60ch', fontWeight: 300 } }, subtitle),
+  );
+}
+
+// ═══ ЭКРАН: ГОРОДА (циклы + сигнал входа) ═══
+function CitiesScreen({ ranking, onCityClick }) {
+  const m = useIsMobile();
+  return React.createElement('div', null,
+    React.createElement(ScreenHero, {
+      eyebrow: `${ranking.cities.length} городов-миллионников`,
+      title: 'Рыночные циклы и ', titleAccent: 'доступность',
+      subtitle: 'Фаза цикла, сигнал на вход и ключевые показатели по каждому рынку — по убыванию CityScore.',
+    }),
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? '1fr 1fr' : 'repeat(4,1fr)', gap: m ? 12 : 16 } },
+      ...ranking.cities.map((c) => {
+        const z = ZONE_RICH[c.zone] || ZONE_RICH.yellow;
+        const cyc = c.marketCycle || {};
+        const sig = ENTRY_SIGNAL_CONFIG[cyc.entrySignal] || ENTRY_SIGNAL_CONFIG.watch;
+        const risk = c.riskProfile ? c.riskProfile.overallRisk : 0;
+        const riskColor = risk <= 33 ? T.green : risk <= 50 ? T.yellow : T.red;
+        const timing = cyc.timingScore != null ? Math.round(cyc.timingScore) : 0;
+        return React.createElement('div', {
+          key: c.key, onClick: () => onCityClick(c.key),
+          style: {
+            position: 'relative', cursor: 'pointer', background: 'linear-gradient(155deg,rgba(255,255,255,0.075),rgba(255,255,255,0.02))',
+            border: `1px solid ${z.border}`, borderRadius: 22, padding: 22, overflow: 'hidden',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.09),0 24px 56px -32px rgba(0,0,0,0.85)',
+          },
+        },
+          React.createElement('div', { style: { position: 'absolute', top: -28, right: -28, width: 110, height: 110, borderRadius: '50%', background: `radial-gradient(circle,${z.glow},transparent 65%)`, pointerEvents: 'none' } }),
+          React.createElement('div', { style: { position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 } },
+            React.createElement('div', null,
+              React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.06em', marginBottom: 4 } }, c.region),
+              React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: 21, color: '#F3F1EC', lineHeight: 1.1 } }, c.name),
+            ),
+            React.createElement('div', { style: { textAlign: 'right', flexShrink: 0, marginLeft: 8 } },
+              React.createElement('div', { style: { fontSize: 10, color: T.textMuted, letterSpacing: '0.06em', marginBottom: 2 } }, `№${c.rank ?? ''}`),
+              React.createElement('div', { style: { fontSize: 30, fontWeight: 600, color: z.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: `0 0 22px ${z.glow}` } }, Math.round(c.cityScore)),
+            ),
+          ),
+          React.createElement('div', { style: { position: 'relative', display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 } },
+            React.createElement('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: z.bg } },
+              React.createElement('span', { style: { width: 5, height: 5, borderRadius: '50%', background: z.color } }),
+              React.createElement('span', { style: { fontSize: 10, fontWeight: 600, color: z.color } }, cyc.labelRu || '—')),
+            React.createElement('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: sig.bg } },
+              React.createElement('span', { style: { fontSize: 10, fontWeight: 600, color: sig.color } }, sig.label)),
+          ),
+          React.createElement('div', { style: { position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)', marginBottom: 14 } },
+            ...[['Цена м²', `${c.inputs.housing.businessClassPricePerM2.toLocaleString('ru-RU')} ₽`, T.text],
+               ['Зарплата', `${c.inputs.economy.avgSalary.toLocaleString('ru-RU')} ₽`, T.text],
+               ['Население', `${(c.inputs.demography.populationThousands / 1000).toFixed(2).replace('.', ',')} млн`, T.text],
+               ['Риск', String(risk), riskColor],
+            ].map(([k, v, col], j) => React.createElement('div', { key: j },
+              React.createElement('div', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 } }, k),
+              React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: col, fontVariantNumeric: 'tabular-nums' } }, v))),
+          ),
+          React.createElement('div', { style: { position: 'relative' } },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 5 } },
+              React.createElement('span', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' } }, 'Окно входа'),
+              React.createElement('span', { style: { fontSize: 10, fontWeight: 600, color: z.color } }, `${timing}%`)),
+            React.createElement('div', { style: { height: 3, borderRadius: 2, background: '#161A22', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', borderRadius: 2, background: z.color, width: `${timing}%`, transition: 'width 1.2s ease' } })),
+          ),
+        );
+      }),
+    ),
+  );
+}
+
+// ═══ ЭКРАН: РИСКИ (профиль по 5 измерениям) ═══
+function RiskScreen({ ranking }) {
+  const m = useIsMobile();
+  const dims = [['Демогр.', 'demographicRisk'], ['Ликвид.', 'liquidityRisk'], ['Конкур.', 'competitionRisk'], ['Доступн.', 'affordabilityRisk'], ['Навес', 'supplyOverhang']];
+  const rows = ranking.cities
+    .filter(c => c.riskProfile)
+    .slice()
+    .sort((a, b) => a.riskProfile.overallRisk - b.riskProfile.overallRisk);
+  return React.createElement('div', null,
+    React.createElement(ScreenHero, {
+      eyebrow: 'Анализ рисков',
+      title: 'Профиль ', titleAccent: 'риска',
+      subtitle: 'От наименее рискованного к наиболее — по 5 измерениям: демография, ликвидность, конкуренция, доступность, навес предложения.',
+    }),
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+      ...rows.map((c) => {
+        const rp = c.riskProfile;
+        const o = rp.overallRisk;
+        const col = o <= 33 ? T.green : o <= 50 ? T.yellow : T.red;
+        return React.createElement('div', {
+          key: c.key,
+          style: {
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: `3px solid ${col}`,
+            borderRadius: 18, padding: m ? '16px 18px' : '20px 26px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06),0 16px 48px -24px rgba(0,0,0,0.8)',
+          },
+        },
+          React.createElement('div', { style: { display: 'flex', alignItems: m ? 'flex-start' : 'center', gap: m ? 14 : 24, flexDirection: m ? 'column' : 'row' } },
+            React.createElement('div', { style: { width: m ? 'auto' : 170, flexShrink: 0 } },
+              React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: 19, color: '#F3F1EC', marginBottom: 6 } }, c.name),
+              React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6 } },
+                React.createElement('span', { style: { fontSize: 30, fontWeight: 600, color: col, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: 1, textShadow: `0 0 20px ${col}44` } }, o),
+                React.createElement('span', { style: { fontSize: 9, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' } }, '/ 100')),
+            ),
+            React.createElement('div', { style: { flex: 1, display: 'grid', gridTemplateColumns: m ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: m ? 12 : 16, width: m ? '100%' : 'auto' } },
+              ...dims.map(([l, k], j) => {
+                const v = rp[k];
+                const bc = v <= 33 ? T.green : v <= 55 ? T.yellow : T.red;
+                return React.createElement('div', { key: j },
+                  React.createElement('div', { style: { fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 7 } }, l),
+                  React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                    React.createElement('div', { style: { flex: 1, height: 4, borderRadius: 2, background: '#161A22', overflow: 'hidden' } },
+                      React.createElement('div', { style: { height: '100%', borderRadius: 2, background: bc, width: `${v}%`, transition: 'width 1.1s ease' } })),
+                    React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: bc, fontVariantNumeric: 'tabular-nums', minWidth: 20, textAlign: 'right' } }, v)),
+                );
+              }),
+            ),
+            rp.hardBlockers && rp.hardBlockers.length > 0 && React.createElement('div', {
+              style: { width: m ? '100%' : 180, flexShrink: 0, paddingLeft: m ? 0 : 20, borderLeft: m ? 'none' : '1px solid rgba(255,255,255,0.07)', paddingTop: m ? 10 : 0, borderTop: m ? '1px solid rgba(255,255,255,0.07)' : 'none' },
+            },
+              React.createElement('div', { style: { fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.red, marginBottom: 7 } }, 'Блокеры'),
+              React.createElement('div', { style: { fontSize: 11, color: '#9A9CA6', lineHeight: 1.65 } }, rp.hardBlockers.join(' · ')),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
+}
+
+// ── Финмодель: построитель инпутов (зеркало FinanceScreen) ──
+function buildFinanceInputs(city, currentKS) {
+  const price = city ? city.inputs.housing.businessClassPricePerM2 : 250_000;
+  const cityKey = city ? Object.keys(RUSSIA_MILLION_CITIES ?? {}).find(k => RUSSIA_MILLION_CITIES[k]?.inputs === city.inputs) : null;
+  const minstroiNorm = cityKey ? (MINSTROI_NORMATIVE_2025[cityKey] ?? 80_000) : 80_000;
+  const sellableRatioDefault = 0.78;
+  const constCost = Math.round(minstroiNorm * BUSINESS_CLASS_CONSTRUCTION_PREMIUM / sellableRatioDefault / 1000) * 1000;
+  const landPct = (city?.finance?.landRevenuePct ?? 11) / 100;
+  const sellableM2 = 2.5 * 20_000 * sellableRatioDefault;
+  const landBudget = Math.round(sellableM2 * price * landPct / 50_000_000) * 50_000_000;
+  const infraPerM2 = city?.finance?.infraCostPerTotalM2 ?? 7_000;
+  const infraCostDefault = Math.round(2.5 * 20_000 * infraPerM2 / 50_000_000) * 50_000_000;
+  return {
+    landAreaHa: 2.5, allowedDensityM2PerHa: 20_000, sellableRatio: sellableRatioDefault,
+    averageUnitSizeM2: city?.finance?.avgUnitSizeM2 ?? 62, housingClass: 'business',
+    basePricePerM2: price, landCost: Math.max(300_000_000, landBudget),
+    constructionCostPerM2: constCost, infrastructureCost: infraCostDefault,
+    marketingShare: 0.035, constructionMonths: 32,
+    discountRateAnnual: Math.round((currentKS + 7.5) * 2) / 2,
+    salesVelocityM2PerMonth: city ? Math.min(2_500, Math.max(300, Math.round(city.inputs.housing.monthlySalesM2 * 0.018))) : 1_200,
+    salesStartMonth: 4, financing: getDefaultFinancingParams(currentKS),
+    corpTaxRatePct: 25, annualPriceGrowthPct: 8, annualCostInflationPct: 7,
+    workingCapitalPct: 1.0, opexPctOfConstructionAnnual: 0.8, dduCancellationRatePct: 7,
+    propertyTaxPct: 2.2, seasonalityEnabled: true, projectStartCalendarMonth: 3,
+  };
+}
+
+// ── Компактный SVG-график потоков (редакционный стиль) ──
+function FinAreaChart({ series, count, ymax, yfmt, xLabels, uid }) {
+  const E = React.createElement;
+  const W = 560, H = 226, L = 60, Rp = 14, Tp = 12, Bp = 32, base = H - Bp;
+  const px = (i) => L + (count < 2 ? 0 : i / (count - 1)) * (W - L - Rp);
+  const py = (v) => base - (Math.max(0, v) / (ymax || 1)) * (H - Tp - Bp);
+  const els = [];
+  [ymax * 0.33, ymax * 0.66, ymax].forEach((v, i) => {
+    els.push(E('line', { key: 'gy' + i, x1: L, y1: py(v), x2: W - Rp, y2: py(v), stroke: 'rgba(255,255,255,0.04)', strokeWidth: 1 }));
+    els.push(E('text', { key: 'ty' + i, x: L - 8, y: py(v) + 4, textAnchor: 'end', fontSize: 10, fill: '#6B6E7C', fontFamily: 'Inter' }, yfmt(v)));
+  });
+  xLabels.forEach((t, i) => els.push(E('text', { key: 'tx' + i, x: px(t.i), y: base + 18, textAnchor: 'middle', fontSize: 10, fill: '#6B6E7C', fontFamily: 'Inter' }, t.l)));
+  els.push(E('defs', { key: 'd' }, ...series.map((s, si) => E('linearGradient', { key: si, id: uid + si, x1: '0', y1: '0', x2: '0', y2: '1' },
+    E('stop', { offset: '0%', stopColor: s.color, stopOpacity: 0.32 }), E('stop', { offset: '95%', stopColor: s.color, stopOpacity: 0 })))));
+  series.forEach((s, si) => {
+    const linePts = s.data.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+    if (!s.lineOnly) {
+      const areaPts = `${px(0).toFixed(1)},${base} ` + linePts + ` ${px(s.data.length - 1).toFixed(1)},${base}`;
+      els.push(E('polygon', { key: 'a' + si, points: areaPts, fill: `url(#${uid}${si})` }));
+    }
+    els.push(E('polyline', { key: 'l' + si, points: linePts, fill: 'none', stroke: s.color, strokeWidth: s.lw || 2, strokeLinejoin: 'round', strokeLinecap: 'round' }));
+  });
+  return E('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 'auto', display: 'block', overflow: 'visible' } }, els);
+}
+
+// ═══ ЭКРАН: ФИНМОДЕЛЬ (живой движок, выбор города) ═══
+function FinanceOverviewScreen({ ranking, onGotoFull }) {
+  const m = useIsMobile();
+  const [cityKey, setCityKey] = useState(ranking.cities[0]?.key);
+  const [scn, setScn] = useState('base');
+  const city = ranking.cities.find(c => c.key === cityKey) || ranking.cities[0];
+  const currentKS = (macroCbrRaw?.keyRate?.currentPct) ?? 14.25;
+  const model = useMemo(() => {
+    const inputs = buildFinanceInputs(city, currentKS);
+    const ctx = { cityScore: city.cityScore, districtScore: 65, siteScore: 70, redRiskCount: 0, confidenceScore: 80 };
+    return runFinancialModel(inputs, { successProbContext: ctx });
+  }, [city, currentKS]);
+  const cur = model.scenarios[scn];
+
+  const fmtBn = (v) => (v >= 0 ? '+' : '−') + (Math.abs(v) / 1e9).toFixed(2).replace('.', ',') + ' млрд';
+  const irrColor = cur.irr == null ? T.red : cur.irr >= 25 ? T.green : cur.irr >= 15 ? T.yellow : T.red;
+  const dscrColor = cur.dscr == null ? T.textSub : cur.dscr >= 1.2 ? T.green : cur.dscr >= 1 ? T.yellow : T.red;
+  const kpis = [
+    { label: 'NPV', value: fmtBn(cur.npv), color: cur.npv >= 0 ? T.green : T.red, sub: 'чистая стоимость', glow: `0 0 26px ${(cur.npv >= 0 ? T.green : T.red)}55` },
+    { label: 'IRR', value: cur.irr == null ? 'н/д' : fmtPct(cur.irr, 1), color: irrColor, sub: 'доходность проекта', glow: `0 0 22px ${irrColor}44` },
+    { label: 'ROE', value: fmtPct(cur.roe, 0), color: cur.roe >= 0 ? T.text : T.red, sub: 'рентаб. капитала' },
+    { label: 'Валовая маржа', value: fmtPct(cur.grossMargin, 1), color: T.gold, sub: `чист.: ${fmtPct(cur.netMargin, 1)}`, glow: '0 0 18px rgba(201,169,110,0.4)' },
+    { label: 'Выручка', value: (cur.revenue.totalRevenue / 1e9).toFixed(2).replace('.', ',') + ' млрд', color: T.text, sub: `${cur.totalProjectMonths ?? ''} мес` },
+    { label: 'DSCR', value: cur.dscr == null ? '—' : cur.dscr.toFixed(2).replace('.', ','), color: dscrColor, sub: 'покрытие долга' },
+  ];
+
+  const mcf = cur.monthlyCashFlow;
+  const n = mcf.length;
+  let racc = 0, sacc = 0;
+  const revCum = [], spendCum = [], pfBal = [], revMon = [], spendMon = [], salesM2 = [];
+  mcf.forEach(f => { racc += f.revenue; sacc += f.totalSpend; revCum.push(racc); spendCum.push(sacc); pfBal.push(f.pfBalanceEnd); revMon.push(f.revenue); spendMon.push(f.totalSpend); salesM2.push(f.m2Sold); });
+  const xLabels = [0, Math.round((n - 1) * 0.33), Math.round((n - 1) * 0.66), n - 1].map(i => ({ i, l: (mcf[i]?.month ?? i) + 'м' }));
+  const cumMax = Math.max(...revCum, ...spendCum, 1) * 1.05;
+  const maxSales = Math.max(...salesM2, 1);
+  const monMax = Math.max(...spendMon, ...revMon, 1) * 1.05;
+  const salesScaled = salesM2.map(v => v / maxSales * monMax * 0.55);
+
+  const capex = cur.capex;
+  const capexItems = [['Строительство', capex.construction, '#5B74E8'], ['Земля', capex.land, '#9B5BD6'], ['Маркетинг', capex.marketing, '#FF5BD6'], ['Инфраструктура', capex.infrastructure, '#5BBF8A'], ['Сделки', capex.transactions, T.gold]];
+  const sensTable = (model.sensitivity || []).find(t => t.variable === 'pricePerM2');
+  const sensCells = sensTable ? sensTable.cells : [];
+  const sensMax = Math.max(...sensCells.map(c => Math.abs(c.npv)), 1);
+
+  const chartCard = (eyebrow, title, legend, chart) => React.createElement('div', {
+    style: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 22, padding: m ? '20px' : '26px 28px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07),0 28px 64px -36px rgba(0,0,0,0.9)' } },
+    React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gold, marginBottom: 7, fontWeight: 500 } }, eyebrow),
+    React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#F3F1EC', marginBottom: 12 } }, title),
+    React.createElement('div', { style: { display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 8 } },
+      ...legend.map(([lab, col], i) => React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: T.textSub } },
+        React.createElement('span', { style: { width: 20, height: 2.5, borderRadius: 2, background: col, display: 'block' } }), lab))),
+    chart,
+  );
+
+  return React.createElement('div', null,
+    React.createElement('section', { className: 'lp-fadeup', style: { paddingTop: m ? 6 : 16, marginBottom: m ? 22 : 32 } },
+      React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.3em', textTransform: 'uppercase', color: T.gold, marginBottom: 16, fontWeight: 500 } }, 'Финансовая модель'),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 18 } },
+        React.createElement('div', null,
+          React.createElement('h1', { style: { fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, fontSize: m ? 32 : 46, lineHeight: 1.03, letterSpacing: '-0.01em', color: '#F3F1EC', marginBottom: 8 } },
+            'Камерный проект · ', React.createElement('span', { style: { fontStyle: 'italic', color: T.goldBright } }, city.name)),
+          React.createElement('p', { style: { fontSize: 14, color: '#9A9CA6', fontWeight: 300 } }, 'Бизнес-класс · 2,5 га · проектное финансирование · живой расчёт'),
+        ),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+          React.createElement('select', {
+            value: cityKey, onChange: e => setCityKey(e.target.value),
+            style: { background: T.surface, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: T.text, fontSize: 13, padding: '8px 12px', fontFamily: 'Inter, sans-serif', cursor: 'pointer' },
+          }, ...ranking.cities.map(c => React.createElement('option', { key: c.key, value: c.key }, c.name))),
+          React.createElement('div', { style: { display: 'flex', gap: 8 } },
+            ...[['base', 'Базовый'], ['optimistic', 'Оптимист.'], ['stress', 'Стресс']].map(([k, l]) =>
+              React.createElement('div', {
+                key: k, onClick: () => setScn(k),
+                style: { padding: '8px 16px', borderRadius: 999, fontSize: 12, fontWeight: k === scn ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap', background: k === scn ? 'rgba(201,169,110,0.14)' : 'rgba(255,255,255,0.04)', color: k === scn ? T.gold : T.textSub, border: `1px solid ${k === scn ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.07)'}` },
+              }, l)),
+          ),
+        ),
+      ),
+    ),
+
+    // KPI row
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? 'repeat(2,1fr)' : 'repeat(6,1fr)', gap: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 20, overflow: 'hidden', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10),0 34px 80px -40px rgba(0,0,0,0.9)', marginBottom: 22 } },
+      ...kpis.map((k, i) => React.createElement('div', { key: i, style: { background: 'rgba(15,17,23,0.5)', padding: m ? '18px 16px' : '22px 20px' } },
+        React.createElement('div', { style: { fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 10 } }, k.label),
+        React.createElement('div', { style: { fontSize: m ? 22 : 26, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', color: k.color, textShadow: k.glow || 'none' } }, k.value),
+        React.createElement('div', { style: { fontSize: 10, color: T.textMuted, marginTop: 6 } }, k.sub),
+      )),
+    ),
+
+    // Charts
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 22 } },
+      chartCard('Накопленные потоки', 'Выручка · Затраты · ПФ баланс', [['Выручка', '#5B74E8'], ['Затраты', '#9B5BD6'], ['ПФ', '#FF5BD6']],
+        React.createElement(FinAreaChart, { uid: 'cum', count: n, ymax: cumMax, yfmt: v => (v / 1e9).toFixed(1).replace('.', ','), xLabels, series: [{ data: revCum, color: '#5B74E8', lw: 2.2 }, { data: spendCum, color: '#9B5BD6', lw: 2 }, { data: pfBal, color: '#FF5BD6', lw: 1.8, lineOnly: true }] })),
+      chartCard('Месячные потоки', 'Расходы · Поступления · Продажи', [['Расходы', '#5B74E8'], ['Поступления', '#9B5BD6'], ['Продажи м²', '#FF5BD6']],
+        React.createElement(FinAreaChart, { uid: 'mon', count: n, ymax: monMax, yfmt: v => Math.round(v / 1e6) + 'М', xLabels, series: [{ data: spendMon, color: '#5B74E8', lw: 2.2 }, { data: revMon, color: '#9B5BD6', lw: 2 }, { data: salesScaled, color: '#FF5BD6', lw: 1.8, lineOnly: true }] })),
+    ),
+
+    // CAPEX + Sensitivity
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: m ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 24 } },
+      React.createElement('div', { style: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 22, padding: m ? 20 : '26px 28px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)' } },
+        React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gold, marginBottom: 7, fontWeight: 500 } }, 'Структура CAPEX'),
+        React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#F3F1EC', marginBottom: 24 } }, `${(capex.total / 1e9).toFixed(2).replace('.', ',')} млрд руб.`),
+        ...capexItems.map(([l, val, c], i) => {
+          const pct = capex.total ? val / capex.total * 100 : 0;
+          return React.createElement('div', { key: i, style: { marginBottom: 18 } },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 } },
+              React.createElement('span', { style: { fontSize: 13, color: '#9A9CA6' } }, l),
+              React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
+                React.createElement('span', { style: { fontSize: 11, color: T.textMuted } }, `${(val / 1e9).toFixed(2).replace('.', ',')} млрд`),
+                React.createElement('span', { style: { fontSize: 14, fontWeight: 600, color: c } }, `${pct.toFixed(1).replace('.', ',')}%`))),
+            React.createElement('div', { style: { height: 5, borderRadius: 3, background: '#161A22', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', borderRadius: 3, background: c, width: `${pct}%`, boxShadow: `0 0 10px ${c}`, transition: 'width 1.2s cubic-bezier(.2,.7,.2,1)' } })),
+          );
+        }),
+      ),
+      React.createElement('div', { style: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 22, padding: m ? 20 : '26px 28px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)' } },
+        React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gold, marginBottom: 7, fontWeight: 500 } }, 'Чувствительность NPV'),
+        React.createElement('div', { style: { fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#F3F1EC', marginBottom: 24 } }, 'Δ цена/м² → ΔNPV'),
+        ...sensCells.map((c, i) => React.createElement('div', { key: i, style: { marginBottom: 14, display: 'grid', gridTemplateColumns: '46px 1fr 42px', alignItems: 'center', gap: 10 } },
+          React.createElement('div', { style: { textAlign: 'right', fontSize: 11, color: c.delta === 0 ? T.gold : T.textSub, fontVariantNumeric: 'tabular-nums' } }, `${c.delta > 0 ? '+' : ''}${(c.delta * 100).toFixed(0)}%`),
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            React.createElement('div', { style: { flex: 1, height: 6, borderRadius: 3, background: '#161A22', overflow: 'hidden' } },
+              React.createElement('div', { style: { height: '100%', borderRadius: 3, background: c.npv >= 0 ? T.green : T.red, width: `${(Math.abs(c.npv) / sensMax * 100).toFixed(1)}%`, boxShadow: `0 0 10px ${c.npv >= 0 ? T.green : T.red}`, transition: 'width 1s ease' } })),
+            React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: c.npv >= 0 ? T.green : T.red, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } }, `${c.npv >= 0 ? '+' : '−'}${(Math.abs(c.npv) / 1e9).toFixed(2).replace('.', ',')}`)),
+          React.createElement('div', { style: { textAlign: 'right', fontSize: 11, color: T.textSub, fontVariantNumeric: 'tabular-nums' } }, c.irr == null ? '—' : `${c.irr.toFixed(0)}%`),
+        )),
+      ),
+    ),
+
+    React.createElement('div', {
+      onClick: () => onGotoFull(city.key),
+      style: { textAlign: 'center', padding: 14, borderRadius: 12, background: T.gold, color: '#0B0D12', fontSize: 14, fontWeight: 600, cursor: 'pointer', boxShadow: '0 12px 30px -10px rgba(201,169,110,0.55)', marginBottom: 20 },
+    }, 'Открыть полную финмодель (Monte Carlo, реальные опционы, чувствительность) →'),
+  );
+}
+
 function MainScreen({ ranking, onCityClick }) {
   const [zoneFilter,    setZoneFilter]    = useState('all');
   const [minScore,      setMinScore]      = useState(0);
@@ -5677,6 +5998,18 @@ function App() {
     });
   } else if (screen.name === 'news') {
     content = React.createElement(NewsScreen, { onBack: () => setScreen({ name: 'main' }) });
+  } else if (screen.name === 'cities') {
+    content = React.createElement(CitiesScreen, {
+      ranking,
+      onCityClick: (key) => setScreen({ name: 'city', cityKey: key }),
+    });
+  } else if (screen.name === 'risk') {
+    content = React.createElement(RiskScreen, { ranking });
+  } else if (screen.name === 'finoverview') {
+    content = React.createElement(FinanceOverviewScreen, {
+      ranking,
+      onGotoFull: (key) => setScreen({ name: 'finance', cityKey: key }),
+    });
   }
 
   return React.createElement(
@@ -5808,6 +6141,32 @@ function App() {
             }, ranking.macroSnapshot.asOfDate),
           ),
         ),
+      ),
+    ),
+
+    // ── Навигация по разделам (табы) ──────────────────────────
+    React.createElement('div', {
+      style: {
+        position: 'sticky', top: 58, zIndex: 90,
+        background: 'rgba(10,11,15,0.82)', backdropFilter: 'blur(16px) saturate(160%)', WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+        borderBottom: `1px solid ${T.border}`,
+      },
+    },
+      React.createElement('div', {
+        style: { maxWidth: 1280, margin: '0 auto', padding: m ? '0 16px' : '0 36px', display: 'flex', gap: m ? 20 : 30, overflowX: 'auto' },
+      },
+        ...[['main', 'Рейтинг рынков', ['main', 'city', 'district', 'site']], ['cities', 'Города', ['cities']], ['finoverview', 'Финмодель', ['finoverview', 'finance']], ['risk', 'Риски', ['risk']]].map(([nm, label, match]) => {
+          const active = match.includes(screen.name);
+          return React.createElement('span', {
+            key: nm,
+            onClick: () => setScreen({ name: nm }),
+            style: {
+              cursor: 'pointer', whiteSpace: 'nowrap', padding: '13px 0', fontSize: 13,
+              fontWeight: active ? 500 : 400, color: active ? T.text : T.textSub,
+              borderBottom: `2px solid ${active ? T.gold : 'transparent'}`, transition: 'color .15s,border-color .15s',
+            },
+          }, label);
+        }),
       ),
     ),
 
