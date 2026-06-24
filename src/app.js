@@ -4441,7 +4441,7 @@ function MonteCarloPanel({ mc }) {
     style: { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '18px 20px' },
   },
     React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 } },
-      React.createElement('div', { style: { fontSize: 12, fontWeight: 600, color: T.textSub, letterSpacing: '0.06em' } }, 'MONTE CARLO · 500 ИТЕРАЦИЙ'),
+      React.createElement('div', { style: { fontSize: 12, fontWeight: 600, color: T.textSub, letterSpacing: '0.06em' } }, 'MONTE CARLO · 10000 ИТЕРАЦИЙ'),
       React.createElement('div', { style: { fontSize: 11, color: T.textMuted } }, `Медиана IRR: ${mc.medianIrrPct.toFixed(1)}% | P10–P90: ${mc.p10IrrPct.toFixed(1)}%–${mc.p90IrrPct.toFixed(1)}%`),
     ),
     React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
