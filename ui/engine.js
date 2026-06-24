@@ -1838,8 +1838,8 @@ var RUSSIA_MILLION_CITIES = {
       housing: {
         dealsGrowthYoY: 0,
         // Коммерсант: ДДУ апрель 2026 — стабилизация 0% YoY
-        priceGrowthYoY: 13,
-        // МИР КВАРТИР: +2.2% QoQ Q1; ZSRF >+2%/мес май
+        priceGrowthYoY: 20,
+        // МИР КВАРТИР: актуализовано +2.5% QoQ; рост ускорился май-июнь 2026
         monthsOfSupply: 10,
         businessClassPricePerM2: 238e3,
         // +2.2% QoQ × 2 от 228k

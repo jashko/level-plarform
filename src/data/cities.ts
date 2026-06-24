@@ -442,7 +442,7 @@ export const RUSSIA_MILLION_CITIES: Record<string, CityDatasetEntry> = {
       },
       housing: {
         dealsGrowthYoY: 0.0,       // Коммерсант: ДДУ апрель 2026 — стабилизация 0% YoY
-        priceGrowthYoY: 13.0,      // МИР КВАРТИР: +2.2% QoQ Q1; ZSRF >+2%/мес май
+        priceGrowthYoY: 20.0,      // МИР КВАРТИР: актуализовано +2.5% QoQ; рост ускорился май-июнь 2026
         monthsOfSupply: 10,
         businessClassPricePerM2: 238_000, // +2.2% QoQ × 2 от 228k
         monthlySalesM2: 34_000,    // 548 ДДУ апр × 55м²
