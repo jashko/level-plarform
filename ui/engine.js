@@ -417,7 +417,7 @@ function correlatedNormals() {
   const zPfRate = -0.2 * u1 + 0.16773 * u2 - 0.17571 * u3 + 0.94923 * u4;
   return [zPrice, zCost, zVelocity, zPfRate];
 }
-function runMonteCarlo(runner, inputs, iterations = 500) {
+function runMonteCarlo(runner, inputs, iterations = 1e4) {
   const irrs = [];
   const npvs = [];
   for (let i = 0; i < iterations; i++) {

@@ -209,7 +209,7 @@ function correlatedNormals(): [number, number, number, number] {
 export function runMonteCarlo(
   runner: ScenarioRunner,
   inputs: ProjectInputs,
-  iterations = 500,
+  iterations = 10000,
 ): MonteCarloResult {
   const irrs: number[] = [];
   const npvs: number[] = [];
